@@ -1,0 +1,59 @@
+package com.sba301.cinemaai.entity;
+
+import com.sba301.cinemaai.enums.CinemaStatus;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+@Getter
+@Entity
+@Table(name = "cinemas")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class Cinema extends BaseEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String name;
+
+    @Column(nullable = false, length = 500)
+    private String address;
+
+    @Column(length = 100)
+    private String city;
+
+    @Column(length = 20)
+    private String phone;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private CinemaStatus status = CinemaStatus.ACTIVE;
+
+    public Cinema(String name, String address, String city, String phone) {
+        this.name = name;
+        this.address = address;
+        this.city = city;
+        this.phone = phone;
+    }
+
+    public void updateInfo(String name, String address, String city, String phone) {
+        this.name = name;
+        this.address = address;
+        this.city = city;
+        this.phone = phone;
+    }
+
+    public void changeStatus(CinemaStatus status) {
+        this.status = status;
+    }
+}
