@@ -17,4 +17,6 @@ public interface ShowtimeRepository extends JpaRepository<Showtime, Long> {
     List<Showtime> findByStatus(ShowtimeStatus status);
 
     List<Showtime> findByStartTimeBetween(LocalDateTime from, LocalDateTime to);
+
+    boolean existsByRoomAndMovieAndStartTime(Room room, Movie movie, LocalDateTime startTime);
 }

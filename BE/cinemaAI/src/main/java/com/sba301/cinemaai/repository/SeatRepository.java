@@ -11,4 +11,6 @@ public interface SeatRepository extends JpaRepository<Seat, Long> {
     List<Seat> findByRoom(Room room);
 
     Optional<Seat> findByRoomAndRowLabelAndSeatNumber(Room room, String rowLabel, int seatNumber);
+
+    boolean existsByRoomAndRowLabelAndSeatNumber(Room room, String rowLabel, int seatNumber);
 }

@@ -37,6 +37,7 @@ Mô tả nhiệm vụ:
 Status:
 - Hoàn thành.
 - Progress: 100%.
+- Hoàn thành code-first schema foundation.
 
 Đã hoàn thành:
 - MVC package structure.
@@ -90,8 +91,17 @@ Mô tả nhiệm vụ:
 - Đây là nền tảng dữ liệu cho tất cả module nghiệp vụ phía sau.
 
 Status:
-- Chuyển hướng sang code-first.
-- Progress: 45%.
+- Hoàn thành code-first schema foundation.
+- Progress: 100%.
+
+Update Phase 1 code-first:
+- Added entities/enums/repositories for all current schema foundation modules: AI analysis, booking/F&B/QR, payment, promotion, wishlist, loyalty, notification, review, staff/audit, uploaded files.
+- Added Java seed runner for base roles and genres in non-test profiles.
+- Extended Java seed runner with sample movies, movie genres, cinema, room, generated seats, and future showtimes for dev API testing.
+- Reviewed initial schema constraints and changed booking seat uniqueness to a status-aware index so cancelled/released seats can be booked again later.
+- Created official SQL Server baseline migration: `src/main/resources/db/migration/V1__baseline_schema.sql`.
+- Reviewed production indexes/constraints for current Entity model.
+- Verified with `mvn test`.
 
 Đã hoàn thành:
 - Đã archive migration nháp sang `src/main/resources/db/migration_disabled`.
@@ -105,11 +115,8 @@ Status:
 - Đã bỏ Flyway dependency khỏi `pom.xml` trong giai đoạn code-first.
 
 Còn thiếu:
-- Hoàn thiện Entity cho tất cả module để Hibernate sinh schema.
-- Seed data bằng Java runner hoặc SQL sau khi chốt schema.
-- Sau khi model ổn định, tạo lại Flyway migration chính thức.
-- Index migration đầy đủ cho production.
-- Constraint review cho production.
+- Không còn hạng mục Phase 1 bắt buộc.
+- Khi các phase nghiệp vụ thay đổi model, tạo migration bổ sung thay vì sửa baseline đã chốt.
 
 ==================================================
 
@@ -123,7 +130,7 @@ Mô tả nhiệm vụ:
 
 Status:
 - Đang làm.
-- Progress: 35%.
+- Progress: 100%.
 
 Đã hoàn thành:
 - `User`
@@ -141,6 +148,27 @@ Status:
 - `PasswordResetTokenRepository`
 - `EmailVerificationTokenRepository`
 - `PasswordEncoder`
+- Auth DTOs.
+- User DTOs.
+- `AuthService`
+- `UserService`
+- `RefreshTokenService`
+- `PasswordResetService`
+- `EmailVerificationService`
+- `CustomUserDetailsService`
+- `AuthController`
+- `UserController`
+- `AdminUserController`
+- Register API.
+- Login API.
+- Refresh token API.
+- Logout API.
+- Current user API.
+- Email verification API.
+- Password reset request/confirm APIs.
+- Role-based authorization for public, authenticated, and admin routes.
+- Auth integration test for register -> verify email -> login -> current user -> refresh -> logout.
+- H2-backed test profile for integration tests.
 
 Còn thiếu:
 - Auth DTOs.
@@ -163,6 +191,8 @@ Còn thiếu:
 - Current user API.
 - Role-based authorization hoàn chỉnh.
 - Auth integration tests.
+- Phase 2 close-out: Không còn hạng mục Phase 2 bắt buộc.
+- Email/password reset hiện trả token phục vụ dev; Phase 11 sẽ nối mail provider thật.
 
 ==================================================
 
@@ -481,8 +511,8 @@ CURRENT SUMMARY
 
 ```text
 Phase 0 - Shared Foundation: 100%
-Phase 1 - Database Code-first/Schema: 25%
-Phase 2 - Auth/User/Security: 35%
+Phase 1 - Database Code-first/Schema: 100%
+Phase 2 - Auth/User/Security: 100%
 Phase 3 - Movie/Genre: 10%
 Phase 4 - AI Analysis: 0%
 Phase 5 - Cinema/Room/Seat/Showtime: 10%
@@ -496,8 +526,8 @@ Phase 12 - Integration & QA: 0%
 ```
 
 Next recommended phase:
-- Hoàn thiện Phase 2 - Auth, User & Security.
-- Thứ tự nên làm tiếp: DTO -> CustomUserDetailsService -> AuthService -> AuthController -> tests.
+- Hoàn thiện Phase 3 - Movie & Genre.
+- Thứ tự nên làm tiếp: DTO -> mapper -> service -> public/admin controllers -> tests.
 
 ==================================================
 TEAM SPLIT
