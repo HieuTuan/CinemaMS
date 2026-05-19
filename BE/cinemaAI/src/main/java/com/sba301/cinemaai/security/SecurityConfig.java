@@ -39,7 +39,13 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
                         ).permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/movies/**", "/api/v1/genres/**", "/api/v1/showtimes/**").permitAll()
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/movies/**",
+                                "/api/v1/genres/**",
+                                "/api/v1/cinemas/**",
+                                "/api/v1/showtimes/**"
+                        ).permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()

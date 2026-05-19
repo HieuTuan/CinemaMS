@@ -205,13 +205,11 @@ Mô tả nhiệm vụ:
 - Đây là dữ liệu đầu vào chính cho AI analysis, showtime và booking.
 
 Status:
-- Mới có migration, chưa làm code Java MVC.
-- Progress: 10%.
+- Hoàn thành.
+- Progress: 100%.
 
 Đã hoàn thành:
 - Movie/genre migration trong `V2__movie_catalog.sql`.
-
-Còn thiếu:
 - `Movie`
 - `Genre`
 - `MovieGenre`
@@ -226,8 +224,11 @@ Còn thiếu:
 - genre CRUD APIs.
 - tests.
 
-==================================================
+Còn thiếu:
+- Phase 3 close-out: Không còn hạng mục Phase 3 bắt buộc.
+- Search keyword tạm thời match title/director/language để tránh lower() trên CLOB khi chạy H2/MSSQL mode.
 
+==================================================
 PHASE 4 - AI MOVIE ANALYSIS
 
 Mô tả nhiệm vụ:
@@ -237,10 +238,10 @@ Mô tả nhiệm vụ:
 - Admin có thể yêu cầu phân tích, xem kết quả, duyệt hoặc từ chối trước khi công khai cho khách.
 
 Status:
-- Chưa làm.
-- Progress: 0%.
+- Hoàn thành mock-first.
+- Progress: 100%.
 
-Cần làm:
+Đã hoàn thành:
 - `AIAnalysis`
 - `AIEmotionSegment`
 - AI enums.
@@ -260,8 +261,11 @@ Cần làm:
 - public approved analysis API.
 - tests.
 
-==================================================
+Còn thiếu:
+- Phase 4 close-out: Không còn hạng mục Phase 4 bắt buộc.
+- OpenAI/Gemini provider hiện là placeholder; Phase 11 hoặc phase tích hợp AI thật sẽ bật provider thật và parser JSON thật.
 
+==================================================
 PHASE 5 - CINEMA, ROOM, SEAT & SHOWTIME
 
 Mô tả nhiệm vụ:
@@ -271,13 +275,11 @@ Mô tả nhiệm vụ:
 - Đây là nền tảng trực tiếp cho luồng chọn suất và chọn ghế khi đặt vé.
 
 Status:
-- Mới có migration, chưa làm code Java MVC.
-- Progress: 10%.
+- Hoàn thành.
+- Progress: 100%.
 
 Đã hoàn thành:
 - Cinema/room/seat/showtime migration trong `V3__cinema_showtime.sql`.
-
-Còn thiếu:
 - `Cinema`
 - `Room`
 - `Seat`
@@ -293,8 +295,11 @@ Còn thiếu:
 - showtime seat map API.
 - tests.
 
-==================================================
+Còn thiếu:
+- Phase 5 close-out: Không còn hạng mục Phase 5 bắt buộc.
+- Seat map hiện đọc runtime từ `BookingSeat`; Phase 6 sẽ bổ sung giữ ghế/thanh toán để runtime status có dữ liệu thực tế.
 
+==================================================
 PHASE 6 - BOOKING, SEAT LOCKING, F&B & TICKET QR
 
 Mô tả nhiệm vụ:
@@ -513,9 +518,9 @@ CURRENT SUMMARY
 Phase 0 - Shared Foundation: 100%
 Phase 1 - Database Code-first/Schema: 100%
 Phase 2 - Auth/User/Security: 100%
-Phase 3 - Movie/Genre: 10%
-Phase 4 - AI Analysis: 0%
-Phase 5 - Cinema/Room/Seat/Showtime: 10%
+Phase 3 - Movie/Genre: 100%
+Phase 4 - AI Analysis: 100%
+Phase 5 - Cinema/Room/Seat/Showtime: 100%
 Phase 6 - Booking/F&B/QR: 0%
 Phase 7 - Payment: 0%
 Phase 8 - Promotion/Wishlist/Loyalty/Notification: 0%
@@ -526,9 +531,8 @@ Phase 12 - Integration & QA: 0%
 ```
 
 Next recommended phase:
-- Hoàn thiện Phase 3 - Movie & Genre.
-- Thứ tự nên làm tiếp: DTO -> mapper -> service -> public/admin controllers -> tests.
-
+- Hoàn thiện Phase 6 - Booking, Seat Locking, F&B & Ticket QR.
+- Thứ tự nên làm tiếp: hold seat -> booking service -> QR/check-in -> food add-on -> integration tests.
 ==================================================
 TEAM SPLIT
 ==================================================

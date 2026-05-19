@@ -11,5 +11,9 @@ public interface AIAnalysisRepository extends JpaRepository<AIAnalysis, Long> {
 
     List<AIAnalysis> findByMovie(Movie movie);
 
+    List<AIAnalysis> findByMovieOrderByCreatedAtDesc(Movie movie);
+
     Optional<AIAnalysis> findFirstByMovieAndStatusOrderByCreatedAtDesc(Movie movie, AIAnalysisStatus status);
+
+    Optional<AIAnalysis> findFirstByMovieAndStatusOrderByApprovedAtDesc(Movie movie, AIAnalysisStatus status);
 }

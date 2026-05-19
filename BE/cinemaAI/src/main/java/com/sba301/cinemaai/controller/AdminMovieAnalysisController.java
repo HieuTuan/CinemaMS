@@ -1,0 +1,65 @@
+package com.sba301.cinemaai.controller;
+
+import com.sba301.cinemaai.dto.analysis.AIAnalysisDecisionRequest;
+import com.sba301.cinemaai.dto.analysis.AIAnalysisResponse;
+import com.sba301.cinemaai.dto.response.ApiResponse;
+import com.sba301.cinemaai.security.AuthenticatedUser;
+import com.sba301.cinemaai.service.AIAnalysisService;
+import jakarta.validation.Valid;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/v1/admin")
+@RequiredArgsConstructor
+public class AdminMovieAnalysisController {
+
+    private final AIAnalysisService analysisService;
+
+    @PostMapping("/movies/{movieId}/analyses")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<AIAnalysisResponse> requestAnalysis(@PathVariable Long movieId) {
+        return ApiResponse.success(analysisService.requestAnalysis(movieId), "Analysis completed successfully");
+    }
+
+    @GetMapping("/movies/{movieId}/analyses")
+    public ApiResponse<List<AIAnalysisResponse>> getMovieAnalyses(@PathVariable Long movieId) {
+        return ApiResponse.success(analysisService.getMovieAnalyses(movieId));
+    }
+
+    @GetMapping("/analyses/{analysisId}")
+    public ApiResponse<AIAnalysisResponse> getAnalysis(@PathVariable Long analysisId) {
+        return ApiResponse.success(analysisService.getAdmin(analysisId));
+    }
+
+    @PostMapping("/analyses/{analysisId}/regenerate")
+    public ApiResponse<AIAnalysisResponse> regenerate(@PathVariable Long analysisId) {
+        return ApiResponse.success(analysisService.regenerate(analysisId), "Analysis regenerated successfully");
+    }
+
+    @PostMapping("/analyses/{analysisId}/approve")
+    public ApiResponse<AIAnalysisResponse> approve(
+            @PathVariable Long analysisId,
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @Valid @RequestBody(required = false) AIAnalysisDecisionRequest request
+    ) {
+        return ApiResponse.success(analysisService.approve(analysisId, user.id()), "Analysis approved successfully");
+    }
+
+    @PostMapping("/analyses/{analysisId}/reject")
+    public ApiResponse<AIAnalysisResponse> reject(
+            @PathVariable Long analysisId,
+            @Valid @RequestBody(required = false) AIAnalysisDecisionRequest request
+    ) {
+        return ApiResponse.success(analysisService.reject(analysisId), "Analysis rejected successfully");
+    }
+}

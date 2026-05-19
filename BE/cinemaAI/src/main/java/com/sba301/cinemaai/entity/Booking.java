@@ -103,6 +103,10 @@ public class Booking extends BaseEntity {
         this.status = BookingStatus.CANCELLED;
     }
 
+    public void expire() {
+        this.status = BookingStatus.EXPIRED;
+    }
+
     public void checkIn() {
         this.checkedInAt = LocalDateTime.now();
         this.status = BookingStatus.USED;
