@@ -309,10 +309,10 @@ Mô tả nhiệm vụ:
 - Staff/admin có thể check-in vé bằng QR code.
 
 Status:
-- Chưa làm.
-- Progress: 0%.
+- Hoàn thành.
+- Progress: 100%.
 
-Cần làm:
+Đã hoàn thành:
 - Booking migrations.
 - `Booking`
 - `BookingSeat`
@@ -331,8 +331,12 @@ Cần làm:
 - F&B APIs.
 - tests.
 
-==================================================
+Còn thiếu:
+- Phase 6 close-out: Không còn hạng mục Phase 6 bắt buộc.
+- Booking hiện dùng mock paid flow khi confirm; Phase 7 sẽ tách payment provider/callback/refund thật.
+- Seat locking hiện release hold hết hạn khi booking flow chạy; Phase 11 có thể bổ sung scheduler tự động.
 
+==================================================
 PHASE 7 - PAYMENT
 
 Mô tả nhiệm vụ:
@@ -521,7 +525,7 @@ Phase 2 - Auth/User/Security: 100%
 Phase 3 - Movie/Genre: 100%
 Phase 4 - AI Analysis: 100%
 Phase 5 - Cinema/Room/Seat/Showtime: 100%
-Phase 6 - Booking/F&B/QR: 0%
+Phase 6 - Booking/F&B/QR: 100%
 Phase 7 - Payment: 0%
 Phase 8 - Promotion/Wishlist/Loyalty/Notification: 0%
 Phase 9 - Review: 0%
@@ -531,8 +535,8 @@ Phase 12 - Integration & QA: 0%
 ```
 
 Next recommended phase:
-- Hoàn thiện Phase 6 - Booking, Seat Locking, F&B & Ticket QR.
-- Thứ tự nên làm tiếp: hold seat -> booking service -> QR/check-in -> food add-on -> integration tests.
+- Hoàn thiện Phase 7 - Payment.
+- Thứ tự nên làm tiếp: payment DTO -> mock provider -> create payment -> callback/success/fail -> refund/cancel flow -> tests.
 ==================================================
 TEAM SPLIT
 ==================================================

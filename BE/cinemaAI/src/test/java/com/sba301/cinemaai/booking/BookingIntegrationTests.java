@@ -1,0 +1,219 @@
+package com.sba301.cinemaai.booking;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sba301.cinemaai.dto.auth.LoginRequest;
+import com.sba301.cinemaai.dto.booking.BookingFoodRequest;
+import com.sba301.cinemaai.dto.booking.CheckInRequest;
+import com.sba301.cinemaai.dto.booking.CreateBookingRequest;
+import com.sba301.cinemaai.dto.booking.HoldSeatsRequest;
+import com.sba301.cinemaai.dto.food.FoodItemRequest;
+import com.sba301.cinemaai.entity.Cinema;
+import com.sba301.cinemaai.entity.Movie;
+import com.sba301.cinemaai.entity.Role;
+import com.sba301.cinemaai.entity.Room;
+import com.sba301.cinemaai.entity.Seat;
+import com.sba301.cinemaai.entity.Showtime;
+import com.sba301.cinemaai.entity.User;
+import com.sba301.cinemaai.entity.UserRole;
+import com.sba301.cinemaai.enums.FoodItemStatus;
+import com.sba301.cinemaai.enums.MovieStatus;
+import com.sba301.cinemaai.enums.RoleName;
+import com.sba301.cinemaai.enums.RoomType;
+import com.sba301.cinemaai.enums.SeatType;
+import com.sba301.cinemaai.enums.ShowtimeStatus;
+import com.sba301.cinemaai.repository.CinemaRepository;
+import com.sba301.cinemaai.repository.MovieRepository;
+import com.sba301.cinemaai.repository.RoleRepository;
+import com.sba301.cinemaai.repository.RoomRepository;
+import com.sba301.cinemaai.repository.SeatRepository;
+import com.sba301.cinemaai.repository.ShowtimeRepository;
+import com.sba301.cinemaai.repository.UserRepository;
+import com.sba301.cinemaai.repository.UserRoleRepository;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.web.servlet.MockMvc;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+class BookingIntegrationTests {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private MovieRepository movieRepository;
+
+    @Autowired
+    private CinemaRepository cinemaRepository;
+
+    @Autowired
+    private RoomRepository roomRepository;
+
+    @Autowired
+    private SeatRepository seatRepository;
+
+    @Autowired
+    private ShowtimeRepository showtimeRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private RoleRepository roleRepository;
+
+    @Autowired
+    private UserRoleRepository userRoleRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Test
+    void shouldHoldBookPreventDuplicateSeatAndCheckInByQr() throws Exception {
+        String adminToken = loginAs("phase6.admin.", RoleName.ADMIN);
+        String customerToken = loginAs("phase6.customer.", RoleName.CUSTOMER);
+        String anotherCustomerToken = loginAs("phase6.other.", RoleName.CUSTOMER);
+
+        Long foodItemId = createFoodItem(adminToken);
+        Showtime showtime = createShowtimeFixture();
+        Seat firstSeat = seatRepository.findByRoom(showtime.getRoom()).get(0);
+
+        String holdResponse = mockMvc.perform(post("/api/v1/bookings/hold")
+                        .header("Authorization", "Bearer " + customerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new HoldSeatsRequest(
+                                showtime.getId(),
+                                List.of(firstSeat.getId())
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.status").value("HOLDING"))
+                .andExpect(jsonPath("$.data.seats[0].status").value("HOLDING"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        Long holdBookingId = objectMapper.readTree(holdResponse).at("/data/id").asLong();
+
+        mockMvc.perform(post("/api/v1/bookings/hold")
+                        .header("Authorization", "Bearer " + anotherCustomerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new HoldSeatsRequest(
+                                showtime.getId(),
+                                List.of(firstSeat.getId())
+                        ))))
+                .andExpect(status().isConflict());
+
+        String bookingResponse = mockMvc.perform(post("/api/v1/bookings")
+                        .header("Authorization", "Bearer " + customerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CreateBookingRequest(
+                                holdBookingId,
+                                List.of(new BookingFoodRequest(foodItemId, null, 2))
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.status").value("PAID"))
+                .andExpect(jsonPath("$.data.totalAmount").value(155000))
+                .andExpect(jsonPath("$.data.qrCode").isNotEmpty())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode bookingJson = objectMapper.readTree(bookingResponse);
+        String qrCode = bookingJson.at("/data/qrCode").asText();
+
+        mockMvc.perform(get("/api/v1/showtimes/{showtimeId}/seat-map", showtime.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.seats[0].runtimeStatus").value("BOOKED"));
+
+        mockMvc.perform(post("/api/v1/admin/check-in")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CheckInRequest(qrCode))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("USED"))
+                .andExpect(jsonPath("$.data.seats[0].status").value("CHECKED_IN"));
+
+        mockMvc.perform(get("/api/v1/foods/items"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("ACTIVE"));
+    }
+
+    private Long createFoodItem(String adminToken) throws Exception {
+        String response = mockMvc.perform(post("/api/v1/admin/foods/items")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new FoodItemRequest(
+                                "Phase 6 Popcorn " + System.nanoTime(),
+                                "Booking test snack",
+                                BigDecimal.valueOf(30000),
+                                "https://example.com/popcorn.jpg",
+                                FoodItemStatus.ACTIVE
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return objectMapper.readTree(response).at("/data/id").asLong();
+    }
+
+    private Showtime createShowtimeFixture() {
+        String suffix = Long.toString(System.nanoTime());
+        Movie movie = new Movie("Phase 6 Movie " + suffix, 110, MovieStatus.NOW_SHOWING);
+        movie.updateDetails(movie.getTitle(), "Booking flow movie.", 110, LocalDate.of(2026, 5, 19));
+        movie.updateMetadata("English", "Vietnamese", "13+", "Phase Six Director", "Cast");
+        Movie savedMovie = movieRepository.save(movie);
+
+        Cinema cinema = cinemaRepository.save(new Cinema("Phase 6 Cinema " + suffix, "1 Booking Street", "HCMC", "0900666777"));
+        Room room = roomRepository.save(new Room(cinema, "Room 6", RoomType.TWO_D, 1, 2));
+        seatRepository.save(new Seat(room, "A", 1, SeatType.NORMAL));
+        seatRepository.save(new Seat(room, "A", 2, SeatType.NORMAL));
+
+        Showtime showtime = new Showtime(
+                savedMovie,
+                room,
+                LocalDateTime.of(2026, 5, 21, 19, 0),
+                LocalDateTime.of(2026, 5, 21, 21, 5),
+                BigDecimal.valueOf(95000)
+        );
+        showtime.changeStatus(ShowtimeStatus.OPEN);
+        return showtimeRepository.save(showtime);
+    }
+
+    private String loginAs(String prefix, RoleName roleName) throws Exception {
+        String email = prefix + System.nanoTime() + "@example.com";
+        String password = "Password123";
+        Role role = roleRepository.findByName(roleName)
+                .orElseGet(() -> roleRepository.save(new Role(roleName)));
+
+        User user = new User(email, passwordEncoder.encode(password), "Phase Six User", "0900666888");
+        user.activateEmail();
+        User savedUser = userRepository.save(user);
+        userRoleRepository.save(new UserRole(savedUser, role));
+
+        String response = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest(email, password))))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        return objectMapper.readTree(response).at("/data/accessToken").asText();
+    }
+}

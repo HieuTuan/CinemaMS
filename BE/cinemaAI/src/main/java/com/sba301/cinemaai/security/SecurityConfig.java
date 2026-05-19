@@ -44,10 +44,12 @@ public class SecurityConfig {
                                 "/api/v1/movies/**",
                                 "/api/v1/genres/**",
                                 "/api/v1/cinemas/**",
-                                "/api/v1/showtimes/**"
+                                "/api/v1/showtimes/**",
+                                "/api/v1/foods/**"
                         ).permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/staff/**").hasAnyRole("ADMIN", "STAFF")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
