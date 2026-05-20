@@ -1,4 +1,7 @@
+import { useNavigate } from 'react-router-dom'
+
 export default function Navbar() {
+  const navigate = useNavigate()
   return (
     <nav className="bg-surface/80 backdrop-blur-xl font-body-md text-body-md fixed top-0 w-full z-50 border-b border-white/10 shadow-2xl transition-all duration-500">
       <div className="flex justify-between items-center px-margin-desktop py-4 max-w-container-max mx-auto md:px-margin-mobile">
@@ -48,7 +51,7 @@ export default function Navbar() {
           </button>
           <button
             className="hidden md:block text-on-surface-variant hover:text-primary transition-all duration-300 hover:scale-105 active:scale-95"
-            onClick={() => (window.location.href = '/login')}
+            onClick={() => navigate('/login')}
           >
             Sign In
           </button>

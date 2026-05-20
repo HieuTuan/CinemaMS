@@ -6,6 +6,8 @@ import NowShowingSection from './components/NowShowingSection'
 import GenreSection from './components/GenreSection'
 import Footer from './components/Footer'
 import MovieDetailPage from './pages/MovieDetailPage'
+import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
 
 function HomePage() {
   return (
@@ -28,6 +30,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/movies/:id" element={<MovieDetailPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
       </Routes>
     </BrowserRouter>
   )
