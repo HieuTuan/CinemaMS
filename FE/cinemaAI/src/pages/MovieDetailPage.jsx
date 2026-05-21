@@ -276,7 +276,10 @@ export default function MovieDetailPage() {
 
               {/* CTA buttons */}
               <div className="flex gap-4 w-full sm:w-auto animate-fade-in-up delay-400 z-20">
-                <button className="flex-grow sm:flex-grow-0 primary-gradient text-white px-8 py-4 rounded-xl font-headline-lg flex items-center justify-center gap-2 animate-pulse-glow hover:scale-105 transition-transform duration-300">
+                <button
+                  onClick={() => navigate(`/booking/${movie.id}`)}
+                  className="flex-grow sm:flex-grow-0 primary-gradient text-white px-8 py-4 rounded-xl font-headline-lg flex items-center justify-center gap-2 animate-pulse-glow hover:scale-105 transition-transform duration-300"
+                >
                   <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
                     local_activity
                   </span>

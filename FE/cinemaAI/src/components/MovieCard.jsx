@@ -31,7 +31,7 @@ export default function MovieCard({ id, title, genre, duration, ageRating, aiSco
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
           <button
             className="w-full py-3 bg-white text-surface rounded-lg font-bold hover:bg-primary-container hover:text-white transition-colors duration-200"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); id && navigate(`/booking/${id}`) }}
           >
             ĐẶT VÉ
           </button>

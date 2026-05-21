@@ -168,4 +168,16 @@
 
   .hide-scrollbar::-webkit-scrollbar { display: none; }
   .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* ── Booking / Seat Map ────────────────────────────────────────────── */
+  .cinema-room { perspective: 1200px; }
+  .seat-grid {
+    transform: rotateX(25deg);
+    transform-style: preserve-3d;
+  }
+  .screen-glow { box-shadow: 0 -15px 40px rgba(255, 180, 170, 0.2); }
+  .seat-selected {
+    background-color: #ffb4aa !important;
+    box-shadow: 0 0 15px rgba(255, 180, 170, 0.6);
+  }
 }
