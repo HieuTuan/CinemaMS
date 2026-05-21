@@ -7,6 +7,20 @@
   100% { background-position: 0%   50%; }
 }
 
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 15px rgba(229, 9, 20, 0.5); }
+  50%       { box-shadow: 0 0 30px rgba(229, 9, 20, 0.8); }
+}
+
+@keyframes draw-line {
+  from { stroke-dashoffset: 1000; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes progress-fill {
+  from { width: 0; }
+}
+
 @layer utilities {
   .glass-panel {
     background: rgba(20, 20, 20, 0.6);
@@ -95,4 +109,63 @@
   .poster-gradient {
     background: linear-gradient(to top, rgba(14, 14, 15, 1) 0%, rgba(14, 14, 15, 0.4) 40%, transparent 100%);
   }
+
+  /* ── Movie Detail Page ─────────────────────── */
+  .bg-gradient-fade {
+    background: linear-gradient(to bottom, transparent 0%, #131314 100%);
+  }
+
+  /* Override Tailwind's animate-fade-in-up to use fill-mode:both so
+     delay doesn't cause a flash-of-visible-content */
+  .animate-fade-in-up {
+    animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Extra delay steps */
+  .delay-100 { animation-delay: 100ms; }
+  .delay-200 { animation-delay: 200ms; }
+  .delay-300 { animation-delay: 300ms; }
+  .delay-400 { animation-delay: 400ms; }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .animate-draw-line {
+    stroke-dasharray: 1000;
+    stroke-dashoffset: 1000;
+    animation: draw-line 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation-delay: 0.5s;
+  }
+
+  .animate-progress-fill {
+    animation: progress-fill 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: 0.3s;
+  }
+
+  .glass-hover {
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .glass-hover:hover {
+    backdrop-filter: blur(24px);
+    background-color: rgba(19, 19, 20, 0.6);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
+  }
+
+  .poster-container { perspective: 1000px; }
+  .poster-3d {
+    transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.5s ease;
+    transform-style: preserve-3d;
+  }
+  .poster-container:hover .poster-3d {
+    transform: rotateY(5deg) rotateX(2deg) scale(1.05) translateY(-10px);
+    box-shadow: -15px 25px 40px -10px rgba(255, 180, 170, 0.2), 0 0 20px rgba(0, 0, 0, 0.5);
+  }
+
+  .chroma-shadow-primary { box-shadow: 0 0 20px rgba(255, 180, 170, 0.4); }
+  .chroma-shadow-primary:hover { box-shadow: 0 0 30px rgba(255, 180, 170, 0.6); }
+
+  .hide-scrollbar::-webkit-scrollbar { display: none; }
+  .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }

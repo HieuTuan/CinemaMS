@@ -12,9 +12,13 @@ const SORT_OPTIONS = [
 ]
 const PAGE_SIZE = 10
 
-function MovieListCard({ title, genres, duration, aiScore, posterUrl }) {
+function MovieListCard({ id, title, genres, duration, aiScore, posterUrl }) {
+  const navigate = useNavigate()
   return (
-    <div className="group relative rounded-2xl overflow-hidden border border-white/5 chroma-shadow-red cursor-pointer">
+    <div
+      className="group relative rounded-2xl overflow-hidden border border-white/5 chroma-shadow-red cursor-pointer"
+      onClick={() => navigate(`/movies/${id}`)}
+    >
       {/* Poster */}
       <div className="relative aspect-[2/3] overflow-hidden">
         <img
@@ -155,6 +159,7 @@ export default function MoviesPage() {
               {paginated.map((movie) => (
                 <MovieListCard
                   key={movie.id}
+                  id={movie.id}
                   title={movie.title}
                   genres={movie.genres}
                   duration={movie.duration}

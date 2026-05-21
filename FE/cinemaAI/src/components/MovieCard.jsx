@@ -1,6 +1,10 @@
-export default function MovieCard({ title, genre, duration, ageRating, aiScore, imageUrl }) {
+import { useNavigate } from 'react-router-dom'
+
+export default function MovieCard({ id, title, genre, duration, ageRating, aiScore, imageUrl }) {
+  const navigate = useNavigate()
+
   return (
-    <div className="group cursor-pointer">
+    <div className="group cursor-pointer" onClick={() => id && navigate(`/movies/${id}`)}>
       {/* Card image */}
       <div className="relative aspect-[2/3] rounded-2xl overflow-hidden glass-card mb-4">
         <img
@@ -25,7 +29,10 @@ export default function MovieCard({ title, genre, duration, ageRating, aiScore, 
 
         {/* Hover overlay – book button */}
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
-          <button className="w-full py-3 bg-white text-surface rounded-lg font-bold hover:bg-primary-container hover:text-white transition-colors duration-200">
+          <button
+            className="w-full py-3 bg-white text-surface rounded-lg font-bold hover:bg-primary-container hover:text-white transition-colors duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
             ĐẶT VÉ
           </button>
         </div>

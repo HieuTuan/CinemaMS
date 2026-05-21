@@ -38,6 +38,7 @@ export default function NowShowingSection() {
           : MOVIES.map((movie) => (
               <MovieCard
                 key={movie.id}
+                id={movie.id}
                 title={movie.title}
                 genre={movie.genres[0]}
                 duration={movie.duration}
