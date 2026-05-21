@@ -81,4 +81,18 @@
     box-shadow: 0 0 15px rgba(220, 184, 255, 0.2);
     outline: none;
   }
+
+  .chroma-shadow-red {
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .chroma-shadow-red:hover {
+    box-shadow: 0 0 30px rgba(229, 9, 20, 0.35);
+    border-color: rgba(229, 9, 20, 0.4);
+    transform: scale(1.03);
+  }
+
+  .poster-gradient {
+    background: linear-gradient(to top, rgba(14, 14, 15, 1) 0%, rgba(14, 14, 15, 0.4) 40%, transparent 100%);
+  }
 }

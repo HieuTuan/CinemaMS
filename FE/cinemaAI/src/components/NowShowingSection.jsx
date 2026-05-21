@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import MovieCard from './MovieCard'
 import { MovieCardSkeleton } from './Skeleton'
 import { MOVIES_DATA } from '../data/movies'
@@ -6,6 +7,7 @@ import { MOVIES_DATA } from '../data/movies'
 const MOVIES = Object.values(MOVIES_DATA)
 
 export default function NowShowingSection() {
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -22,7 +24,10 @@ export default function NowShowingSection() {
           </h2>
           <p className="text-on-surface-variant">Khám phá những siêu phẩm điện ảnh nóng nhất hiện nay</p>
         </div>
-        <a className="text-primary hover:underline underline-offset-8 flex items-center gap-2 transition-colors duration-300 cursor-pointer">
+        <a
+          onClick={() => navigate('/movies')}
+          className="text-primary hover:underline underline-offset-8 flex items-center gap-2 transition-colors duration-300 cursor-pointer"
+        >
           Xem tất cả <span className="material-symbols-outlined">arrow_forward</span>
         </a>
       </div>

@@ -9,6 +9,7 @@ import GenreSection from './components/GenreSection'
 import Footer from './components/Footer'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import MoviesPage from './pages/MoviesPage'
 
 function HomePage() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/movies" element={<MoviesPage />} />
       </Routes>
     </BrowserRouter>
   )
