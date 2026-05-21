@@ -1,4 +1,4 @@
-import { useRef, useMemo } from 'react'
+import { useRef, useMemo, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
@@ -46,6 +46,27 @@ export default function SuccessPage() {
 
   const movieTitle = movie?.title || 'Neon Horizon'
   const posterUrl   = movie?.posterUrl || ''
+
+  // Save this booking to localStorage so ProfilePage can list it
+  useEffect(() => {
+    const booking = {
+      code:     BOOKING_CODE,
+      movieId:  id,
+      title:    movieTitle,
+      posterUrl,
+      seats:    TICKET_DETAILS.find(d => d.label === 'Ghế Ngồi')?.value  || 'G12, G13',
+      showtime: TICKET_DETAILS.find(d => d.label === 'Suất Chiếu')?.value || '20:45',
+      cinema:   TICKET_DETAILS.find(d => d.label === 'Rạp Chiếu')?.value  || 'Cinema 04',
+      service:  TICKET_DETAILS.find(d => d.label === 'Dịch Vụ')?.value    || '',
+      date:     new Date().toISOString(),
+      status:   'upcoming',
+    }
+    const prev = JSON.parse(localStorage.getItem('cp_bookings') || '[]')
+    // Guard against StrictMode double-fire producing duplicate entry
+    if (!prev.find(b => b.code === booking.code)) {
+      localStorage.setItem('cp_bookings', JSON.stringify([booking, ...prev].slice(0, 50)))
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="bg-[#0e0e0f] text-on-surface font-body-md min-h-screen flex flex-col">
@@ -145,7 +166,10 @@ export default function SuccessPage() {
 
         {/* ── Action buttons ─────────────────────────────────────────────── */}
         <div className="mt-12 flex flex-col md:flex-row gap-4 w-full max-w-2xl animate-fade-in-up delay-400">
-          <button className="flex-1 primary-gradient py-4 rounded-lg font-bold text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2">
+          <button
+            onClick={() => navigate('/my-tickets')}
+            className="flex-1 primary-gradient py-4 rounded-lg font-bold text-white shadow-lg hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"
+          >
             <span
               className="material-symbols-outlined"
               style={{ fontVariationSettings: "'FILL' 1" }}

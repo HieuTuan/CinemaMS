@@ -37,6 +37,11 @@
   100% { background-position:  200% 0; }
 }
 
+@keyframes pulse-soft {
+  0%, 100% { transform: scale(1); opacity: 1; filter: drop-shadow(0 0 0px rgba(229, 9, 20, 0)); }
+  50%       { transform: scale(1.05); opacity: 0.8; filter: drop-shadow(0 0 15px rgba(229, 9, 20, 0.5)); }
+}
+
 @layer utilities {
   .glass-panel {
     background: rgba(20, 20, 20, 0.6);
@@ -203,6 +208,28 @@
   }
   .btn-high-energy {
     animation: pulse-energy 2s ease-in-out infinite;
+  }
+
+  /* ── My Tickets Page ───────────────────────────────────────────────── */
+  .neon-glow-red {
+    box-shadow: 0 0 20px rgba(229, 9, 20, 0.15), inset 0 0 10px rgba(229, 9, 20, 0.05);
+  }
+  .gradient-text-cinema {
+    background: linear-gradient(to right, #ffb4aa, #e50914);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: #131314; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #e50914; border-radius: 10px; }
+
+  /* ── Failed Page ───────────────────────────────────────────────────── */
+  .chroma-shadow-error {
+    box-shadow: 0 0 30px rgba(229, 9, 20, 0.15);
+  }
+  .animate-pulse-error {
+    animation: pulse-soft 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
   /* ── Success Page ──────────────────────────────────────────────────── */

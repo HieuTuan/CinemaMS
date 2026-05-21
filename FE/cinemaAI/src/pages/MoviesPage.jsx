@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import { MOVIES_LIST } from '../data/movies'
+import { isWishlisted, toggleWishlist } from '../utils/wishlist'
 
 const GENRES = ['Tất Cả', 'Action', 'Drama', 'Sci-Fi', 'Horror', 'Animation', 'Documentary']
 const SORT_OPTIONS = [
@@ -14,6 +15,14 @@ const PAGE_SIZE = 10
 
 function MovieListCard({ id, title, genres, duration, aiScore, posterUrl }) {
   const navigate = useNavigate()
+  const [liked, setLiked] = useState(() => isWishlisted(id))
+
+  function handleHeart(e) {
+    e.stopPropagation()
+    toggleWishlist({ id, title, posterUrl, genres: genres || [], status: 'now_showing' })
+    setLiked(p => !p)
+  }
+
   return (
     <div
       className="group relative rounded-2xl overflow-hidden border border-white/5 chroma-shadow-red cursor-pointer"
@@ -27,9 +36,22 @@ function MovieListCard({ id, title, genres, duration, aiScore, posterUrl }) {
           alt={title}
         />
 
-        {/* AI badge — top right */}
+        {/* Heart — top right */}
+        <button
+          onClick={handleHeart}
+          className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center hover:bg-black/60 transition-all hover:scale-110 active:scale-95"
+        >
+          <span
+            className={`material-symbols-outlined text-[18px] transition-colors ${liked ? 'text-primary-container' : 'text-white'}`}
+            style={liked ? { fontVariationSettings: "'FILL' 1" } : {}}
+          >
+            favorite
+          </span>
+        </button>
+
+        {/* AI badge — top left */}
         {aiScore && (
-          <div className="absolute top-3 right-3 bg-primary-container/90 backdrop-blur-md px-2 py-1 rounded-lg text-xs font-bold text-white shadow-lg flex items-center gap-1">
+          <div className="absolute top-3 left-3 bg-primary-container/90 backdrop-blur-md px-2 py-1 rounded-lg text-xs font-bold text-white shadow-lg flex items-center gap-1">
             <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>
               auto_awesome
             </span>

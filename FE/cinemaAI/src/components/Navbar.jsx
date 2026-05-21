@@ -56,10 +56,20 @@ export default function Navbar() {
             <span className="text-body-md">Hồ Chí Minh</span>
           </button>
 
-          {/* Avatar → Login */}
-          <div
-            className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-container/30 hover:border-primary-container transition-colors cursor-pointer flex-shrink-0"
+          {/* Sign In button */}
+          <button
             onClick={() => navigate('/login')}
+            className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full border border-primary-container/40 text-on-surface hover:bg-primary-container/10 hover:border-primary-container transition-all duration-300 font-label-sm text-label-sm uppercase tracking-widest"
+          >
+            <span className="material-symbols-outlined text-[18px]">login</span>
+            Sign In
+          </button>
+
+          {/* Avatar → Profile */}
+          <div
+            className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-container/30 hover:border-primary-container transition-colors cursor-pointer flex-shrink-0 hover:scale-105 duration-300"
+            onClick={() => navigate('/profile')}
+            title="Hồ sơ của tôi"
           >
             <img
               alt="User profile"

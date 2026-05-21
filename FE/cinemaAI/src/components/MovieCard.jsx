@@ -1,7 +1,23 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { isWishlisted, toggleWishlist } from '../utils/wishlist'
 
 export default function MovieCard({ id, title, genre, duration, ageRating, aiScore, imageUrl }) {
   const navigate = useNavigate()
+  const [liked, setLiked] = useState(() => (id ? isWishlisted(id) : false))
+
+  function handleHeart(e) {
+    e.stopPropagation()
+    if (!id) return
+    toggleWishlist({
+      id:       Number(id),
+      title,
+      posterUrl: imageUrl,
+      genres:   genre ? [genre] : [],
+      status:   'now_showing',
+    })
+    setLiked(p => !p)
+  }
 
   return (
     <div className="group cursor-pointer" onClick={() => id && navigate(`/movies/${id}`)}>
@@ -12,6 +28,19 @@ export default function MovieCard({ id, title, genre, duration, ageRating, aiSco
           src={imageUrl}
           alt={title}
         />
+
+        {/* Heart button — top right */}
+        <button
+          onClick={handleHeart}
+          className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center hover:bg-black/60 transition-all hover:scale-110 active:scale-95"
+        >
+          <span
+            className={`material-symbols-outlined text-[18px] transition-colors ${liked ? 'text-primary-container' : 'text-white'}`}
+            style={liked ? { fontVariationSettings: "'FILL' 1" } : {}}
+          >
+            favorite
+          </span>
+        </button>
 
         {/* AI score badge */}
         {aiScore && (

@@ -147,6 +147,10 @@ export default function PaymentPage() {
     navigate(`/success/${id ?? ''}`)
   }
 
+  function handleFail() {
+    navigate(`/failed/${id ?? ''}?reason=insufficient`)
+  }
+
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col font-body-md antialiased">
       <DustParticles />
@@ -314,6 +318,14 @@ export default function PaymentPage() {
                 >
                   <span>Xác nhận Thanh toán</span>
                   <span className="material-symbols-outlined">arrow_forward</span>
+                </button>
+
+                {/* Dev helper – simulate a failed transaction */}
+                <button
+                  onClick={handleFail}
+                  className="w-full mt-3 glass-panel text-on-surface-variant font-body-md py-3 rounded-lg hover:bg-white/5 transition-all text-sm"
+                >
+                  Mô phỏng giao dịch thất bại
                 </button>
               </div>
             </div>
