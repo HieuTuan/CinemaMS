@@ -2,66 +2,73 @@ import { useNavigate } from 'react-router-dom'
 
 export default function Navbar() {
   const navigate = useNavigate()
+
   return (
-    <nav className="bg-surface/80 backdrop-blur-xl font-body-md text-body-md fixed top-0 w-full z-50 border-b border-white/10 shadow-2xl transition-all duration-500">
-      <div className="flex justify-between items-center px-margin-desktop py-4 max-w-container-max mx-auto md:px-margin-mobile">
-        {/* Logo */}
-        <div
-          className="font-display-lg text-headline-xl tracking-tighter bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent animate-shimmer cursor-pointer"
-          style={{ backgroundSize: '200% auto' }}
-        >
-          CINEPREMIER
+    <header className="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-xl border-b border-white/10 shadow-2xl">
+      <div className="flex justify-between items-center px-margin-mobile md:px-margin-desktop py-4 max-w-container-max mx-auto">
+
+        {/* Left: logo + nav */}
+        <div className="flex items-center gap-12">
+          <a
+            className="font-display-lg text-headline-xl tracking-tighter bg-gradient-to-r from-primary-container to-secondary-container bg-clip-text text-transparent font-extrabold cursor-pointer"
+            onClick={() => navigate('/')}
+          >
+            CINEPREMIER
+          </a>
+          <nav className="hidden md:flex items-center gap-8">
+            <a className="font-body-md text-body-md text-primary font-bold border-b-2 border-primary-container pb-1 transition-all duration-300 cursor-pointer nav-link-hover">
+              Movies
+            </a>
+            <a className="font-body-md text-body-md text-on-surface/70 hover:text-on-surface transition-colors cursor-pointer nav-link-hover">
+              Cinemas
+            </a>
+            <a className="font-body-md text-body-md text-on-surface/70 hover:text-on-surface transition-colors cursor-pointer nav-link-hover">
+              Offers
+            </a>
+            <a className="font-body-md text-body-md text-on-surface/70 hover:text-on-surface transition-colors cursor-pointer nav-link-hover">
+              VIP Experience
+            </a>
+          </nav>
         </div>
 
-        {/* Nav links */}
-        <div className="hidden md:flex space-x-8">
-          <a
-            className="text-primary font-bold border-b-2 border-primary pb-1 transition-all duration-300"
-            href="/movies"
-          >
-            Movies
-          </a>
-          <a
-            className="text-on-surface/70 hover:text-primary nav-link-hover transition-colors duration-300"
-            href="#"
-          >
-            Cinemas
-          </a>
-          <a
-            className="text-on-surface/70 hover:text-primary nav-link-hover transition-colors duration-300"
-            href="#"
-          >
-            Offers
-          </a>
-          <a
-            className="text-on-surface/70 hover:text-primary nav-link-hover transition-colors duration-300"
-            href="#"
-          >
-            VIP Experience
-          </a>
-        </div>
+        {/* Right: search + location + avatar */}
+        <div className="flex items-center gap-4 md:gap-6">
+          {/* Search */}
+          <div className="relative hidden md:block">
+            <input
+              className="bg-surface-container-high border-none rounded-full px-6 py-2 w-56 lg:w-64 text-body-md text-on-surface placeholder-on-surface-variant/60 focus:ring-2 focus:ring-primary-container/50 transition-all outline-none"
+              placeholder="Tìm kiếm phim..."
+              type="text"
+            />
+            <span className="material-symbols-outlined absolute right-4 top-2 text-on-surface-variant pointer-events-none">
+              search
+            </span>
+          </div>
 
-        {/* Right actions */}
-        <div className="flex items-center space-x-4">
-          <button className="text-on-surface hover:text-primary transition-colors duration-300 hover:scale-110">
+          {/* Search icon on mobile */}
+          <button className="md:hidden text-on-surface hover:text-primary transition-colors">
             <span className="material-symbols-outlined">search</span>
           </button>
-          <button className="text-on-surface hover:text-primary transition-colors duration-300 hover:scale-110 hidden md:block">
-            <span className="material-symbols-outlined">location_on</span>
+
+          {/* Location */}
+          <button className="hidden md:flex items-center gap-2 hover:scale-105 transition-transform duration-300 text-on-surface hover:text-primary">
+            <span className="material-symbols-outlined text-primary-container">location_on</span>
+            <span className="text-body-md">Hồ Chí Minh</span>
           </button>
-          <button
-            className="hidden md:block text-on-surface-variant hover:text-primary transition-all duration-300 hover:scale-105 active:scale-95"
+
+          {/* Avatar → Login */}
+          <div
+            className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary-container/30 hover:border-primary-container transition-colors cursor-pointer flex-shrink-0"
             onClick={() => navigate('/login')}
           >
-            Sign In
-          </button>
-          <img
-            alt="User profile avatar"
-            className="w-10 h-10 rounded-full border border-white/20 hover:border-primary transition-colors duration-300 cursor-pointer"
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuA2AjlkwtF3aiXVqr3LldvPZ-aj0mn33-MU0mZhejwtrhYesrIk18WhuGTNa7uFMoae3mQZ5-haxDSE8FMjBbQNhIUt8wXwPo8u070PeDoC7tLR0OQbXSsIh4geMWMZF8uI3gjk9B2SESZbvcz9-g8gXRgQHy9JtjO59BdINLCoMX4bp0ll_QDPO3NmcX61eVGSXCyN1A3MQBICX1CO6UT74xQii8chsqsX0QdZwo9vBhLwQNeZtyUrcpLjoOoAfcq6ExdOAKwUy4LO"
-          />
+            <img
+              alt="User profile"
+              className="w-full h-full object-cover"
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuA2AjlkwtF3aiXVqr3LldvPZ-aj0mn33-MU0mZhejwtrhYesrIk18WhuGTNa7uFMoae3mQZ5-haxDSE8FMjBbQNhIUt8wXwPo8u070PeDoC7tLR0OQbXSsIh4geMWMZF8uI3gjk9B2SESZbvcz9-g8gXRgQHy9JtjO59BdINLCoMX4bp0ll_QDPO3NmcX61eVGSXCyN1A3MQBICX1CO6UT74xQii8chsqsX0QdZwo9vBhLwQNeZtyUrcpLjoOoAfcq6ExdOAKwUy4LO"
+            />
+          </div>
         </div>
       </div>
-    </nav>
+    </header>
   )
 }
