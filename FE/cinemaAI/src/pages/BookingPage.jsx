@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import DustParticles from '../components/DustParticles'
@@ -167,6 +167,7 @@ function FBCard({ item, quantity, onChange }) {
 
 export default function BookingPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const movie = id ? getMovieById(id) : null
 
   const [selectedSeats, setSelectedSeats] = useState([])
@@ -397,6 +398,7 @@ export default function BookingPage() {
 
                 {/* Confirm button */}
                 <button
+                  onClick={() => selectedSeats.length > 0 && navigate(`/payment/${id ?? ''}`)}
                   className="w-full primary-gradient text-white py-5 rounded-2xl font-black text-lg uppercase tracking-wider hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_30px_rgba(229,9,20,0.3)] flex items-center justify-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
                   disabled={selectedSeats.length === 0}
                 >

@@ -12,6 +12,8 @@ import RegisterPage from './pages/RegisterPage'
 import MoviesPage from './pages/MoviesPage'
 import MovieDetailPage from './pages/MovieDetailPage'
 import BookingPage from './pages/BookingPage'
+import PaymentPage from './pages/PaymentPage'
+import SuccessPage from './pages/SuccessPage'
 
 function HomePage() {
   return (
@@ -40,6 +42,8 @@ export default function App() {
         <Route path="/movies" element={<MoviesPage />} />
           <Route path="/movies/:id" element={<MovieDetailPage />} />
           <Route path="/booking/:id" element={<BookingPage />} />
+          <Route path="/payment/:id" element={<PaymentPage />} />
+          <Route path="/success/:id" element={<SuccessPage />} />
       </Routes>
     </BrowserRouter>
   )
