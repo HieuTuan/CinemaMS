@@ -14,54 +14,54 @@ export default function Footer() {
   };
 
   return (
-    <footer className="border-t border-white/10 bg-black text-neutral-500 py-16 px-4 sm:px-6 lg:px-8">
+    <footer className="border-t border-white/10 bg-black text-neutral-400 py-16 px-4 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <div className="grid grid-cols-1 gap-12 md:grid-cols-4">
-          
+
           {/* Column 1: Info and Brand */}
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div className="flex items-center space-x-3">
-              <div className="border border-white/30 h-8 w-8 flex items-center justify-center text-white font-serif italic text-base tracking-widest bg-black">
+              <div className="border border-amber-300/45 h-10 w-10 flex items-center justify-center text-amber-100 font-serif italic text-lg tracking-widest bg-neutral-950 shadow-[0_0_20px_rgba(245,158,11,0.12)]">
                 C
               </div>
-              <span className="font-serif tracking-[0.25em] text-sm uppercase text-white">
-                Cine<span className="font-serif italic font-light text-neutral-400">Premier</span>
+              <span className="font-serif tracking-[0.28em] text-base uppercase text-white">
+                Cine<span className="font-serif italic font-light text-amber-200">Premier</span>
               </span>
             </div>
-            <p className="text-[11px] leading-relaxed text-neutral-500 font-sans font-light">
+            <p className="max-w-sm text-sm leading-7 text-neutral-300 font-sans font-normal">
               Trải nghiệm chiếu bóng chuẩn mực, tích hợp tối tân bộ đánh giá xung động cảm tính AI Rating cùng hệ thống phòng chiếu IMAX tinh thuần bộc phát từng sát-na giác cảm.
             </p>
           </div>
 
           {/* Column 2: Quick navigation */}
           <div>
-            <h3 className="text-[10px] font-sans font-bold uppercase tracking-[0.2em] text-white mb-4">DANH MỤC CHIẾU BÓNG</h3>
-            <ul className="space-y-2 text-[10px] uppercase tracking-wider font-sans">
-              <li><span className="hover:text-white cursor-pointer transition-colors duration-250">Phim Đang Chiếu</span></li>
-              <li><span className="hover:text-white cursor-pointer transition-colors duration-250">Phim Sắp Chiếu</span></li>
-              <li><span className="hover:text-white cursor-pointer transition-colors duration-250">Phòng Chiếu IMAX VIP</span></li>
-              <li><span className="hover:text-white cursor-pointer transition-colors duration-250">Lịch Chiếu Toàn Quốc</span></li>
+            <h3 className="mb-5 border-l-2 border-amber-400 pl-3 text-sm font-sans font-black uppercase tracking-[0.22em] text-white">DANH MỤC CHIẾU BÓNG</h3>
+            <ul className="space-y-3 text-xs uppercase tracking-[0.14em] font-sans font-semibold text-neutral-300">
+              <li><span className="cursor-pointer border-b border-transparent pb-0.5 transition-colors duration-250 hover:border-amber-300 hover:text-amber-200">Phim Đang Chiếu</span></li>
+              <li><span className="cursor-pointer border-b border-transparent pb-0.5 transition-colors duration-250 hover:border-amber-300 hover:text-amber-200">Phim Sắp Chiếu</span></li>
+              <li><span className="cursor-pointer border-b border-transparent pb-0.5 transition-colors duration-250 hover:border-amber-300 hover:text-amber-200">Phòng Chiếu IMAX VIP</span></li>
+              <li><span className="cursor-pointer border-b border-transparent pb-0.5 transition-colors duration-250 hover:border-amber-300 hover:text-amber-200">Lịch Chiếu Toàn Quốc</span></li>
             </ul>
           </div>
 
           {/* Column 3: Policy & Support */}
           <div>
-            <h3 className="text-[10px] font-sans font-bold uppercase tracking-[0.2em] text-white mb-4">HỖ TRỢ & ĐIỀU CHẾ</h3>
-            <ul className="space-y-2 text-[10px] uppercase tracking-wider font-sans">
-              <li><span className="hover:text-white cursor-pointer transition-colors duration-250">Liên hệ phòng vé</span></li>
-              <li><span className="hover:text-white cursor-pointer transition-colors duration-250">Chính sách bảo mật</span></li>
-              <li><span className="hover:text-white cursor-pointer transition-colors duration-250">Điều hành sử dụng vé</span></li>
-              <li><span className="hover:text-white cursor-pointer transition-colors duration-250">Quy chuẩn hoạt động</span></li>
+            <h3 className="mb-5 border-l-2 border-amber-400 pl-3 text-sm font-sans font-black uppercase tracking-[0.22em] text-white">HỖ TRỢ & ĐIỀU CHẾ</h3>
+            <ul className="space-y-3 text-xs uppercase tracking-[0.14em] font-sans font-semibold text-neutral-300">
+              <li><span className="cursor-pointer border-b border-transparent pb-0.5 transition-colors duration-250 hover:border-amber-300 hover:text-amber-200">Liên hệ phòng vé</span></li>
+              <li><span className="cursor-pointer border-b border-transparent pb-0.5 transition-colors duration-250 hover:border-amber-300 hover:text-amber-200">Chính sách bảo mật</span></li>
+              <li><span className="cursor-pointer border-b border-transparent pb-0.5 transition-colors duration-250 hover:border-amber-300 hover:text-amber-200">Điều hành sử dụng vé</span></li>
+              <li><span className="cursor-pointer border-b border-transparent pb-0.5 transition-colors duration-250 hover:border-amber-300 hover:text-amber-200">Quy chuẩn hoạt động</span></li>
             </ul>
           </div>
 
           {/* Column 4: Newsletter sign-up */}
-          <div className="space-y-4">
-            <h3 className="text-[10px] font-sans font-bold uppercase tracking-[0.2em] text-white">THƯ CHIÊU ĐÃI VIP</h3>
-            <p className="text-[11px] text-neutral-500 font-sans font-light leading-relaxed">Nhập email để nhận thư thông cáo về điện ảnh độc sắc và các đặc quyền voucher rạp mật.</p>
-            
+          <div className="space-y-5">
+            <h3 className="border-l-2 border-amber-400 pl-3 text-sm font-sans font-black uppercase tracking-[0.22em] text-white">THƯ CHIÊU ĐÃI VIP</h3>
+            <p className="text-sm text-neutral-300 font-sans font-normal leading-7">Nhập email để nhận thư thông cáo về điện ảnh độc sắc và các đặc quyền voucher rạp mật.</p>
+
             {subscribed ? (
-              <div className="border border-white/20 bg-neutral-950 p-3 text-[10px] uppercase tracking-wider text-white">
+              <div className="border border-emerald-400/30 bg-emerald-950/20 p-3 text-xs uppercase tracking-wider text-emerald-200">
                 ✓ Thiết lập đăng ký thành công.
               </div>
             ) : (
@@ -72,13 +72,13 @@ export default function Footer() {
                   placeholder="EMAIL CỦA BẠN..."
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full border border-white/10 bg-[#0A0A0A] py-2.5 pl-3 pr-10 text-[10px] tracking-wider text-white uppercase placeholder-neutral-700 focus:border-white focus:outline-none"
+                  className="w-full border border-white/15 bg-[#0A0A0A] py-3 pl-4 pr-12 text-xs tracking-wider text-white uppercase placeholder-neutral-600 transition focus:border-amber-300 focus:outline-none"
                 />
                 <button
                   type="submit"
-                  className="absolute right-1 top-1 bg-white text-black hover:bg-neutral-200 p-1.5 transition duration-250"
+                  className="absolute right-1.5 top-1.5 bg-white text-black hover:bg-amber-300 p-2 transition duration-250"
                 >
-                  <ArrowRight className="h-3.5 w-3.5" />
+                  <ArrowRight className="h-4 w-4" />
                 </button>
               </form>
             )}
@@ -87,12 +87,12 @@ export default function Footer() {
         </div>
 
         {/* Bottom copyright barrier */}
-        <div className="mt-16 border-t border-white/5 pt-8 flex flex-col md:flex-row items-center justify-between text-[9px] uppercase tracking-[0.15em] text-neutral-600">
-          <p>© 2026 CINEPREMIER STUDIOS. ALL RIGHTS RESERVED.</p>
+        <div className="mt-16 border-t border-white/5 pt-8 flex flex-col md:flex-row items-center justify-between text-[10px] uppercase tracking-[0.16em] text-neutral-500">
+          <p style={{ color: '#ffff' }}>© 2026 CINEPREMIER STUDIOS. ALL RIGHTS RESERVED.</p>
           <div className="mt-4 md:mt-0 flex space-x-4">
-            <span>Powered by Smart AI Rating Engine</span>
-            <span>•</span>
-            <span>Thế Điện Ảnh Tinh Hoa</span>
+            <span style={{ color: '#ffff' }}>Powered by Smart AI Rating Engine</span>
+            <span style={{ color: '#ffff' }}>•</span>
+            <span style={{ color: '#ffff' }}>Thế Điện Ảnh Tinh Hoa</span>
           </div>
         </div>
       </div>

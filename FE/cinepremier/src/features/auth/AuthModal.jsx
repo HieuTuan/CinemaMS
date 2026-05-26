@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  X, User, Mail, Lock, Phone, ShieldCheck, Check, 
-  Sparkles, ArrowRight, Eye, EyeOff, Film, Ticket, 
+import {
+  X, User, Mail, Lock, Phone, ShieldCheck, Check,
+  Sparkles, ArrowRight, Eye, EyeOff, Film, Ticket,
   Heart, Sparkle, AlertCircle
 } from 'lucide-react';
+import { authApi, saveAuthSession } from '../../services/authApi';
 
 const AVATAR_PRESETS = [
   { id: 'critic', name: 'Nhà Phê Bình', emoji: '🎬', bg: 'from-amber-500 to-orange-600' },
@@ -43,7 +44,7 @@ export default function AuthModal({
   const [forgotStep, setForgotStep] = useState(1); // 1: Email Input, 2: Code verification, 3: Set new Password
   const [generatedForgotOtp, setGeneratedForgotOtp] = useState('');
   const [showForgotConfirmPass, setShowForgotConfirmPass] = useState(false);
-  
+
   // Registration States
   const [regName, setRegName] = useState('');
   const [regPhone, setRegPhone] = useState('');
@@ -98,16 +99,16 @@ export default function AuthModal({
       const ctx = new AudioCtx();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      
+
       osc.type = type;
       osc.frequency.setValueAtTime(freq, ctx.currentTime);
-      
+
       gain.gain.setValueAtTime(0.08, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-      
+
       osc.connect(gain);
       gain.connect(ctx.destination);
-      
+
       osc.start();
       osc.stop(ctx.currentTime + duration);
     } catch (e) {
@@ -164,48 +165,49 @@ export default function AuthModal({
     }
   };
 
-  const handlePasswordLogin = (e) => {
+  const handlePasswordLogin = async (e) => {
     e.preventDefault();
     if (!loginEmail || !loginPass) {
       showToast('error', 'Vui lòng cung cấp toàn bộ tài khoản và mật khẩu.');
       return;
     }
+    let targetEmail = loginEmail.trim();
+    if (targetEmail.toLowerCase() === 'admin') targetEmail = 'admin@gmail.com';
+    if (targetEmail.toLowerCase() === 'kh') targetEmail = 'kh@gmail.com';
+
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      const authData = await authApi.login({
+        email: targetEmail,
+        password: loginPass.trim()
+      });
+      const user = saveAuthSession(authData);
+
+      setIsLoggedIn(true);
+      if (setCurrentRole) setCurrentRole(user.role || 'user');
+      if (setCurrentUser) setCurrentUser(user);
+      if (onLoginSuccess) onLoginSuccess(user);
+      playPing(880, 'sine', 0.35);
+      showToast('success', `Chào mừng ${user.name || user.email} trở lại CinePremier!`);
+      setTimeout(() => {
+        onClose();
+      }, 1200);
+    } catch (error) {
+      playPing(150, 'sawtooth', 0.2);
+      showToast('error', error.message || 'Tài khoản Email hoặc mật khẩu không chính xác.');
+    } finally {
       setIsSubmitting(false);
-      let targetEmail = loginEmail.trim();
-      
-      // Auto-mapping for fast testing shortcuts
-      if (targetEmail.toLowerCase() === 'admin') targetEmail = 'admin@gmail.com';
-      if (targetEmail.toLowerCase() === 'kh') targetEmail = 'kh@gmail.com';
-
-      const password = loginPass.trim();
-      const users = getStoredUsers();
-      const matched = users.find(
-        u => u.email.toLowerCase() === targetEmail.toLowerCase() && u.pass === password
-      );
-
-      if (matched) {
-        setIsLoggedIn(true);
-        if (setCurrentRole) setCurrentRole(matched.role || 'user');
-        if (setCurrentUser) setCurrentUser(matched);
-        if (onLoginSuccess) onLoginSuccess(matched);
-        playPing(880, 'sine', 0.35);
-        showToast('success', `Chào mừng Thượng Khách ${matched.name} trở lại thành công!`);
-        setTimeout(() => {
-          onClose();
-        }, 1200);
-      } else {
-        playPing(150, 'sawtooth', 0.2);
-        showToast('error', 'Tài khoản Email hoặc mật khẩu không chính xác! Vui lòng thử lại.');
-      }
-    }, 1100);
+    }
   };
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
     if (!regName || !regPhone || !regEmail || !regPassword) {
       showToast('error', 'Quý khách vui lòng điền trọn vẹn thông tin đăng ký.');
+      return;
+    }
+    if (regPassword.length < 8) {
+      showToast('error', 'Mật khẩu cần tối thiểu 8 ký tự để khớp yêu cầu từ BE.');
       return;
     }
     if (!agreeTerms) {
@@ -213,44 +215,40 @@ export default function AuthModal({
       return;
     }
 
-    const currentUsers = getStoredUsers();
-    const isEmailTaken = currentUsers.some(
-      u => u.email.toLowerCase() === regEmail.trim().toLowerCase()
-    );
-
-    if (isEmailTaken) {
-      showToast('error', 'Email này đã được đăng ký thành viên VIP trước đây.');
-      return;
-    }
-
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-
-      const newUser = {
+    try {
+      const registerData = await authApi.register({
         email: regEmail.trim(),
-        pass: regPassword.trim(),
-        name: regName.trim(),
-        role: 'user',
-        avatar: selectedAvatar,
-        phone: regPhone.trim(),
-        genre: selectedGenre
-      };
+        password: regPassword.trim(),
+        fullName: regName.trim(),
+        phone: regPhone.trim()
+      });
 
-      const updatedList = [...currentUsers, newUser];
-      saveStoredUsers(updatedList);
+      if (registerData?.emailVerificationToken) {
+        await authApi.verifyEmail(registerData.emailVerificationToken);
+      }
+
+      const authData = await authApi.login({
+        email: regEmail.trim(),
+        password: regPassword.trim()
+      });
+      const user = saveAuthSession(authData);
+      const decoratedUser = { ...user, avatar: selectedAvatar, genre: selectedGenre };
 
       setIsLoggedIn(true);
-      if (setCurrentRole) setCurrentRole('user');
-      if (setCurrentUser) setCurrentUser(newUser);
-      if (onLoginSuccess) onLoginSuccess(newUser);
-
+      if (setCurrentRole) setCurrentRole(decoratedUser.role || 'user');
+      if (setCurrentUser) setCurrentUser(decoratedUser);
+      if (onLoginSuccess) onLoginSuccess(decoratedUser);
       playPing(987.77, 'sine', 0.4); // B5 note for golden badge
-      showToast('success', `Đăng ký Thượng Khách ${regName} thành công! Hệ thống tặng bạn Thẻ Độc Quyền Gold.`);
+      showToast('success', `Đăng ký ${regName} thành công và đã xác minh email.`);
       setTimeout(() => {
         onClose();
       }, 1500);
-    }, 1500);
+    } catch (error) {
+      showToast('error', error.message || 'Đăng ký thất bại. Vui lòng thử lại.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleGoogleSignIn = () => {
@@ -259,7 +257,7 @@ export default function AuthModal({
     showToast('success', 'Đang thiết lập kênh đồng bộ bảo mật Google Cloud...');
     setTimeout(() => {
       setIsSubmitting(false);
-      
+
       const googleUser = {
         name: 'GIA BẢO (GOOGLE VIP)',
         email: 'giabao.premier@gmail.com',
@@ -295,7 +293,7 @@ export default function AuthModal({
     setForgotNewPass('');
   };
 
-  const handleSendForgotOTP = (e) => {
+  const handleSendForgotOTP = async (e) => {
     e.preventDefault();
     if (!forgotEmail) {
       showToast('error', 'Vui lòng cung cấp địa chỉ Email.');
@@ -307,89 +305,74 @@ export default function AuthModal({
     if (cleanEmail.toLowerCase() === 'admin') resolvedEmail = 'admin@gmail.com';
     if (cleanEmail.toLowerCase() === 'kh') resolvedEmail = 'kh@gmail.com';
 
-    const users = getStoredUsers();
-    const userFound = users.find(u => u.email.toLowerCase() === resolvedEmail.toLowerCase());
-    
-    if (!userFound) {
-      showToast('error', 'Không tìm thấy tài khoản VIP đồng bộ với Email này.');
-      return;
-    }
-
     setIsSubmitting(true);
     playPing(440, 'triangle', 0.1);
-    
-    setTimeout(() => {
-      setIsSubmitting(false);
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      setGeneratedForgotOtp(code);
+    try {
+      const tokenData = await authApi.requestPasswordReset(resolvedEmail);
+      setGeneratedForgotOtp(tokenData?.token || '');
+      setForgotEmail(resolvedEmail);
       setForgotStep(2);
-      showToast('success', `Hệ thống vừa phát mã khóa xác thực OTP khôi phục!`);
-    }, 1000);
+      showToast('success', 'Đã tạo reset token từ BE. Hãy nhập token hiển thị để tiếp tục.');
+    } catch (error) {
+      showToast('error', error.message || 'Không thể tạo token reset password.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleVerifyForgotOTP = (e) => {
     e.preventDefault();
-    if (forgotOtp === generatedForgotOtp || forgotOtp === '123456') {
+    if (forgotOtp.trim() === generatedForgotOtp) {
       setIsSubmitting(true);
       setTimeout(() => {
         setIsSubmitting(false);
         setForgotStep(3);
         playPing(660, 'sine', 0.15);
-        showToast('success', 'Khớp mã bảo an! Quý khách vui lòng thiết lập mật khẩu mới.');
+        showToast('success', 'Token hợp lệ. Quý khách vui lòng thiết lập mật khẩu mới.');
       }, 700);
     } else {
-      showToast('error', 'Mã xác thực OTP không chính xác. Hãy nhập mã hiển thị trong thông báo.');
+      showToast('error', 'Reset token không chính xác. Hãy nhập đúng token BE vừa trả về.');
     }
   };
 
-  const handleUpdatePassword = (e) => {
+  const handleUpdatePassword = async (e) => {
     e.preventDefault();
-    if (!forgotNewPass || forgotNewPass.length < 3) {
-      showToast('error', 'Mật khẩu mới cần tối thiểu 3 ký tự để giữ an toàn tuyệt đối.');
+    if (!forgotNewPass || forgotNewPass.length < 8) {
+      showToast('error', 'Mật khẩu mới cần tối thiểu 8 ký tự để khớp yêu cầu từ BE.');
       return;
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      const cleanEmail = forgotEmail.trim();
-      let resolvedEmail = cleanEmail;
-      if (cleanEmail.toLowerCase() === 'admin') resolvedEmail = 'admin@gmail.com';
-      if (cleanEmail.toLowerCase() === 'kh') resolvedEmail = 'kh@gmail.com';
-
-      const users = getStoredUsers();
-      const updated = users.map(u => {
-        if (u.email.toLowerCase() === resolvedEmail.toLowerCase()) {
-          return { ...u, pass: forgotNewPass.trim() };
-        }
-        return u;
-      });
-      saveStoredUsers(updated);
-
+    try {
+      await authApi.confirmPasswordReset(generatedForgotOtp, forgotNewPass.trim());
       playPing(880, 'sine', 0.45);
-      showToast('success', 'Thiết lập mật khẩu VIP mới thành công! Hãy đăng nhập ngay.');
-      
+      showToast('success', 'Đặt lại mật khẩu thành công. Hãy đăng nhập bằng mật khẩu mới.');
+
       // Clean up states and switch back to standard login tab
       setActiveTab('login');
       setForgotEmail('');
       setForgotOtp('');
       setForgotNewPass('');
       setForgotStep(1);
-    }, 1200);
+    } catch (error) {
+      showToast('error', error.message || 'Không thể đặt lại mật khẩu.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-4 md:p-6 select-none overflow-y-auto">
-      
+
       {/* Animated Glowing Ambient Spotlight in Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[50%] rounded-full bg-indigo-900/10 blur-[120px] animate-pulse"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[60%] rounded-full bg-amber-500/5 blur-[120px]"></div>
       </div>
 
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
@@ -397,7 +380,7 @@ export default function AuthModal({
         className="w-full max-w-lg border border-neutral-800 bg-gradient-to-b from-[#0e0e0e] to-[#040404] text-white overflow-hidden relative shadow-[0_0_50px_rgba(0,0,0,0.8)] rounded-none"
         id="premium-auth-container"
       >
-        
+
         {/* Header Indicator */}
         <div className="h-1 bg-gradient-to-r from-neutral-800 via-amber-400 to-neutral-800"></div>
 
@@ -415,7 +398,7 @@ export default function AuthModal({
             </div>
           </div>
 
-          <button 
+          <button
             onClick={() => {
               playPing(300, 'sine', 0.08);
               onClose();
@@ -430,15 +413,14 @@ export default function AuthModal({
         {/* Toast Notification Container inside Modal */}
         <AnimatePresence>
           {notification && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className={`mx-6 mt-4 p-3.5 flex items-start gap-2.5 text-xs border ${
-                notification.type === 'success' 
-                  ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-400' 
+              className={`mx-6 mt-4 p-3.5 flex items-start gap-2.5 text-xs border ${notification.type === 'success'
+                  ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-400'
                   : 'bg-rose-950/20 border-rose-500/40 text-rose-300'
-              } shadow-lg relative z-20`}
+                } shadow-lg relative z-20`}
             >
               {notification.type === 'success' ? (
                 <Check className="h-4.5 w-4.5 shrink-0 text-emerald-400" />
@@ -477,11 +459,10 @@ export default function AuthModal({
                   setActiveTab('login');
                   setOtpSent(false);
                 }}
-                className={`py-2.5 text-xs font-sans font-bold uppercase tracking-[0.15em] transition duration-300 relative ${
-                  activeTab === 'login' 
-                    ? 'text-white' 
+                className={`py-2.5 text-xs font-sans font-bold uppercase tracking-[0.15em] transition duration-300 relative ${activeTab === 'login'
+                    ? 'text-white'
                     : 'text-neutral-400 hover:text-neutral-200'
-                }`}
+                  }`}
               >
                 Đăng Nhập QR/OTP
                 {activeTab === 'login' && (
@@ -493,11 +474,10 @@ export default function AuthModal({
                   playPing(380, 'sine', 0.1);
                   setActiveTab('register');
                 }}
-                className={`py-2.5 text-xs font-sans font-bold uppercase tracking-[0.15em] transition duration-300 relative ${
-                  activeTab === 'register' 
-                    ? 'text-white' 
+                className={`py-2.5 text-xs font-sans font-bold uppercase tracking-[0.15em] transition duration-300 relative ${activeTab === 'register'
+                    ? 'text-white'
                     : 'text-neutral-400 hover:text-neutral-200'
-                }`}
+                  }`}
               >
                 Gia Nhập Hội Viên
                 {activeTab === 'register' && (
@@ -512,7 +492,7 @@ export default function AuthModal({
         <div className="p-6 md:p-8 space-y-5">
           <AnimatePresence mode="wait">
             {activeTab === 'login' ? (
-              
+
               /***************** LOGIN VIEW *****************/
               <motion.div
                 key="login-view"
@@ -682,7 +662,7 @@ export default function AuthModal({
                       {isSubmitting ? (
                         <span className="h-4 w-4 border-2 border-black border-t-transparent animate-spin rounded-full inline-block"></span>
                       ) : (
-                        <>THĂM DÒ NỀN MÓNG VIP <ArrowRight className="h-3.5 w-3.5" /></>
+                        <>THĂM DÒ NỀN MÓNG RẠP<ArrowRight className="h-3.5 w-3.5" /></>
                       )}
                     </button>
                   </form>
@@ -690,7 +670,7 @@ export default function AuthModal({
 
                 {/* Secure Google and Direct Action Section */}
                 <div className="space-y-4 pt-1">
-                  
+
                   {/* Divider line */}
                   <div className="flex items-center">
                     <div className="flex-1 h-px bg-neutral-900"></div>
@@ -707,7 +687,7 @@ export default function AuthModal({
                     id="google-signin-btn"
                   >
                     <div className="absolute inset-x-0 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-amber-400/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                    
+
                     {/* Native Google Mini G Logo SVG */}
                     <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
                       <path
@@ -763,7 +743,7 @@ export default function AuthModal({
                 </div>
               </motion.div>
             ) : activeTab === 'register' ? (
-              
+
               /***************** JOIN/REGISTER VIEW *****************/
               <motion.div
                 key="register-view"
@@ -774,7 +754,7 @@ export default function AuthModal({
                 className="space-y-4"
               >
                 <form onSubmit={handleRegister} className="space-y-4">
-                  
+
                   {/* Avatar Preset Grid - Extremely satisfying UI */}
                   <div className="space-y-2">
                     <span className="block text-[11px] font-sans font-extrabold uppercase tracking-wider text-neutral-300 mb-1 flex items-center gap-1">
@@ -789,17 +769,16 @@ export default function AuthModal({
                             playPing(450 + AVATAR_PRESETS.findIndex(a => a.id === avatar.id) * 30, 'sine', 0.12);
                             setSelectedAvatar(avatar.id);
                           }}
-                          className={`relative py-2 px-1 flex flex-col items-center justify-center border transition-all duration-300 ${
-                            selectedAvatar === avatar.id 
-                              ? 'border-amber-400 bg-amber-950/20 scale-105 shadow-[0_0_12px_rgba(245,158,11,0.25)]' 
+                          className={`relative py-2 px-1 flex flex-col items-center justify-center border transition-all duration-300 ${selectedAvatar === avatar.id
+                              ? 'border-amber-400 bg-amber-950/20 scale-105 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
                               : 'border-neutral-900 bg-neutral-950 hover:border-neutral-800'
-                          }`}
+                            }`}
                         >
                           <span className="text-xl sm:text-2xl mb-1">{avatar.emoji}</span>
                           <span className="text-[7.5px] font-bold tracking-tight text-neutral-400 text-center truncate w-full">
                             {avatar.name}
                           </span>
-                          
+
                           {selectedAvatar === avatar.id && (
                             <div className="absolute top-1 right-1 h-2 w-2 bg-amber-400 rounded-full"></div>
                           )}
@@ -810,7 +789,7 @@ export default function AuthModal({
 
                   {/* Dual Grid Fields */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                    
+
                     {/* Full Name */}
                     <div className="space-y-1">
                       <label className="block text-[10px] font-sans font-extrabold uppercase tracking-wider text-neutral-300">
@@ -851,7 +830,7 @@ export default function AuthModal({
 
                   {/* Email & Password Registration Row */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                    
+
                     {/* Email */}
                     <div className="space-y-1">
                       <label className="block text-[9px] font-sans font-black uppercase tracking-wider text-neutral-500">
@@ -901,11 +880,10 @@ export default function AuthModal({
                           key={genre}
                           type="button"
                           onClick={() => { playPing(520, 'sine', 0.05); setSelectedGenre(genre); }}
-                          className={`px-3 py-1.5 text-[8.5px] uppercase tracking-wider font-bold transition-all ${
-                            selectedGenre === genre
+                          className={`px-3 py-1.5 text-[8.5px] uppercase tracking-wider font-bold transition-all ${selectedGenre === genre
                               ? 'bg-amber-400 text-black font-extrabold'
                               : 'bg-neutral-950 text-neutral-400 border border-neutral-850 hover:bg-neutral-900'
-                          }`}
+                            }`}
                         >
                           {genre}
                         </button>
@@ -916,8 +894,8 @@ export default function AuthModal({
                   {/* Double constraints age + loyalty */}
                   <div className="space-y-2 pt-1 border-t border-neutral-900">
                     <label className="flex items-start space-x-2.5 text-[11px] text-neutral-400 cursor-pointer">
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
                         required
                         checked={agreeTerms}
                         onChange={(e) => { playPing(500, 'sine', 0.05); setAgreeTerms(e.target.checked); }}
@@ -945,7 +923,7 @@ export default function AuthModal({
                 </form>
               </motion.div>
             ) : (
-              
+
               /***************** FORGOT PASSWORD / RECOVERY VIEW *****************/
               <motion.div
                 key="forgot-password-view"
@@ -966,8 +944,8 @@ export default function AuthModal({
 
                 <p className="text-xs text-neutral-300 font-light leading-relaxed">
                   {forgotStep === 1 && "Nhập địa chỉ Email VIP liên kết để bảo lưu tài khoản hội viên và gửi tín hiệu kích hoạt mã bảo an."}
-                  {forgotStep === 2 && "Hệ thống bảo an đã phát khóa OTP riêng biệt dưới đây. Hãy sao chép và nhập chính xác mã."}
-                  {forgotStep === 3 && "Nhập mật khẩu VIP mới bảo mật tối thiểu 3 ký tự để đồng bộ cập nhật vào hệ thống."}
+                  {forgotStep === 2 && "Hệ thống đã tạo reset token từ BE. Hãy sao chép và nhập chính xác token để đặt lại mật khẩu."}
+                  {forgotStep === 3 && "Nhập mật khẩu VIP mới bảo mật tối thiểu 8 ký tự để đồng bộ cập nhật vào hệ thống."}
                 </p>
 
                 {forgotStep === 1 && (
@@ -997,7 +975,7 @@ export default function AuthModal({
                       {isSubmitting ? (
                         <span className="h-4 w-4 border-2 border-black border-t-transparent animate-spin rounded-full inline-block"></span>
                       ) : (
-                        <>PHÁT OTP KHÓA BẢO MẬT <ArrowRight className="h-3.5 w-3.5" /></>
+                        <>TẠO RESET TOKEN <ArrowRight className="h-3.5 w-3.5" /></>
                       )}
                     </button>
                   </form>
@@ -1006,26 +984,25 @@ export default function AuthModal({
                 {forgotStep === 2 && (
                   <form onSubmit={handleVerifyForgotOTP} className="space-y-4">
                     <div className="bg-[#0c0a05] border border-amber-500/20 p-4 text-xs space-y-1.5 text-amber-300 rounded mb-2">
-                      <p className="font-bold text-amber-400">✓ ĐÃ TRUYỀN TÍN HIỆU OTP KHÔI PHỤC!</p>
-                      <p className="opacity-90">Mã xác nhận bảo an của quý khách là:</p>
+                      <p className="font-bold text-amber-400">✓ ĐÃ TẠO RESET TOKEN!</p>
+                      <p className="opacity-90">Token reset password từ BE là:</p>
                       <div className="flex items-center gap-2 pt-1">
-                        <span className="font-mono font-black text-amber-400 bg-amber-500/15 px-3 py-1.5 border border-amber-500/40 text-base rounded tracking-widest">{generatedForgotOtp}</span>
-                        <span className="text-[10px] text-zinc-400 italic">(Nhập mã này hoặc 123456 để vượt qua rào cản)</span>
+                        <span className="font-mono font-black text-amber-400 bg-amber-500/15 px-3 py-1.5 border border-amber-500/40 text-[10px] rounded break-all">{generatedForgotOtp}</span>
+                        <span className="text-[10px] text-zinc-400 italic">(Nhập đúng token này)</span>
                       </div>
                     </div>
 
                     <div className="space-y-1.5 focus-within:text-amber-400">
                       <label className="block text-[11px] font-sans font-extrabold uppercase tracking-wider text-neutral-300">
-                        Nhập 6 Số Xác Thực OTP
+                        Nhập Reset Token
                       </label>
                       <input
                         type="text"
                         required
-                        maxLength={6}
-                        placeholder="● ● ● ● ● ●"
+                        placeholder="Dán reset token từ BE..."
                         value={forgotOtp}
                         onChange={(e) => setForgotOtp(e.target.value)}
-                        className="w-full border border-neutral-800 focus:border-amber-500 bg-neutral-950 py-3 text-center text-sm font-mono font-black tracking-[0.8em] text-white focus:outline-none transition-all placeholder-neutral-800"
+                        className="w-full border border-neutral-800 focus:border-amber-500 bg-neutral-950 py-3 px-3 text-xs font-mono font-black text-white focus:outline-none transition-all placeholder-neutral-800"
                       />
                     </div>
 
@@ -1110,7 +1087,7 @@ export default function AuthModal({
         </div>
 
       </motion.div>
-      
+
     </div>
   );
 }

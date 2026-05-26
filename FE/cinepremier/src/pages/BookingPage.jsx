@@ -3,7 +3,7 @@ import { ChevronRight, ChevronLeft, ArrowLeft, Ticket, ShoppingBag, Tag, Plus, M
 import { comboItems, showdates, showtimes, halls } from '../services/cinemaData';
 import { generateSeats } from '../utils/seatMap';
 
-export default function BookingView({ movie, onBack, onConfirmBooking }) {
+export default function BookingView({ movie, onBack, onConfirmBooking, showToast = () => {}, foodCatalog = [] }) {
   // Seat scroll helper ref
   const seatScrollRef = useRef(null);
 
@@ -18,6 +18,7 @@ export default function BookingView({ movie, onBack, onConfirmBooking }) {
   };
 
   // Booking states
+  const concessions = foodCatalog.length > 0 ? foodCatalog : comboItems;
   const [selectedDate, setSelectedDate] = useState(showdates[0].label);
   const [selectedTime, setSelectedTime] = useState(showtimes[4]); // Defaults to 19:30
   const [selectedHall, setSelectedHall] = useState(halls[0]);
@@ -63,7 +64,7 @@ export default function BookingView({ movie, onBack, onConfirmBooking }) {
       setSelectedSeats(prev => prev.filter(s => s.id !== seat.id));
     } else {
       if (selectedSeats.length >= 8) {
-        alert("Bạn chỉ có thể đặt tối đa 8 ghế cùng một lúc.");
+        showToast("Bạn chỉ có thể đặt tối đa 8 ghế cùng một lúc.");
         return;
       }
       setSelectedSeats(prev => [...prev, seat]);
@@ -77,7 +78,10 @@ export default function BookingView({ movie, onBack, onConfirmBooking }) {
       let newQty = currentQty;
 
       if (operator === '+') {
-        newQty = Math.min(10, currentQty + 1);
+        if (currentQty >= 3) {
+          showToast('Mỗi vé chỉ được mua tối đa 3 phần cho một sản phẩm.');
+        }
+        newQty = Math.min(3, currentQty + 1);
       } else if (operator === '-') {
         newQty = Math.max(0, currentQty - 1);
       }
@@ -110,7 +114,7 @@ export default function BookingView({ movie, onBack, onConfirmBooking }) {
       setDiscountPercent(15);
       setPromoCode('');
     } else {
-      alert("Mã giảm giá không hợp lệ. Hãy thử các mã: CINEAI, IMAXVIP, WELCOME");
+      showToast("Mã giảm giá không hợp lệ. Hãy thử các mã: CINEAI, IMAXVIP, WELCOME");
     }
   };
 
@@ -123,7 +127,7 @@ export default function BookingView({ movie, onBack, onConfirmBooking }) {
   const priceTickets = selectedSeats.reduce((total, seat) => total + seat.price, 0);
   
   const priceCombos = Object.entries(selectedCombos).reduce((total, [id, qty]) => {
-    const item = comboItems.find(item => item.id === id);
+    const item = concessions.find(item => item.id === id);
     return total + (item ? item.price * qty : 0);
   }, 0);
 
@@ -134,12 +138,12 @@ export default function BookingView({ movie, onBack, onConfirmBooking }) {
   // Trigger payment view delivery
   const handleProceedToPayment = () => {
     if (selectedSeats.length === 0) {
-      alert("Vui lòng chọn ít nhất một ghế để tiếp tục đặt vé.");
+      showToast("Vui lòng chọn ít nhất một ghế để tiếp tục đặt vé.");
       return;
     }
 
     if (!ageConfirmed) {
-      alert(`QUY ĐỊNH ĐỘ TUỔI TỪ CHỐI GIAO DỊCH:\nBạn vui lòng tích chọn xác nhận đủ điều kiện độ tuổi tối thiểu (${movie.ageRating}) để xem bộ phim này trước khi thực hiện thanh toán.`);
+      showToast(`QUY ĐỊNH ĐỘ TUỔI TỪ CHỐI GIAO DỊCH:\nBạn vui lòng tích chọn xác nhận đủ điều kiện độ tuổi tối thiểu (${movie.ageRating}) để xem bộ phim này trước khi thực hiện thanh toán.`);
       return;
     }
 
@@ -341,7 +345,7 @@ export default function BookingView({ movie, onBack, onConfirmBooking }) {
                 <div className="text-[10px] uppercase font-sans text-zinc-400 border-b border-white/5 pb-4 space-y-2">
                   <span className="text-zinc-600 block text-[8px] tracking-widest font-mono">DỊCH VỤ ĐI KÈM / F&B CONCESSIONS:</span>
                   {Object.entries(selectedCombos).map(([id, q]) => {
-                    const it = comboItems.find(item => item.id === id);
+                    const it = concessions.find(item => item.id === id);
                     if (!it) return null;
                     return (
                       <div key={id} className="flex justify-between text-[10px]">
@@ -398,7 +402,7 @@ export default function BookingView({ movie, onBack, onConfirmBooking }) {
                 Xác nhận & lưu vé
               </button>
               <button
-                onClick={() => alert('Đang khởi động kết nối máy in hóa đơn nhiệt CinePremier...\nIn thành công! Hãy lấy hóa đơn giấy tại cổng rạp trước khi vào phòng chiếu.')}
+                onClick={() => showToast('Đang khởi động kết nối máy in hóa đơn nhiệt CinePremier...\nIn thành công! Hãy lấy hóa đơn giấy tại cổng rạp trước khi vào phòng chiếu.')}
                 className="border border-white/20 hover:border-white text-white hover:bg-neutral-900 py-4 px-6 text-xs font-bold uppercase tracking-widest font-sans transition-all flex items-center justify-center gap-1.5"
               >
                 <Printer className="h-4 w-4 text-zinc-400" />
@@ -454,7 +458,7 @@ export default function BookingView({ movie, onBack, onConfirmBooking }) {
                   <div className="space-y-2 pt-2 text-[9px] font-sans tracking-tight text-zinc-500">
                     <span className="text-[9px] font-mono tracking-widest text-zinc-600 block">Combo dính kèm:</span>
                     {Object.entries(selectedCombos).map(([id, q]) => {
-                      const it = comboItems.find(item => item.id === id);
+                      const it = concessions.find(item => item.id === id);
                       if (!it) return null;
                       return (
                         <div key={id} className="flex justify-between">
@@ -963,7 +967,7 @@ export default function BookingView({ movie, onBack, onConfirmBooking }) {
 
                 {/* Grid layout of actual product items */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4" id="inline-combos-grid">
-                  {comboItems.map((item) => {
+                  {concessions.map((item) => {
                     const qty = selectedCombos[item.id] || 0;
 
                     return (
@@ -995,7 +999,7 @@ export default function BookingView({ movie, onBack, onConfirmBooking }) {
 
                             {/* Elegant tag showing concessions type */}
                             <span className="absolute bottom-2 left-2 text-[8px] font-mono tracking-widest uppercase bg-black/8 w-fit text-zinc-400 px-1.5 py-0.5 border border-white/10">
-                              {item.category === 'combo' ? 'Trọn gói' : item.category === 'popcorn' ? 'Bắp ngô' : item.category === 'snack' ? 'Ăn vặt' : 'Đồ uống'}
+                              {item.category === 'combo' ? 'Trọn gói' : item.category === 'item' ? 'Món lẻ' : item.category === 'popcorn' ? 'Bắp ngô' : item.category === 'snack' ? 'Ăn vặt' : 'Đồ uống'}
                             </span>
                           </div>
 
@@ -1064,7 +1068,7 @@ export default function BookingView({ movie, onBack, onConfirmBooking }) {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6" id="combos-list">
-                {comboItems.map((item) => {
+                {concessions.map((item) => {
                   const qty = selectedCombos[item.id] || 0;
 
                   return (
@@ -1169,7 +1173,7 @@ export default function BookingView({ movie, onBack, onConfirmBooking }) {
               <div className="space-y-2 pt-2 border-t border-white/5 text-[9px] lowercase tracking-wide text-neutral-400">
                 <span className="text-[9px] uppercase tracking-[0.15em] text-neutral-600 block font-sans">Dịch vụ đi kèm</span>
                 {Object.entries(selectedCombos).map(([id, q]) => {
-                  const it = comboItems.find(item => item.id === id);
+                  const it = concessions.find(item => item.id === id);
                   if (!it) return null;
                   return (
                     <div key={id} className="flex justify-between uppercase">

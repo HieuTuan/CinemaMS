@@ -1,9 +1,23 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Play, Pause, Sparkles, MessageSquare, Check, HelpCircle, Volume2, VolumeX, ChevronLeft, ChevronRight, Film } from 'lucide-react';
 import { movies } from '../services/cinemaData';
 import MovieCard from '../components/movies/MovieCard';
 
-export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, moviesList = movies }) {
+const extractYoutubeId = (url = '') => {
+  const trimmed = url.trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
+
+  const patterns = [
+    /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
+    /youtu\.be\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/
+  ];
+
+  return patterns.map((pattern) => trimmed.match(pattern)?.[1]).find(Boolean) || 'k8m0SaGQ_1c';
+};
+
+export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, moviesList = movies, homepageVideoUrl = 'https://www.youtube.com/watch?v=k8m0SaGQ_1c' }) {
   const [selectedMood, setSelectedMood] = useState('#Đỉnh_Cao_Thị_Giác');
   const [userPrompt, setUserPrompt] = useState('');
   const [aiResponse, setAiResponse] = useState(null);
@@ -17,39 +31,10 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
   const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
-  
-  const videoRef = useRef(null);
-
-  const movieVideos = {
-    'neon-horizon': 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
-    'quantum-pulse': 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    'the-last-shadow': 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SuburuOutbackOnStreetAndDirt.mp4',
-    'echoes-of-silence': 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-    'zenith-of-dreams': 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
-  };
 
   const heroMovie = nowPlaying[currentHeroIndex] || nowPlaying[0] || moviesList[0];
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (video) {
-      video.muted = isMuted;
-      
-      const playVideo = async () => {
-        try {
-          if (isPlaying) {
-            await video.play();
-          } else {
-            video.pause();
-          }
-        } catch (err) {
-          console.log("Video action interrupted or autoplay policy restriction:", err);
-        }
-      };
-      
-      playVideo();
-    }
-  }, [isPlaying, currentHeroIndex, isMuted, heroMovie.id]);
+  const heroYoutubeId = extractYoutubeId(homepageVideoUrl);
+  const heroYoutubeSrc = `https://www.youtube.com/embed/${heroYoutubeId}?autoplay=${isPlaying ? 1 : 0}&mute=${isMuted ? 1 : 0}&controls=0&loop=1&playlist=${heroYoutubeId}&playsinline=1&rel=0&modestbranding=1&iv_load_policy=3&disablekb=1`;
 
   const handlePrevHero = () => {
     setCurrentHeroIndex((prev) => (prev === 0 ? nowPlaying.length - 1 : prev - 1));
@@ -125,35 +110,34 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
 
   return (
     <div className="space-y-20 pb-24">
-      
+
       {/* 1. HERO BANNER WITH DYNAMIC CINEMATIC VIDEO BACKGROUND */}
-      <section 
+      <section
         className="relative min-h-[75vh] flex items-center justify-center overflow-hidden bg-cover bg-center px-4 sm:px-6 lg:px-8 py-20 transition-all duration-700"
         style={{ backgroundImage: `url(${heroMovie.bannerUrl})` }}
         id="hero-banner"
       >
-        {/* HTML5 Cinematic Video Background */}
+        {/* Cinematic background */}
         <div className="absolute inset-0 z-0 select-none pointer-events-none">
-          <video
-            ref={videoRef}
-            src={movieVideos[heroMovie.id] || movieVideos['neon-horizon']}
-            poster={heroMovie.bannerUrl}
-            autoPlay
-            loop
-            muted={isMuted}
-            playsInline
-            className="absolute inset-0 w-full h-full object-cover opacity-75 scale-100 transition-all duration-1000 ease-in-out"
+          <iframe
+            key={`${heroYoutubeId}-${isPlaying}-${isMuted}`}
+            className={`absolute left-1/2 top-1/2 h-[56.25vw] min-h-full w-[177.78vh] min-w-full -translate-x-1/2 -translate-y-1/2 border-0 transition-opacity duration-700 ${isPlaying ? 'opacity-100' : 'opacity-80'}`}
+            src={heroYoutubeSrc}
+            title="CinePremier hero trailer"
+            allow="autoplay; encrypted-media; picture-in-picture"
+            referrerPolicy="strict-origin-when-cross-origin"
+            aria-hidden="true"
           />
           {/* Subtle cinematic overlays: dark enough on the left for text readability, clear in center and right for video action */}
           <div className="absolute inset-0 bg-gradient-to-r from-black via-black/60 to-black/15 z-10" />
           <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/10 z-10" />
-          
+
           {/* Subtle horizontal CRT-like line scanning for cinema projection texture */}
           <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(255,255,255,0)_97%,rgba(255,255,255,0.02)_97%)] bg-[size:100%_15px] pointer-events-none z-10 opacity-75"></div>
         </div>
 
         <div className="relative max-w-7xl w-full mx-auto z-20 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-          
+
           <div className="lg:col-span-8 space-y-6 max-w-2xl">
             {/* Top Tag: Now Playing & Sound Indicator */}
             <div className="flex flex-wrap items-center gap-3">
@@ -161,13 +145,13 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
                 <span>BOM TẤN THƯỢNG HẠNG • VIDEO CHUYỂN ĐỘNG ĐẸP</span>
               </div>
-              
+
               <div className="inline-flex items-center space-x-1.5 border border-amber-500/30 bg-amber-950/20 px-3 py-1 text-[9px] font-mono tracking-wider uppercase text-amber-400 font-bold rounded-none">
                 <Film className="h-3 w-3 animate-spin duration-1000" />
-                <span>DYNAMIC TRAILER</span>
+                <span>YOUTUBE TRAILER</span>
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <h1 className="text-5xl sm:text-7xl font-serif font-light text-white tracking-wide leading-none italic uppercase">
                 {heroMovie.title}
@@ -204,7 +188,7 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
               >
                 Hẹn Giờ Đặt Vé Ngay
               </button>
-              
+
               <button
                 onClick={() => onSelectMovie(heroMovie.id)}
                 className="border border-white/20 bg-black text-white text-xs font-sans uppercase tracking-[0.2em] px-8 py-3.5 hover:bg-white hover:text-black hover:border-white transition-all duration-300"
@@ -219,19 +203,19 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
                   <button
                     onClick={() => setIsPlaying(!isPlaying)}
                     className="p-1.5 hover:bg-white/15 text-white active:scale-95 transition-all rounded-none"
-                    title={isPlaying ? "Tạm dừng video" : "Phát tiếp video"}
+                    title={isPlaying ? "Tạm dừng chuyển động nền" : "Phát chuyển động nền"}
                   >
                     {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                   </button>
                   <button
                     onClick={() => setIsMuted(!isMuted)}
                     className="p-1.5 hover:bg-white/15 text-white active:scale-95 transition-all rounded-none"
-                    title={isMuted ? "Mở âm thanh trailer" : "Tắt âm thanh"}
+                    title={isMuted ? "Bật chế độ nổi bật" : "Tắt chế độ nổi bật"}
                   >
                     {isMuted ? <VolumeX className="h-4 w-4 text-neutral-400" /> : <Volume2 className="h-4 w-4 text-amber-500 animate-bounce" />}
                   </button>
                 </div>
-                
+
                 <div className="flex items-center space-x-1 pl-1.5">
                   <button
                     onClick={handlePrevHero}
@@ -258,8 +242,8 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
           <div className="hidden lg:flex lg:col-span-4 justify-end">
             <div className="relative w-64 aspect-[2/3] border border-white/15 shadow-2xl p-2 bg-black hover:border-white/40 transition-all duration-500 group/poster">
               <div className="w-full h-full relative overflow-hidden border border-white/5">
-                <img 
-                  src={heroMovie.posterUrl} 
+                <img
+                  src={heroMovie.posterUrl}
                   alt={heroMovie.title}
                   className="w-full h-full object-cover group-hover/poster:scale-105 transition-transform duration-700"
                   referrerPolicy="no-referrer"
@@ -268,7 +252,7 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
                 <div className="absolute right-3 top-3 bg-black border border-white/20 text-white font-sans text-[10px] uppercase tracking-wider px-2 py-1">
                   ⭐ {heroMovie.ratings.aiOverall} AI Rating
                 </div>
-                
+
                 {/* Micro animation to indicate background video control */}
                 <div className="absolute bottom-3 left-3 flex items-center space-x-2 bg-black/70 border border-white/10 px-2.5 py-1 text-[8.5px] text-neutral-300 font-mono">
                   <span className="flex h-2 w-2 relative">
@@ -296,8 +280,8 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
             </div>
             <p className="text-[11px] text-neutral-500 uppercase tracking-widest mt-1.5">Các tác phẩm độc sắc kích hoạt quang phổ nghệ thuật điện ảnh</p>
           </div>
-          
-          <button 
+
+          <button
             onClick={() => onTabChange('explore')}
             className="text-xs uppercase tracking-[0.15em] text-neutral-400 hover:text-white flex items-center space-x-1.5 transition mt-4 sm:mt-0 font-sans border-b border-transparent hover:border-white pb-1"
           >
@@ -308,11 +292,11 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
 
         <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-5" id="now-playing-grid">
           {nowPlaying.map((movie) => (
-            <MovieCard 
-              key={movie.id} 
-              movie={movie} 
-              onSelect={onSelectMovie} 
-              onBook={onBookMovie} 
+            <MovieCard
+              key={movie.id}
+              movie={movie}
+              onSelect={onSelectMovie}
+              onBook={onBookMovie}
             />
           ))}
         </div>
@@ -322,21 +306,21 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
       <section className="bg-[#0A0A0A] border-y border-white/5 py-16 px-4 sm:px-6 lg:px-8" id="ai-highlights-section">
         <div className="mx-auto max-w-7xl">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-            
+
             {/* Left Box: Mood Selectors & AI Analysis Display */}
             <div className="lg:col-span-7 space-y-6">
               <div className="inline-flex items-center space-x-1.5 border border-white/10 bg-black px-3 py-1 text-[9px] text-neutral-400 tracking-[0.2em] uppercase font-sans">
                 <Sparkles className="h-3 w-3 text-white" />
                 <span>AI SUGGESTED CHIPS</span>
               </div>
-              
+
               <h2 className="text-3xl sm:text-5xl font-serif font-light text-white tracking-wide leading-tight">
-                Thuật Toán Khớp Nhịp Tim <br/>
+                Thuật Toán Khớp Nhịp Tim <br />
                 <span className="font-serif italic text-neutral-400">
                   CinePremier AI Selector
                 </span>
               </h2>
-              
+
               <p className="text-sm text-neutral-400 leading-relaxed max-w-xl font-sans">
                 Lưu chuyển tâm trạng nghệ thuật hoặc nhập dữ kiện điện ảnh mong muốn. Không gian trí tuệ rạp chiếu sẽ thiết lập tần phổ nhạy bén và đề xuất tấm vé hoàn mỹ nhất.
               </p>
@@ -350,11 +334,10 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
                       setSelectedMood(mt.tag);
                       setAiResponse(null);
                     }}
-                    className={`px-4 py-2 text-[10px] font-sans tracking-[0.1em] uppercase transition-all duration-300 ${
-                      selectedMood === mt.tag && !aiResponse
-                        ? 'bg-white text-black border border-white'
-                        : 'bg-black border border-white/10 text-neutral-500 hover:text-white hover:border-white/30'
-                    }`}
+                    className={`px-4 py-2 text-[10px] font-sans tracking-[0.1em] uppercase transition-all duration-300 ${selectedMood === mt.tag && !aiResponse
+                      ? 'bg-white text-black border border-white'
+                      : 'bg-black border border-white/10 text-neutral-500 hover:text-white hover:border-white/30'
+                      }`}
                   >
                     {mt.tag.replace('#', '')}
                   </button>
@@ -365,14 +348,14 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
               {!aiResponse && recommendedMovie && (
                 <div className="relative bg-black border border-white/10 p-6 flex flex-col md:flex-row gap-6 hover:border-white/20 transition-all duration-300">
                   <div className="w-full md:w-32 aspect-[2/3] overflow-hidden flex-shrink-0 bg-neutral-950 border border-white/5">
-                    <img 
-                      src={recommendedMovie.posterUrl} 
+                    <img
+                      src={recommendedMovie.posterUrl}
                       alt={recommendedMovie.title}
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
                     />
                   </div>
-                  
+
                   <div className="space-y-4 flex-1 flex flex-col justify-between">
                     <div>
                       <div className="flex items-center justify-between">
@@ -383,7 +366,7 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
                       </div>
                       <h4 className="text-xl font-serif text-white mt-2 italic">{recommendedMovie.title}</h4>
                       <p className="text-[10px] text-neutral-300 font-bold uppercase tracking-widest">{recommendedMovie.englishTitle}</p>
-                      
+
                       <p className="text-xs text-neutral-400 mt-3 leading-relaxed font-sans line-clamp-3">
                         {recommendedMovie.synopsis}
                       </p>
@@ -427,9 +410,9 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
                   {/* recommended detailed card from custom prompt */}
                   {aiResponse.recommendedMovieId && (
                     <div className="flex items-center space-x-4 bg-neutral-950 p-4 border border-white/5">
-                      <img 
-                        src={movies.find(m => m.id === aiResponse.recommendedMovieId)?.posterUrl} 
-                        alt="Recom" 
+                      <img
+                        src={movies.find(m => m.id === aiResponse.recommendedMovieId)?.posterUrl}
+                        alt="Recom"
                         className="h-16 w-11 object-cover border border-white/5"
                         referrerPolicy="no-referrer"
                       />
@@ -486,7 +469,7 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
                     className="w-full border border-white/10 bg-neutral-950 p-3 text-xs text-white placeholder-neutral-700 font-sans focus:border-white focus:outline-none"
                     id="ai-mood-textarea"
                   />
-                  
+
                   <button
                     type="submit"
                     disabled={loadingAI || !userPrompt.trim()}
@@ -522,21 +505,21 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6" id="upcoming-grid">
           {upcoming.map((movie) => (
-            <div 
-              key={movie.id} 
+            <div
+              key={movie.id}
               onClick={() => onSelectMovie(movie.id)}
               className="group flex flex-col sm:flex-row bg-[#0A0A0A] border border-white/5 p-4 gap-4 hover:border-white/15 transition-all duration-300 cursor-pointer"
             >
               <div className="w-[100px] aspect-[2/3] overflow-hidden flex-shrink-0 bg-neutral-950 border border-white/5">
-                <img 
-                  src={movie.posterUrl} 
+                <img
+                  src={movie.posterUrl}
                   alt={movie.title}
                   className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500"
                   referrerPolicy="no-referrer"
                 />
               </div>
 
-               <div className="flex-1 flex flex-col justify-between py-1 min-w-0">
+              <div className="flex-1 flex flex-col justify-between py-1 min-w-0">
                 <div className="space-y-1.5">
                   <span className="inline-block border border-white/15 bg-black text-neutral-300 font-sans text-[8px] tracking-[0.2em] px-2 py-0.5 uppercase">
                     {movie.upcomingDate}
@@ -564,14 +547,14 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6" id="discover-genres-grid">
           {genresList.map((g, i) => (
-            <div 
+            <div
               key={i}
               onClick={() => onTabChange('explore')}
               className="group relative h-28 border border-white/10 bg-black p-4 flex flex-col justify-end cursor-pointer hover:border-white/30 transition-all duration-300"
             >
               <div className="absolute inset-0 bg-cover bg-center grayscale contrast-200 opacity-20 group-hover:scale-105 group-hover:opacity-40 transition-all duration-500" style={{ backgroundImage: `url(${g.bg})` }} />
               <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
-              
+
               <div className="relative z-10 border-l border-white/20 pl-3">
                 <h4 className="text-xs uppercase tracking-[0.2em] text-white font-sans">{g.title}</h4>
                 <p className="text-[9px] text-neutral-500 mt-1 uppercase tracking-widest">{g.tags}</p>

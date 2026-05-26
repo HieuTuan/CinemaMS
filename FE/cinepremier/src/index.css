@@ -1,5 +1,47 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: "Segoe UI", Arial, Tahoma, "Helvetica Neue", sans-serif;
+  --font-serif: "Segoe UI", Arial, Tahoma, "Helvetica Neue", sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+}
+
+html {
+  font-family: "Segoe UI", Arial, Tahoma, "Helvetica Neue", sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  line-height: 1.5;
+}
+
+.font-sans,
+.font-serif,
+.font-mono {
+  font-family: "Segoe UI", Arial, Tahoma, "Helvetica Neue", sans-serif;
+}
+
+.font-mono {
+  font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+}
+
+.uppercase,
+.tracking-wide,
+.tracking-wider,
+.tracking-widest,
+[class*="tracking-["],
+.leading-none {
+  line-height: 1.35;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+}
+
 @keyframes sweep {
   0% {
     left: -100%;
@@ -27,4 +69,20 @@
 
 .animate-infinite-loading {
   animation: infinite-loading 1.4s infinite linear;
+}
+
+@keyframes toast-progress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.toast-progress {
+  animation-name: toast-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+  will-change: transform;
 }

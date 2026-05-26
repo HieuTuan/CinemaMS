@@ -12,17 +12,31 @@ import WishlistView from './pages/WishlistPage';
 import AdminDashboard from './pages/AdminPage';
 import AuthModal from './features/auth/AuthModal';
 import { movies, cinemaLocations } from './services/cinemaData';
+import { authApi, clearAuthSession, getStoredAuth, normalizeUser, saveAuthSession } from './services/authApi';
 import { X, Ticket } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('home');
+  const resolveRoute = () => {
+    const path = window.location.pathname.replace(/\/$/, '') || '/';
+    const adminMatch = path.match(/^\/admin(?:\/([a-z-]+))?$/);
+    if (adminMatch) return { tab: 'admin', adminSection: adminMatch[1] || 'overview' };
+    if (path === '/movies') return { tab: 'explore', adminSection: 'overview' };
+    if (path === '/tickets') return { tab: 'my-tickets', adminSection: 'overview' };
+    if (path === '/watchlist') return { tab: 'wishlist', adminSection: 'overview' };
+    if (path === '/profile') return { tab: 'profile', adminSection: 'overview' };
+    return { tab: 'home', adminSection: 'overview' };
+  };
+
+  const initialRoute = resolveRoute();
+  const [activeTab, setActiveTab] = useState(initialRoute.tab);
   const [moviesList, setMoviesList] = useState(movies);
   const [currentRole, setCurrentRole] = useState('user'); // 'user' | 'admin'
+  const [adminSection, setAdminSection] = useState(initialRoute.adminSection);
   const [selectedMovieId, setSelectedMovieId] = useState(null);
   const [bookingMovie, setBookingMovie] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCity, setSelectedCity] = useState(cinemaLocations[0]);
-  
+
   // Modals state
   const [showWatchlist, setShowWatchlist] = useState(false);
   const [showOTP, setShowOTP] = useState(false);
@@ -36,6 +50,153 @@ export default function App() {
   // Watchlist & Booked Tickets state
   const [watchlist, setWatchlist] = useState([]);
   const [bookedTickets, setBookedTickets] = useState([]);
+  const [homepageVideoUrl, setHomepageVideoUrl] = useState(() => (
+    localStorage.getItem('cinepremier_homepage_video_url') || 'https://www.youtube.com/watch?v=k8m0SaGQ_1c'
+  ));
+  const [foodCatalog, setFoodCatalog] = useState([]);
+  const [toast, setToast] = useState(null); // { id, text, durationMs, remainingMs, action, tone }
+  const toastTimerRef = React.useRef(null);
+
+  const navigateApp = (tab, section = null) => {
+    setActiveTab(tab);
+    const pagePaths = {
+      home: '/',
+      explore: '/movies',
+      'my-tickets': '/tickets',
+      wishlist: '/watchlist',
+      profile: '/profile'
+    };
+
+    if (tab === 'admin') {
+      const nextSection = section || adminSection || 'overview';
+      setAdminSection(nextSection);
+      window.history.replaceState(null, '', `/admin/${nextSection}`);
+    } else {
+      window.history.replaceState(null, '', pagePaths[tab] || '/');
+    }
+  };
+
+  const showToast = (text, durationMs = 4500, action = null, tone = 'success') => {
+    setToast({
+      id: Date.now(),
+      text,
+      durationMs,
+      remainingMs: durationMs,
+      action,
+      tone
+    });
+  };
+
+  useEffect(() => {
+    if (!toast) {
+      return undefined;
+    }
+
+    if (toastTimerRef.current) {
+      clearInterval(toastTimerRef.current);
+    }
+
+    toastTimerRef.current = setInterval(() => {
+      setToast((prev) => {
+        if (!prev) return prev;
+        const nextRemaining = Math.max(prev.remainingMs - 250, 0);
+        if (nextRemaining === 0) {
+          clearInterval(toastTimerRef.current);
+          toastTimerRef.current = null;
+          return null;
+        }
+        return { ...prev, remainingMs: nextRemaining };
+      });
+    }, 250);
+
+    return () => {
+      if (toastTimerRef.current) {
+        clearInterval(toastTimerRef.current);
+        toastTimerRef.current = null;
+      }
+    };
+  }, [toast?.id]);
+
+  useEffect(() => {
+    const restoreSession = async () => {
+      const { accessToken, refreshToken, user } = getStoredAuth();
+      if (user) {
+        setIsLoggedIn(true);
+        setCurrentUser(user);
+        setCurrentRole(user.role || 'user');
+      }
+
+      if (!accessToken && !refreshToken) return;
+      if (accessToken && user) return;
+
+      try {
+        let token = accessToken;
+        if (!token && refreshToken) {
+          const refreshed = await authApi.refresh(refreshToken);
+          const refreshedUser = saveAuthSession(refreshed);
+          token = refreshed.accessToken;
+          setCurrentUser(refreshedUser);
+          setCurrentRole(refreshedUser.role || 'user');
+          setIsLoggedIn(true);
+        }
+
+        let profile;
+        try {
+          profile = await authApi.getMyProfile(token);
+        } catch (error) {
+          if (!refreshToken) throw error;
+          const refreshed = await authApi.refresh(refreshToken);
+          const refreshedUser = saveAuthSession(refreshed);
+          token = refreshed.accessToken;
+          setCurrentUser(refreshedUser);
+          setCurrentRole(refreshedUser.role || 'user');
+          profile = await authApi.getMyProfile(token);
+        }
+        const nextUser = normalizeUser(profile, profile.roles || user?.roles || []);
+        localStorage.setItem('cinepremier_auth_user', JSON.stringify(nextUser));
+        setCurrentUser(nextUser);
+        setCurrentRole(nextUser.role || 'user');
+        setIsLoggedIn(true);
+      } catch (error) {
+        clearAuthSession();
+        setIsLoggedIn(false);
+        setCurrentUser(null);
+        setCurrentRole('user');
+      }
+    };
+
+    restoreSession();
+  }, []);
+
+  const performLogout = async () => {
+    const { refreshToken } = getStoredAuth();
+    try {
+      if (refreshToken) {
+        await authApi.logout(refreshToken);
+      }
+    } catch (error) {
+      // Local cleanup still happens if the server token is already invalid.
+    } finally {
+      clearAuthSession();
+      setIsLoggedIn(false);
+      setCurrentUser(null);
+      setCurrentRole('user');
+      navigateApp('home');
+      showToast("Đăng xuất tài khoản thành công.");
+    }
+  };
+
+  const handleLogout = () => {
+    showToast(
+      "Bạn có chắc muốn đăng xuất không?\nCinePremier sẽ nhớ bạn lắm đó...",
+      10000,
+      {
+        label: 'Đăng xuất',
+        onClick: performLogout
+      },
+      'sad'
+    );
+  };
 
   // Load sample initial watchlist if empty
   useEffect(() => {
@@ -46,6 +207,39 @@ export default function App() {
       ]);
     }
   }, [moviesList]);
+
+  const normalizeFoodCatalog = (items = [], combos = []) => [
+    ...combos.map((item) => ({
+      ...item,
+      id: `combo-${item.id}`,
+      backendId: item.id,
+      foodComboId: item.id,
+      category: 'combo'
+    })),
+    ...items.map((item) => ({
+      ...item,
+      id: `item-${item.id}`,
+      backendId: item.id,
+      foodItemId: item.id,
+      category: 'item'
+    }))
+  ];
+
+  const fetchPublicFoodCatalog = async () => {
+    try {
+      const [items, combos] = await Promise.all([
+        authApi.getFoodItems(),
+        authApi.getFoodCombos()
+      ]);
+      setFoodCatalog(normalizeFoodCatalog(items || [], combos || []));
+    } catch (error) {
+      setFoodCatalog([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchPublicFoodCatalog();
+  }, []);
 
   // Handle Select Movie Detail
   const handleSelectMovie = (id) => {
@@ -69,12 +263,12 @@ export default function App() {
       ticketId: randomTicketId,
       bookingTime: new Date().toLocaleString()
     };
-    
+
     setBookedTickets([newTicket, ...bookedTickets]);
     setBookingMovie(null);
     setSelectedMovieId(null);
     setShowWatchlist(true); // Open tickets panel to show success!
-    alert(`Xác thực giao dịch thành công!\nMã vé của bạn là: ${randomTicketId}\nHệ thống đã lưu vé của bạn vào mục "Vé & Watchlist".`);
+    showToast(`Xác thực giao dịch thành công!\nMã vé của bạn là: ${randomTicketId}\nHệ thống đã lưu vé của bạn vào mục "Vé & Watchlist".`);
   };
 
   const handleToggleWatchlist = (movie) => {
@@ -86,6 +280,12 @@ export default function App() {
     }
   };
 
+  const handleHomepageVideoUrlChange = (url) => {
+    setHomepageVideoUrl(url);
+    localStorage.setItem('cinepremier_homepage_video_url', url);
+    showToast('Đã cập nhật video nền trang chủ.');
+  };
+
   const selectedMovie = moviesList.find(m => m.id === selectedMovieId);
 
   // OTP login
@@ -93,7 +293,7 @@ export default function App() {
     e.preventDefault();
     if (!phoneNumber) return;
     setOtpSent(true);
-    alert("Hệ thống đã gửi mã OTP (123456) giả lập đến số điện thoại của bạn.");
+    showToast("Hệ thống đã gửi mã OTP (123456) giả lập đến số điện thoại của bạn.");
   };
 
   const handleVerifyOTP = (e) => {
@@ -102,40 +302,109 @@ export default function App() {
       setIsLoggedIn(true);
       setShowOTP(false);
       setOtpSent(false);
-      alert("Đăng nhập tài khoản Cinephile VIP thành công!");
+      showToast("Đăng nhập tài khoản Cinephile VIP thành công!");
     } else {
-      alert("Mã OTP không đúng. Vui lòng nhập mã: 123456 để thử nghiệm.");
+      showToast("Mã OTP không đúng. Vui lòng nhập mã: 123456 để thử nghiệm.");
     }
   };
 
   return (
     <div className="min-h-screen bg-black text-white selection:bg-white selection:text-black">
-      
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            key={toast.id}
+            initial={{ opacity: 0, y: -16, scale: 0.98 }}
+            animate={toast.tone === 'sad'
+              ? { opacity: 1, y: [0, 2, 0], scale: 1 }
+              : { opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.98 }}
+            transition={{ duration: 0.28 }}
+            className={`fixed right-4 top-5 z-[120] w-[380px] max-w-[calc(100vw-2rem)] overflow-hidden border p-4 text-white backdrop-blur-md sm:right-6 sm:top-6 ${toast.tone === 'sad'
+              ? 'border-rose-300/40 bg-gradient-to-br from-zinc-950/95 via-rose-950/90 to-purple-950/85 shadow-[0_18px_60px_rgba(244,63,94,0.24)]'
+              : 'border-amber-300/40 bg-gradient-to-br from-zinc-900/95 via-neutral-950/95 to-amber-950/90 shadow-[0_18px_50px_rgba(245,158,11,0.22)]'
+              }`}
+          >
+            <div className={`absolute inset-x-0 top-0 h-1 ${toast.tone === 'sad'
+              ? 'bg-gradient-to-r from-rose-200 via-fuchsia-400 to-indigo-300'
+              : 'bg-gradient-to-r from-amber-200 via-amber-400 to-emerald-300'
+              }`} />
+            <div className="flex items-start justify-between gap-3 pt-1">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border text-sm font-black ${toast.tone === 'sad'
+                  ? 'border-rose-300/40 bg-rose-400/15 text-rose-100 shadow-[0_0_18px_rgba(244,63,94,0.22)] animate-pulse'
+                  : 'border-emerald-300/40 bg-emerald-400/15 text-emerald-200 shadow-[0_0_18px_rgba(52,211,153,0.22)]'
+                  }`}>
+                  {toast.tone === 'sad' ? '...' : '✓'}
+                </span>
+                <p className={`whitespace-pre-line text-sm font-bold leading-relaxed ${toast.tone === 'sad' ? 'text-rose-50' : 'text-amber-50'}`}>
+                  {toast.text}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setToast(null)}
+                className="shrink-0 rounded-sm px-2 py-1 text-base font-bold leading-none text-amber-100/70 transition hover:bg-white/10 hover:text-white"
+                aria-label="Đóng thông báo"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-white/15">
+              <div
+                className={`toast-progress h-full rounded-full origin-left ${toast.tone === 'sad'
+                  ? 'bg-gradient-to-r from-rose-300 via-fuchsia-300 to-indigo-300 shadow-[0_0_16px_rgba(244,63,94,0.6)]'
+                  : 'bg-gradient-to-r from-emerald-300 via-amber-300 to-amber-500 shadow-[0_0_16px_rgba(251,191,36,0.65)]'
+                  }`}
+                style={{ animationDuration: `${toast.durationMs}ms` }}
+              />
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-100/70">
+                Tự tắt sau {Math.ceil(toast.remainingMs / 1000)}s
+              </div>
+              {toast.action && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    toast.action.onClick();
+                    setToast(null);
+                  }}
+                  className="border border-rose-300/50 bg-rose-500/20 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-rose-50 transition hover:bg-rose-400 hover:text-black"
+                >
+                  {toast.action.label}
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* VERTICAL LEFT RAIL (Artistic Flair requirement) */}
       <div className="hidden md:flex flex-col items-center justify-between py-12 border-r border-white/10 bg-black text-neutral-500 w-[60px] h-screen fixed left-0 top-0 z-40">
         <div className="text-[9px] uppercase tracking-[0.3em] font-sans font-bold whitespace-nowrap rotate-270 -my-8 text-neutral-400 select-none">
           EST. 2026
         </div>
-        
+
         {/* Navigation Dot indicators */}
         <div className="flex flex-col items-center space-y-4">
-          <div 
-            onClick={() => { setActiveTab('home'); setSelectedMovieId(null); setBookingMovie(null); }}
+          <div
+            onClick={() => { navigateApp('home'); setSelectedMovieId(null); setBookingMovie(null); }}
             className={`w-1.5 h-1.5 rounded-full cursor-pointer transition-all duration-300 ${activeTab === 'home' && !selectedMovieId && !bookingMovie ? 'bg-white scale-150' : 'bg-neutral-800'}`}
             title="Trang Chủ"
           />
-          <div 
-            onClick={() => { setActiveTab('explore'); setSelectedMovieId(null); setBookingMovie(null); }}
+          <div
+            onClick={() => { navigateApp('explore'); setSelectedMovieId(null); setBookingMovie(null); }}
             className={`w-1.5 h-1.5 rounded-full cursor-pointer transition-all duration-300 ${activeTab === 'explore' || selectedMovieId || bookingMovie ? 'bg-white scale-150' : 'bg-neutral-800'}`}
             title="Khám phá"
           />
-          <div 
-            onClick={() => { setActiveTab('my-tickets'); setSelectedMovieId(null); setBookingMovie(null); }}
+          <div
+            onClick={() => { navigateApp('my-tickets'); setSelectedMovieId(null); setBookingMovie(null); }}
             className={`w-1.5 h-1.5 rounded-full cursor-pointer transition-all duration-300 ${activeTab === 'my-tickets' ? 'bg-white scale-150' : 'bg-neutral-800'}`}
             title="Vé của tôi"
           />
-          <div 
-            onClick={() => { setActiveTab('wishlist'); setSelectedMovieId(null); setBookingMovie(null); }}
+          <div
+            onClick={() => { navigateApp('wishlist'); setSelectedMovieId(null); setBookingMovie(null); }}
             className={`w-1.5 h-1.5 rounded-full cursor-pointer transition-all duration-300 ${activeTab === 'wishlist' ? 'bg-white scale-150' : 'bg-neutral-800'}`}
             title="Watchlist"
           />
@@ -148,21 +417,21 @@ export default function App() {
 
       {/* Main Container Wrapper with Left Rail Padding */}
       <div className="md:pl-[60px] min-h-screen flex flex-col justify-between">
-        
+
         <div>
           {/* Header */}
-          <Header 
-            activeTab={activeTab} 
+          <Header
+            activeTab={activeTab}
             onTabChange={(tab) => {
-              setActiveTab(tab);
+              navigateApp(tab);
               setSelectedMovieId(null);
               setBookingMovie(null);
-            }} 
+            }}
             searchQuery={searchQuery}
             onSearchChange={(q) => {
               setSearchQuery(q);
               if (activeTab !== 'explore') {
-                setActiveTab('explore');
+                navigateApp('explore');
               }
             }}
             selectedCity={selectedCity}
@@ -173,6 +442,7 @@ export default function App() {
             currentUser={currentUser}
             currentRole={currentRole}
             onRoleChange={setCurrentRole}
+            showToast={showToast}
           />
 
           {/* VIEW ROUTER WITH TRANSITION ANIMATIONS */}
@@ -187,67 +457,72 @@ export default function App() {
               >
                 {bookingMovie ? (
                   // Step Booking View
-                  <BookingView 
-                    movie={bookingMovie} 
-                    onBack={() => setBookingMovie(null)} 
+                  <BookingView
+                    movie={bookingMovie}
+                    onBack={() => setBookingMovie(null)}
                     onConfirmBooking={handleConfirmBooking}
+                    showToast={showToast}
+                    foodCatalog={foodCatalog}
                   />
                 ) : selectedMovie ? (
                   // Step Detail View
-                  <DetailView 
-                    movie={selectedMovie} 
-                    onBack={() => setSelectedMovieId(null)} 
+                  <DetailView
+                    movie={selectedMovie}
+                    onBack={() => setSelectedMovieId(null)}
                     onBook={handleBookMovie}
+                    showToast={showToast}
                   />
                 ) : activeTab === 'home' ? (
                   // Step Home View
-                  <HomeView 
-                    onSelectMovie={handleSelectMovie} 
-                    onBookMovie={handleBookMovie} 
-                    onTabChange={setActiveTab}
+                  <HomeView
+                    onSelectMovie={handleSelectMovie}
+                    onBookMovie={handleBookMovie}
+                    onTabChange={navigateApp}
                     moviesList={moviesList}
+                    homepageVideoUrl={homepageVideoUrl}
                   />
                 ) : activeTab === 'explore' ? (
                   // Step Explore Search list View
-                  <ExploreView 
-                    searchQuery={searchQuery} 
-                    onSearchChange={setSearchQuery} 
-                    onSelectMovie={handleSelectMovie} 
+                  <ExploreView
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    onSelectMovie={handleSelectMovie}
                     onBookMovie={handleBookMovie}
                     moviesList={moviesList}
                   />
                 ) : activeTab === 'profile' ? (
                   // Custom Profile Page - Minh Hong VIP Gold
-                  <ProfileView 
+                  <ProfileView
                     onSelectMovie={handleSelectMovie}
-                    onTabChange={setActiveTab}
+                    onTabChange={navigateApp}
                     bookedTickets={bookedTickets}
                     isLoggedIn={isLoggedIn}
                     currentUser={currentUser}
-                    onLogout={() => {
-                      setIsLoggedIn(false);
-                      setCurrentUser(null);
-                      setCurrentRole('user');
-                      setActiveTab('home');
-                      alert("Đăng xuất tài khoản VIP.");
+                    onLogout={handleLogout}
+                    onProfileUpdated={(user) => {
+                      setCurrentUser(user);
+                      setCurrentRole(user.role || 'user');
                     }}
                     onOpenOTP={() => setShowOTP(true)}
+                    showToast={showToast}
                   />
                 ) : activeTab === 'my-tickets' ? (
                   // Custom Tickets listing and history page
-                  <MyTicketsView 
+                  <MyTicketsView
                     bookedTickets={bookedTickets}
                     onSelectMovie={handleSelectMovie}
                     isLoggedIn={isLoggedIn}
                     onOpenOTP={() => setShowOTP(true)}
+                    showToast={showToast}
                   />
                 ) : activeTab === 'wishlist' ? (
                   // Custom watchlist and newsletter page
-                  <WishlistView 
+                  <WishlistView
                     watchlist={watchlist}
                     onToggleWatchlist={handleToggleWatchlist}
                     onBookMovie={handleBookMovie}
                     onSelectMovie={handleSelectMovie}
+                    showToast={showToast}
                   />
                 ) : activeTab === 'admin' ? (
                   // Comprehensive cinema administration control panel
@@ -258,14 +533,22 @@ export default function App() {
                     setBookedTickets={setBookedTickets}
                     cinemaLocations={cinemaLocations}
                     onSelectMovie={handleSelectMovie}
+                    showToast={showToast}
+                    initialSection={adminSection}
+                    onSectionChange={setAdminSection}
+                    homepageVideoUrl={homepageVideoUrl}
+                    onHomepageVideoUrlChange={handleHomepageVideoUrlChange}
+                    onFoodCatalogChanged={fetchPublicFoodCatalog}
+                    isAdmin={currentRole === 'admin'}
                   />
                 ) : (
                   // Fallback
-                  <HomeView 
-                    onSelectMovie={handleSelectMovie} 
-                    onBookMovie={handleBookMovie} 
-                    onTabChange={setActiveTab}
+                  <HomeView
+                    onSelectMovie={handleSelectMovie}
+                    onBookMovie={handleBookMovie}
+                    onTabChange={navigateApp}
                     moviesList={moviesList}
+                    homepageVideoUrl={homepageVideoUrl}
                   />
                 )}
               </motion.div>
@@ -281,7 +564,7 @@ export default function App() {
       {/* WATCHLIST & BOOKED TICKETS DRAWER MODAL (Sleek minimalist panel) */}
       {showWatchlist && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/80 backdrop-blur-sm">
-          <div 
+          <div
             className="w-full max-w-md h-full bg-black border-l border-white/10 p-6 flex flex-col justify-between overflow-y-auto animate-slide-in relative"
             id="watchlist-drawer"
           >
@@ -291,7 +574,7 @@ export default function App() {
                   <Ticket className="h-4.5 w-4.5 text-white" />
                   <h3 className="text-base font-serif italic text-white uppercase tracking-wider">CinePremier / Tickets</h3>
                 </div>
-                <button 
+                <button
                   onClick={() => setShowWatchlist(false)}
                   className="p-1 border border-white/10 hover:border-white text-white shadow"
                 >
@@ -302,7 +585,7 @@ export default function App() {
               {/* SECTION: BOOKED SESSIONS */}
               <div className="space-y-4 mb-8">
                 <span className="text-[9px] font-sans tracking-[0.2em] font-bold text-neutral-400 block uppercase border-b border-white/5 pb-1">VÉ CỦA TÔI ({bookedTickets.length})</span>
-                
+
                 {bookedTickets.length > 0 ? (
                   <div className="space-y-4">
                     {bookedTickets.map((tc) => (
@@ -310,7 +593,7 @@ export default function App() {
                         <div className="absolute top-3 right-3 border border-white/20 px-2 py-0.5 text-[8px] font-mono uppercase bg-black text-white font-bold">
                           Verified
                         </div>
-                        
+
                         <div className="space-y-0.5">
                           <h4 className="text-sm font-serif italic text-white font-bold">{tc.movie.title}</h4>
                           <p className="text-[10px] uppercase tracking-widest text-neutral-300 font-bold">{tc.movie.englishTitle}</p>
@@ -355,15 +638,15 @@ export default function App() {
               {/* SECTION: WATCHLIST */}
               <div className="space-y-4">
                 <span className="text-[10px] font-sans tracking-[0.2em] font-extrabold text-neutral-300 block uppercase border-b border-white/10 pb-1">BẢN LƯU WATCHLIST ({watchlist.length})</span>
-                
+
                 {watchlist.length > 0 ? (
                   <div className="space-y-3">
                     {watchlist.map((mv) => (
                       <div key={mv.id} className="flex gap-3 bg-[#0a0a0a] border border-white/10 p-2 items-center justify-between">
                         <div className="flex gap-3 items-center min-w-0">
-                          <img 
-                            src={mv.posterUrl} 
-                            alt={mv.title} 
+                          <img
+                            src={mv.posterUrl}
+                            alt={mv.title}
                             className="w-10 h-14 object-cover border border-white/10"
                             referrerPolicy="no-referrer"
                           />
@@ -411,7 +694,7 @@ export default function App() {
               <p className="text-[11px] text-neutral-300 leading-relaxed font-semibold">
                 Quý khách có thể xuất trình <b>mã vé kĩ thuật số</b> tại phòng kịch rạp để in trực tiếp và hưởng các đặc quyền CinePremier VIP Club.
               </p>
-              <button 
+              <button
                 onClick={() => setShowWatchlist(false)}
                 className="w-full text-center border-2 border-white bg-black hover:bg-white hover:text-black text-white text-[11px] font-bold uppercase tracking-[0.2em] py-3.5 transition duration-300 cursor-pointer"
               >
@@ -423,7 +706,7 @@ export default function App() {
       )}
 
       {/* MODERN MULTI-EFFECT PREMIUM AUTHENTICATION MODAL */}
-      <AuthModal 
+      <AuthModal
         isOpen={showOTP}
         onClose={() => setShowOTP(false)}
         isLoggedIn={isLoggedIn}
@@ -442,9 +725,9 @@ export default function App() {
             setCurrentUser(userData);
             setCurrentRole(userData.role || 'user');
             if (userData.role === 'admin') {
-              setActiveTab('admin');
+              navigateApp('admin');
             } else {
-              setActiveTab('home');
+              navigateApp('home');
             }
           }
         }}

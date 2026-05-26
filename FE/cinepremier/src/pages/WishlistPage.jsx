@@ -6,7 +6,8 @@ export default function WishlistView({
   watchlist,
   onToggleWatchlist,
   onBookMovie,
-  onSelectMovie
+  onSelectMovie,
+  showToast = () => {}
 }) {
   const [filter, setFilter] = useState('ALL');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -101,16 +102,16 @@ export default function WishlistView({
         const mv = movies.find(m => m.id === item.id);
         if (mv) onBookMovie(mv);
       } else {
-        alert(`Đã bật theo dõi cho phim: ${item.title}. Bạn sẽ nhận thông báo khi có lịch chiếu sớm.`);
+        showToast(`Đã bật theo dõi cho phim: ${item.title}. Bạn sẽ nhận thông báo khi có lịch chiếu sớm.`);
       }
     } else {
       if (item.id === 'ban-giao-huong') {
         const mv = movies.find(m => m.id === 'the-last-shadow') || movies[0];
         onBookMovie(mv);
       } else if (item.status === 'UPCOMING') {
-        alert(`Đặt nhắc hẹn khởi chiếu phim "${item.title}" thành công!`);
+        showToast(`Đặt nhắc hẹn khởi chiếu phim "${item.title}" thành công!`);
       } else {
-        alert(`Phim "${item.title}" đã được trải nghiệm ở rạp CINEPREMIER.`);
+        showToast(`Phim "${item.title}" đã được trải nghiệm ở rạp CINEPREMIER.`);
       }
     }
   };
@@ -119,7 +120,7 @@ export default function WishlistView({
     e.preventDefault();
     if (!emailInput) return;
     setIsSubscribed(true);
-    alert(`Đăng ký tin tức VIP qua email: ${emailInput} khả dụng thành công. Hưởng trọn ưu đãi thảm đỏ sắp tới!`);
+    showToast(`Đăng ký tin tức VIP qua email: ${emailInput} khả dụng thành công. Hưởng trọn ưu đãi thảm đỏ sắp tới!`);
     setEmailInput('');
   };
 

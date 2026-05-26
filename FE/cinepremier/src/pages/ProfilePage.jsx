@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { 
-  Camera, CreditCard, Lock, LogOut, Settings, User, 
-  ChevronRight, Award, Flame, Eye, Film, Sparkles, 
-  ChevronDown, Check, Shield, Volume2, VolumeX, EyeOff, 
+import {
+  Camera, CreditCard, Lock, LogOut, Settings, User,
+  ChevronRight, Award, Flame, Eye, Film, Sparkles,
+  ChevronDown, Check, Shield, Volume2, VolumeX, EyeOff,
   Save, Trash2, Sliders, Smartphone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { movies } from '../services/cinemaData';
+import { authApi, getStoredAuth, normalizeUser } from '../services/authApi';
 
 export default function ProfileView({
   onSelectMovie,
@@ -15,7 +16,9 @@ export default function ProfileView({
   isLoggedIn,
   onLogout,
   onOpenOTP,
-  currentUser
+  currentUser,
+  onProfileUpdated = () => { },
+  showToast = () => { }
 }) {
   const [profileImg, setProfileImg] = useState('https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=300&auto=format&fit=crop');
   const [name, setName] = useState(currentUser?.name || 'MINH HỒNG (VIP)');
@@ -25,12 +28,14 @@ export default function ProfileView({
   const [activePanel, setActivePanel] = useState(null); // null | 'profile' | 'payment' | 'security' | 'vibe'
   const [soundOn, setSoundOn] = useState(true);
   const [glowColor, setGlowColor] = useState('gold'); // 'gold' | 'neon' | 'ruby' | 'emerald'
-  
+
   // Settings - Profile Form states
   const [profileNameInput, setProfileNameInput] = useState('Minh Hong');
   const [profileBioInput, setProfileBioInput] = useState('Chuyên gia phê bình Điện ảnh VIP Gold của CinePremier.');
   const [profileEmailInput, setProfileEmailInput] = useState('minhhong.vip@cinepremier.vn');
-  
+  const [profilePhoneInput, setProfilePhoneInput] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
   // Settings - Payment card states
   const [cardNumber, setCardNumber] = useState('4611 •••• •••• 8899');
   const [cardHolder, setCardHolder] = useState('MINH HONG');
@@ -51,13 +56,50 @@ export default function ProfileView({
 
   React.useEffect(() => {
     if (currentUser) {
-      setName(currentUser.name);
-      setProfileNameInput(currentUser.name);
+      const displayName = currentUser.name || currentUser.fullName || currentUser.email;
+      setName(displayName);
+      setProfileNameInput(displayName);
       if (currentUser.email) {
         setProfileEmailInput(currentUser.email);
       }
+      setProfilePhoneInput(currentUser.phone || '');
     }
   }, [currentUser]);
+
+  const handleSaveProfile = async () => {
+    if (!profileNameInput.trim()) {
+      showToast("Vui lòng nhập tên hồ sơ.");
+      return;
+    }
+
+    const { accessToken } = getStoredAuth();
+    if (!accessToken) {
+      showToast("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+      onOpenOTP();
+      return;
+    }
+
+    setIsSavingProfile(true);
+    try {
+      const updatedProfile = await authApi.updateMyProfile(accessToken, {
+        fullName: profileNameInput.trim(),
+        phone: profilePhoneInput.trim()
+      });
+      const nextUser = normalizeUser(updatedProfile, updatedProfile.roles || currentUser?.roles || []);
+      localStorage.setItem('cinepremier_auth_user', JSON.stringify(nextUser));
+      setName(nextUser.name);
+      onProfileUpdated(nextUser);
+      playPing(880, 'sine', 0.25);
+      setIsEditingName(false);
+      showToast("Thông tin hồ sơ được cập nhật thành công!");
+
+      setActivePanel(null);
+    } catch (error) {
+      showToast(error.message || "Không thể cập nhật hồ sơ.");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   const playPing = (freq = 440, type = 'sine', duration = 0.1) => {
     if (!soundOn) return;
@@ -75,7 +117,7 @@ export default function ProfileView({
       gain.connect(ctx.destination);
       osc.start();
       osc.stop(ctx.currentTime + duration);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   // Fallback default bookings shown in the design screenshot if user has no booked tickets
@@ -107,7 +149,7 @@ export default function ProfileView({
   // Categories: SCI-FI (0 deg -> dynamic coordinates: point index 0), NOIR (72 deg), THRILLER (144 deg), DRAMA (216 deg), ACTION (288 deg)
   const categories = ['SCI-FI', 'NOIR', 'THRILLER', 'DRAMA', 'ACTION'];
   // Relative percentages representing personal metrics matching the screenshots
-  const values = [0.85, 0.45, 0.65, 0.55, 0.80]; 
+  const values = [0.85, 0.45, 0.65, 0.55, 0.80];
 
   const getCoordinates = (index, value) => {
     const angle = (Math.PI * 2 / 5) * index - Math.PI / 2; // Subtracting PI/2 to align the first axis strictly to top
@@ -149,7 +191,7 @@ export default function ProfileView({
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-12">
-      
+
       {!isLoggedIn && (
         <div className="border border-white/10 bg-[#0E0E0E] p-6 text-center space-y-4 max-w-md mx-auto">
           <Award className="h-10 w-10 text-white mx-auto animate-pulse" />
@@ -168,30 +210,30 @@ export default function ProfileView({
 
       {isLoggedIn && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-          
+
           {/* LEFT SECTION: MAIN PROFILE SUMMARY INFO & BOOKINGS */}
           <div className="lg:col-span-8 space-y-8">
-            
+
             {/* HERO PROFILE BOX BACKGROUND */}
             <div className="relative border border-white/10 bg-[#070707] p-6 md:p-8 overflow-hidden">
-              
+
               <div className="absolute right-0 top-0 text-[100px] font-bold text-neutral-900/10 italic select-none font-serif leading-none -mr-10 -mt-8 pointer-events-none uppercase">
                 VIP
               </div>
 
               <div className="flex flex-col md:flex-row items-center gap-6 relative z-10">
-                
+
                 {/* Profile circular avatar with editor button */}
                 <div className="relative group">
                   <div className="h-24 w-24 overflow-hidden rounded-md border border-white/15 bg-neutral-950 flex-shrink-0 shadow-2xl">
-                    <img 
-                      src={profileImg} 
+                    <img
+                      src={profileImg}
                       alt={name}
                       className="h-full w-full object-cover group-hover:scale-105 transition duration-500"
                       referrerPolicy="no-referrer"
                     />
                   </div>
-                  <button 
+                  <button
                     onClick={handleProfileImageChange}
                     className="absolute -bottom-2 -right-2 bg-black border border-white/20 hover:border-white p-2 text-white shadow-xl hover:scale-110 transition shrink-0"
                     title="Đổi ảnh đại diện"
@@ -242,7 +284,7 @@ export default function ProfileView({
 
                   {/* Cinepoints & Watched points metrics cards mockup */}
                   <div className="grid grid-cols-2 gap-3 max-w-xs mx-auto md:mx-0 pointer-events-none">
-                    
+
                     <div className="border border-white/5 bg-black/60 p-3 flex flex-col justify-center items-start">
                       <span className="text-[8px] text-neutral-500 uppercase tracking-widest font-bold flex items-center gap-1">
                         <Flame className="h-3 w-3 text-neutral-500" /> CinePoints
@@ -295,13 +337,13 @@ export default function ProfileView({
               <div className="space-y-4">
                 {/* Dynamically display actual booked tickets from this session if they exist */}
                 {bookedTickets.map((ticket) => (
-                  <div 
+                  <div
                     key={ticket.ticketId}
                     className="border border-white/10 hover:border-white/20 bg-[#0A0A0A] p-4 flex gap-4 transition items-center"
                   >
                     <div className="h-16 w-12 overflow-hidden flex-shrink-0 bg-neutral-950 border border-white/5">
-                      <img 
-                        src={ticket.movie.posterUrl} 
+                      <img
+                        src={ticket.movie.posterUrl}
                         alt={ticket.movie.title}
                         className="h-full w-full object-cover"
                         referrerPolicy="no-referrer"
@@ -315,7 +357,7 @@ export default function ProfileView({
                       <p className="text-[10px] text-neutral-400 font-sans mt-0.5 truncate uppercase">
                         Hôm nay, {ticket.showtime} • {ticket.hall.split('(')[0]}
                       </p>
-                      
+
                       <div className="flex items-center gap-1.5 mt-1">
                         <span className="text-[8px] bg-red-950/20 border border-red-500/30 text-rose-400 px-1.5 font-bold uppercase">
                           {ticket.movie.ageRating}
@@ -336,7 +378,7 @@ export default function ProfileView({
                         <div className="w-[1.5px] bg-neutral-400 h-6"></div>
                         <div className="w-[2px] bg-neutral-500 h-6"></div>
                       </div>
-                      
+
                       <button
                         onClick={() => {
                           onTabChange('my-tickets');
@@ -351,13 +393,13 @@ export default function ProfileView({
 
                 {/* Simulated Recent static list matching the screenshot */}
                 {recentBookings.map((bk) => (
-                  <div 
+                  <div
                     key={bk.id}
                     className="border border-white/15 bg-black/60 p-4 flex gap-4 transition items-center"
                   >
                     <div className="h-16 w-12 overflow-hidden flex-shrink-0 bg-neutral-950 border border-white/5">
-                      <img 
-                        src={bk.poster} 
+                      <img
+                        src={bk.poster}
                         alt={bk.title}
                         className="h-full w-full object-cover grayscale"
                         referrerPolicy="no-referrer"
@@ -371,7 +413,7 @@ export default function ProfileView({
                       <p className="text-[10px] text-neutral-400 font-sans mt-0.5 truncate uppercase">
                         {bk.time}
                       </p>
-                      
+
                       <div className="flex items-center gap-1.5 mt-1">
                         <span className="text-[8px] border border-white/10 text-neutral-500 px-1.5 font-bold uppercase">
                           {bk.screenType}
@@ -392,7 +434,7 @@ export default function ProfileView({
                         <div className="w-[1.5px] bg-neutral-500 h-6"></div>
                         <div className="w-[2px] bg-neutral-600 h-6"></div>
                       </div>
-                      
+
                       {bk.actionType === 'detail' ? (
                         <button
                           onClick={() => onTabChange('my-tickets')}
@@ -421,7 +463,7 @@ export default function ProfileView({
 
           {/* RIGHT SECTION: PERSONALIZED PREFERENCES & SETTINGS */}
           <div className="lg:col-span-4 space-y-6">
-            
+
             {/* RADAR CHART BLOCK matching the screenshot */}
             <div className="border border-white/10 bg-[#090909] p-5 space-y-4">
               <div className="flex items-center justify-between border-b border-white/5 pb-2">
@@ -435,7 +477,7 @@ export default function ProfileView({
 
               {/* Elegant Graphic Area */}
               <div className="relative flex justify-center items-center py-2 h-44 bg-neutral-950 border border-white/5 rounded-sm">
-                
+
                 {/* SVG Radar Chart Representation */}
                 <svg className="w-full h-full max-w-[180px] max-h-[180px]" viewBox="0 0 200 200">
                   {/* Concentric pentagon lines */}
@@ -517,28 +559,26 @@ export default function ProfileView({
             </div>
 
             {/* SETTINGS OPTIONS WIDGETS SECTION */}
-            <div className={`border bg-gradient-to-b from-[#0a0a0a] to-[#040404] p-5.5 space-y-5 font-sans transition-all duration-300 relative overflow-hidden rounded-none ${
-              glowColor === 'gold' ? 'border-amber-500/20 shadow-[0_0_25px_rgba(245,158,11,0.08)]' :
+            <div className={`border bg-gradient-to-b from-[#0a0a0a] to-[#040404] p-5.5 space-y-5 font-sans transition-all duration-300 relative overflow-hidden rounded-none ${glowColor === 'gold' ? 'border-amber-500/20 shadow-[0_0_25px_rgba(245,158,11,0.08)]' :
               glowColor === 'neon' ? 'border-cyan-500/20 shadow-[0_0_25px_rgba(6,182,212,0.08)]' :
-              glowColor === 'ruby' ? 'border-rose-500/20 shadow-[0_0_25px_rgba(244,63,94,0.08)]' :
-              'border-emerald-500/20 shadow-[0_0_25px_rgba(16,185,129,0.08)]'
-            }`} id="settings-interactive-box">
-              
+                glowColor === 'ruby' ? 'border-rose-500/20 shadow-[0_0_25px_rgba(244,63,94,0.08)]' :
+                  'border-emerald-500/20 shadow-[0_0_25px_rgba(16,185,129,0.08)]'
+              }`} id="settings-interactive-box">
+
               {/* Audio controller and Glow selector Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-3">
                 <div className="flex items-center space-x-2 text-neutral-400">
-                  <Settings className={`h-4.5 w-4.5 animate-spin-slow ${
-                    glowColor === 'gold' ? 'text-amber-400' :
+                  <Settings className={`h-4.5 w-4.5 animate-spin-slow ${glowColor === 'gold' ? 'text-amber-400' :
                     glowColor === 'neon' ? 'text-cyan-400' :
-                    glowColor === 'ruby' ? 'text-rose-400' : 'text-emerald-400'
-                  }`} />
+                      glowColor === 'ruby' ? 'text-rose-400' : 'text-emerald-400'
+                    }`} />
                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-300">TRUNG TÂM KIỂM SOÁT VIP</span>
                 </div>
 
                 {/* Micro Controllers */}
                 <div className="flex items-center space-x-3 self-end sm:self-auto">
                   {/* Sound Toggle */}
-                  <button 
+                  <button
                     onClick={() => {
                       const ns = !soundOn;
                       setSoundOn(ns);
@@ -556,7 +596,7 @@ export default function ProfileView({
                           gain.connect(ctx.destination);
                           osc.start();
                           osc.stop(ctx.currentTime + 0.15);
-                        } catch (e) {}
+                        } catch (e) { }
                       }
                     }}
                     className="p-1.5 border border-neutral-900 bg-black text-neutral-400 hover:text-white hover:border-neutral-800 transition"
@@ -579,9 +619,8 @@ export default function ProfileView({
                           setGlowColor(dot.id);
                           playPing(dot.freq, 'sine', 0.2);
                         }}
-                        className={`h-3 w-3 rounded-full transition-all duration-300 ${dot.class} ${
-                          glowColor === dot.id ? 'scale-125 ring-2 ring-white/60' : 'opacity-40 hover:opacity-100'
-                        }`}
+                        className={`h-3 w-3 rounded-full transition-all duration-300 ${dot.class} ${glowColor === dot.id ? 'scale-125 ring-2 ring-white/60' : 'opacity-40 hover:opacity-100'
+                          }`}
                         title={`Chủ đề ${dot.id.toUpperCase()}`}
                       />
                     ))}
@@ -592,7 +631,7 @@ export default function ProfileView({
 
               {/* Options Accumulators */}
               <div className="space-y-2">
-                
+
                 {/* 1. CHỈNH SỬA HỒ SƠ */}
                 <div className="border border-white/5 bg-black/40 overflow-hidden text-neutral-400">
                   <button
@@ -600,17 +639,15 @@ export default function ProfileView({
                       playPing(activePanel === 'profile' ? 380 : 450, 'sine', 0.1);
                       setActivePanel(activePanel === 'profile' ? null : 'profile');
                     }}
-                    className={`w-full flex items-center justify-between p-3.5 text-xs text-neutral-400 hover:text-white transition duration-200 text-left ${
-                      activePanel === 'profile' ? 'bg-neutral-950/60 pb-2 text-white border-b border-white/5' : ''
-                    }`}
+                    className={`w-full flex items-center justify-between p-3.5 text-xs text-neutral-400 hover:text-white transition duration-200 text-left ${activePanel === 'profile' ? 'bg-neutral-950/60 pb-2 text-white border-b border-white/5' : ''
+                      }`}
                   >
                     <span className="flex items-center gap-2.5 font-bold uppercase tracking-wider">
-                      <User className={`h-4 w-4 ${activePanel === 'profile' ? 'text-amber-400' : 'text-neutral-500'}`} /> 
+                      <User className={`h-4 w-4 ${activePanel === 'profile' ? 'text-amber-400' : 'text-neutral-500'}`} />
                       Chỉnh sửa hồ sơ VIP
                     </span>
-                    <ChevronDown className={`h-3.5 w-3.5 text-neutral-500 transition-transform duration-300 ${
-                      activePanel === 'profile' ? 'rotate-180 text-white' : ''
-                    }`} />
+                    <ChevronDown className={`h-3.5 w-3.5 text-neutral-500 transition-transform duration-300 ${activePanel === 'profile' ? 'rotate-180 text-white' : ''
+                      }`} />
                   </button>
 
                   <AnimatePresence initial={false}>
@@ -626,7 +663,7 @@ export default function ProfileView({
                           <div className="space-y-3.5">
                             <div className="space-y-1">
                               <label className="text-[9px] uppercase tracking-wider font-extrabold text-neutral-500">Tên Thượng Khách</label>
-                              <input 
+                              <input
                                 type="text"
                                 value={profileNameInput}
                                 onChange={(e) => setProfileNameInput(e.target.value)}
@@ -636,7 +673,7 @@ export default function ProfileView({
 
                             <div className="space-y-1">
                               <label className="text-[9px] uppercase tracking-wider font-extrabold text-neutral-500">Tiểu sử Điện ảnh</label>
-                              <textarea 
+                              <textarea
                                 value={profileBioInput}
                                 onChange={(e) => setProfileBioInput(e.target.value)}
                                 rows={2}
@@ -646,26 +683,35 @@ export default function ProfileView({
 
                             <div className="space-y-1">
                               <label className="text-[9px] uppercase tracking-wider font-extrabold text-neutral-500">Địa chỉ Email Liên hệ</label>
-                              <input 
+                              <input
                                 type="email"
                                 value={profileEmailInput}
-                                onChange={(e) => setProfileEmailInput(e.target.value)}
+                                disabled
+                                className="w-full bg-black border border-neutral-850 text-neutral-500 p-2 text-xs focus:outline-none focus:ring-0 rounded-none font-mono cursor-not-allowed"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[9px] uppercase tracking-wider font-extrabold text-neutral-500">Số điện thoại</label>
+                              <input
+                                type="tel"
+                                value={profilePhoneInput}
+                                onChange={(e) => setProfilePhoneInput(e.target.value)}
                                 className="w-full bg-black border border-neutral-850 focus:border-amber-400 text-white p-2 text-xs focus:outline-none focus:ring-0 rounded-none font-mono"
                               />
                             </div>
                           </div>
 
                           <button
-                            onClick={() => {
-                              setName(profileNameInput);
-                              playPing(880, 'sine', 0.25);
-                              setIsEditingName(false);
-                              alert(`Lưu thông tin tài khoản thành công! Tên mới: ${profileNameInput}`);
-                              setActivePanel(null);
-                            }}
+                            onClick={handleSaveProfile}
+                            disabled={isSavingProfile}
                             className="w-full py-2.5 bg-white text-black font-sans font-black tracking-widest uppercase text-[10px] hover:bg-neutral-250 transition flex items-center justify-center gap-1.5"
                           >
-                            <Save className="h-3.5 w-3.5" /> LƯU THAY ĐỔI HỒ SƠ
+                            {isSavingProfile ? (
+                              <span className="h-3.5 w-3.5 border-2 border-black border-t-transparent animate-spin rounded-full inline-block"></span>
+                            ) : (
+                              <><Save className="h-3.5 w-3.5" /> LƯU THAY ĐỔI HỒ SƠ</>
+                            )}
                           </button>
                         </div>
                       </motion.div>
@@ -681,17 +727,15 @@ export default function ProfileView({
                       setActivePanel(activePanel === 'payment' ? null : 'payment');
                       setLinkingSuccess(false);
                     }}
-                    className={`w-full flex items-center justify-between p-3.5 text-xs text-neutral-400 hover:text-white transition duration-200 text-left ${
-                      activePanel === 'payment' ? 'bg-neutral-950/60 pb-2 text-white border-b border-white/5' : ''
-                    }`}
+                    className={`w-full flex items-center justify-between p-3.5 text-xs text-neutral-400 hover:text-white transition duration-200 text-left ${activePanel === 'payment' ? 'bg-neutral-950/60 pb-2 text-white border-b border-white/5' : ''
+                      }`}
                   >
                     <span className="flex items-center gap-2.5 font-bold uppercase tracking-wider">
-                      <CreditCard className={`h-4 w-4 ${activePanel === 'payment' ? 'text-amber-400' : 'text-neutral-500'}`} /> 
+                      <CreditCard className={`h-4 w-4 ${activePanel === 'payment' ? 'text-amber-400' : 'text-neutral-500'}`} />
                       Phương thức thanh toán VIP
                     </span>
-                    <ChevronDown className={`h-3.5 w-3.5 text-neutral-500 transition-transform duration-300 ${
-                      activePanel === 'payment' ? 'rotate-180 text-white' : ''
-                    }`} />
+                    <ChevronDown className={`h-3.5 w-3.5 text-neutral-500 transition-transform duration-300 ${activePanel === 'payment' ? 'rotate-180 text-white' : ''
+                      }`} />
                   </button>
 
                   <AnimatePresence initial={false}>
@@ -703,19 +747,19 @@ export default function ProfileView({
                         className="overflow-hidden"
                       >
                         <div className="p-4 space-y-4 text-xs">
-                          
+
                           {/* Interactive Credit Card Widget Representation */}
-                          <div 
+                          <div
                             className="relative w-full aspect-[1.58/1] rounded-lg p-5 overflow-hidden text-white flex flex-col justify-between cursor-pointer border shadow-2xl transition-all duration-500 hover:scale-102"
                             style={{
                               background: glowColor === 'gold' ? 'linear-gradient(135deg, #161208 0%, #0e0a03 50%, #1e1505 100%)' :
-                                          glowColor === 'neon' ? 'linear-gradient(135deg, #091a1e 0%, #040d10 50%, #0a252d 100%)' :
-                                          glowColor === 'ruby' ? 'linear-gradient(135deg, #1e090c 0%, #0e0304 50%, #2e0d13 100%)' :
-                                          'linear-gradient(135deg, #091e11 0%, #030d06 50%, #112d1b 100%)',
+                                glowColor === 'neon' ? 'linear-gradient(135deg, #091a1e 0%, #040d10 50%, #0a252d 100%)' :
+                                  glowColor === 'ruby' ? 'linear-gradient(135deg, #1e090c 0%, #0e0304 50%, #2e0d13 100%)' :
+                                    'linear-gradient(135deg, #091e11 0%, #030d06 50%, #112d1b 100%)',
                               borderColor: glowColor === 'gold' ? 'rgba(234, 179, 8, 0.4)' :
-                                           glowColor === 'neon' ? 'rgba(6, 182, 212, 0.4)' :
-                                           glowColor === 'ruby' ? 'rgba(244, 63, 94, 0.4)' :
-                                           'rgba(16, 185, 129, 0.4)'
+                                glowColor === 'neon' ? 'rgba(6, 182, 212, 0.4)' :
+                                  glowColor === 'ruby' ? 'rgba(244, 63, 94, 0.4)' :
+                                    'rgba(16, 185, 129, 0.4)'
                             }}
                             onClick={() => {
                               playPing(600, 'sine', 0.15);
@@ -728,7 +772,7 @@ export default function ProfileView({
                             {/* Card state wrapper with nice motion flip */}
                             <AnimatePresence mode="wait">
                               {!isCardFlipped ? (
-                                <motion.div 
+                                <motion.div
                                   key="front"
                                   initial={{ opacity: 0, rotateY: 90 }}
                                   animate={{ opacity: 1, rotateY: 0 }}
@@ -739,7 +783,7 @@ export default function ProfileView({
                                   <div className="flex justify-between items-start">
                                     <div className="space-y-1">
                                       <span className="text-[8px] tracking-[0.2em] font-black uppercase text-neutral-400">
-                                        CINEPREMIER VIP
+                                        CINEPREMIER
                                       </span>
                                       {/* Golden Chip */}
                                       <div className="h-5 w-7 bg-amber-500/30 border border-amber-300/30 rounded-[3px] shadow"></div>
@@ -767,7 +811,7 @@ export default function ProfileView({
                                   </div>
                                 </motion.div>
                               ) : (
-                                <motion.div 
+                                <motion.div
                                   key="back"
                                   initial={{ opacity: 0, rotateY: -90 }}
                                   animate={{ opacity: 1, rotateY: 0 }}
@@ -776,11 +820,11 @@ export default function ProfileView({
                                 >
                                   {/* Back design magnetic strip */}
                                   <div className="w-full h-7 bg-neutral-900 -mx-5 mt-1 border-t border-b border-black"></div>
-                                  
+
                                   {/* Sign strip */}
                                   <div className="flex items-center gap-3">
                                     <div className="flex-1 h-5 bg-neutral-800 text-[8px] font-mono text-neutral-400 flex items-center px-2 select-all font-black">
-                                      Mã bảo an quốc tế: 
+                                      Mã bảo an quốc tế:
                                     </div>
                                     <div className="bg-amber-100 text-black px-2.5 py-0.5 text-[10px] font-mono font-bold tracking-widest rounded-sm">
                                       {cardCvv || '***'}
@@ -803,7 +847,7 @@ export default function ProfileView({
                           <div className="grid grid-cols-2 gap-2.5 pt-1">
                             <div className="space-y-1">
                               <label className="text-[8px] uppercase tracking-wider text-neutral-500 font-bold">Tên chủ thẻ</label>
-                              <input 
+                              <input
                                 type="text"
                                 placeholder="MINH HONG"
                                 value={cardHolder}
@@ -814,7 +858,7 @@ export default function ProfileView({
 
                             <div className="space-y-1">
                               <label className="text-[8px] uppercase tracking-wider text-neutral-500 font-bold">Số Thẻ Di Động</label>
-                              <input 
+                              <input
                                 type="text"
                                 placeholder="4611 1234 5678 8899"
                                 value={cardNumber}
@@ -827,7 +871,7 @@ export default function ProfileView({
                           <div className="grid grid-cols-3 gap-2.5">
                             <div className="space-y-1">
                               <label className="text-[8px] uppercase tracking-wider text-neutral-500 font-bold">Hạn dùng</label>
-                              <input 
+                              <input
                                 type="text"
                                 placeholder="12/29"
                                 maxLength={5}
@@ -839,7 +883,7 @@ export default function ProfileView({
 
                             <div className="space-y-1">
                               <label className="text-[8px] uppercase tracking-wider text-neutral-500 font-bold">Mã CVV</label>
-                              <input 
+                              <input
                                 type="password"
                                 placeholder="***"
                                 maxLength={3}
@@ -853,8 +897,8 @@ export default function ProfileView({
 
                             <div className="space-y-1">
                               <label className="text-[8px] uppercase tracking-wider text-neutral-500 font-bold">Loại thẻ</label>
-                              <select 
-                                value={cardType} 
+                              <select
+                                value={cardType}
                                 onChange={(e) => { playPing(480, 'sine', 0.05); setCardType(e.target.value); }}
                                 className="w-full bg-black border border-neutral-850 p-2 text-[11px] text-white focus:outline-none focus:border-white"
                               >
@@ -868,7 +912,7 @@ export default function ProfileView({
                             onClick={() => {
                               playPing(987.77, 'sine', 0.3);
                               setLinkingSuccess(true);
-                              alert("Mã hóa liên kết thẻ tín dụng Thượng hạng thành công!");
+                              showToast("Mã hóa liên kết thẻ tín dụng Thượng hạng thành công!");
                               setActivePanel(null);
                             }}
                             className="w-full py-2.5 bg-neutral-900 border border-white/10 text-white font-sans uppercase text-[10px] hover:border-white hover:bg-neutral-950 transition tracking-widest font-black"
@@ -889,17 +933,15 @@ export default function ProfileView({
                       playPing(activePanel === 'security' ? 380 : 450, 'sine', 0.1);
                       setActivePanel(activePanel === 'security' ? null : 'security');
                     }}
-                    className={`w-full flex items-center justify-between p-3.5 text-xs text-neutral-400 hover:text-white transition duration-200 text-left ${
-                      activePanel === 'security' ? 'bg-neutral-950/60 pb-2 text-white border-b border-white/5' : ''
-                    }`}
+                    className={`w-full flex items-center justify-between p-3.5 text-xs text-neutral-400 hover:text-white transition duration-200 text-left ${activePanel === 'security' ? 'bg-neutral-950/60 pb-2 text-white border-b border-white/5' : ''
+                      }`}
                   >
                     <span className="flex items-center gap-2.5 font-bold uppercase tracking-wider">
-                      <Lock className={`h-4 w-4 ${activePanel === 'security' ? 'text-amber-400' : 'text-neutral-500'}`} /> 
-                      Mật khẩu & Bảo an VIP
+                      <Lock className={`h-4 w-4 ${activePanel === 'security' ? 'text-amber-400' : 'text-neutral-500'}`} />
+                      Mật khẩu & Bảo an
                     </span>
-                    <ChevronDown className={`h-3.5 w-3.5 text-neutral-500 transition-transform duration-300 ${
-                      activePanel === 'security' ? 'rotate-180 text-white' : ''
-                    }`} />
+                    <ChevronDown className={`h-3.5 w-3.5 text-neutral-500 transition-transform duration-300 ${activePanel === 'security' ? 'rotate-180 text-white' : ''
+                      }`} />
                   </button>
 
                   <AnimatePresence initial={false}>
@@ -911,7 +953,7 @@ export default function ProfileView({
                         className="overflow-hidden"
                       >
                         <div className="p-4 space-y-4 text-xs">
-                          
+
                           <p className="text-[10px] text-neutral-400 leading-relaxed">
                             Cập nhật khóa bảo vệ cá nhân định kì để giữ vững hạng tài khoản Thẻ VIP và chống thâm nhập mật trái phép.
                           </p>
@@ -920,7 +962,7 @@ export default function ProfileView({
                             <div className="space-y-1">
                               <label className="text-[8px] uppercase tracking-wider text-neutral-500 font-bold block">Mật khẩu cũ</label>
                               <div className="relative">
-                                <input 
+                                <input
                                   type={showOldPass ? "text" : "password"}
                                   value={oldPassword}
                                   onChange={(e) => setOldPassword(e.target.value)}
@@ -940,7 +982,7 @@ export default function ProfileView({
                             <div className="space-y-1">
                               <label className="text-[8px] uppercase tracking-wider text-neutral-500 font-bold block">Mật khẩu mới</label>
                               <div className="relative">
-                                <input 
+                                <input
                                   type={showNewPass ? "text" : "password"}
                                   value={newPassword}
                                   onChange={(e) => setNewPassword(e.target.value)}
@@ -958,35 +1000,16 @@ export default function ProfileView({
                             </div>
                           </div>
 
-                          {/* 2Factor interactive check slider */}
-                          <div className="flex items-center justify-between p-2.5 border border-white/5 bg-black/40">
-                            <div className="space-y-0.5">
-                              <span className="text-[10px] text-zinc-300 font-bold block">XÁC THỰC 2 LỚP OTP</span>
-                              <span className="text-[8px] text-neutral-500 block uppercase font-mono">Bảo mật vượt trội qua điện thoại</span>
-                            </div>
-                            <button
-                              onClick={() => {
-                                playPing(twoFactorAuth ? 350 : 650, 'sine', 0.1);
-                                setTwoFactorAuth(!twoFactorAuth);
-                              }}
-                              className={`w-11 h-6 transition-all duration-300 rounded-full p-0.5 flex items-center relative cursor-pointer ${
-                                twoFactorAuth ? (glowColor === 'gold' ? 'bg-amber-500' : glowColor === 'neon' ? 'bg-cyan-500' : glowColor === 'ruby' ? 'bg-rose-600' : 'bg-emerald-500') : 'bg-neutral-800'
-                              }`}
-                            >
-                              <div className={`h-5 w-5 bg-white rounded-full shadow-md transition-transform duration-300 ${
-                                twoFactorAuth ? 'translate-x-[20px]' : 'translate-x-0'
-                              }`}></div>
-                            </button>
-                          </div>
+
 
                           <button
                             onClick={() => {
                               if (!oldPassword || !newPassword) {
-                                alert("Vui lòng nhập trọn vẹn thông tin mật khẩu bảo mật.");
+                                showToast("Vui lòng nhập trọn vẹn thông tin mật khẩu bảo mật.");
                                 return;
                               }
                               playPing(880, 'sine', 0.25);
-                              alert("Mật khẩu tài khoản đã được thay đổi an toàn toàn diện.");
+                              showToast("Mật khẩu tài khoản đã được thay đổi an toàn toàn diện.");
                               setOldPassword('');
                               setNewPassword('');
                               setActivePanel(null);
@@ -1014,8 +1037,7 @@ export default function ProfileView({
                   className="w-full flex items-center justify-center gap-2 p-3 text-xs font-black text-rose-400 hover:text-white bg-rose-950/5 hover:bg-rose-900/30 border border-rose-950/30 hover:border-rose-500/40 transition duration-300 uppercase tracking-[0.16em] text-center"
                 >
                   <LogOut className="h-3.5 w-3.5" />
-                  HỦY PHIÊN • ĐĂNG XUẤT VIP
-                </button>
+                  ĐĂNG XUẤT</button>
               </div>
 
             </div>
@@ -1023,8 +1045,9 @@ export default function ProfileView({
           </div>
 
         </div>
-      )}
+      )
+      }
 
-    </div>
+    </div >
   );
 }

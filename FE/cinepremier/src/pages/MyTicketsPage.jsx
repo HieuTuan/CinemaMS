@@ -6,7 +6,8 @@ export default function MyTicketsView({
   bookedTickets,
   onSelectMovie,
   isLoggedIn,
-  onOpenOTP
+  onOpenOTP,
+  showToast = () => {}
 }) {
   const [reviewContent, setReviewContent] = useState('');
   const [reviewRating, setReviewRating] = useState(5);
@@ -96,7 +97,7 @@ export default function MyTicketsView({
     e.preventDefault();
     if (!reviewContent) return;
 
-    alert(`Cảm ơn đóng báo của bạn về phim ${selectedReviewMovie}!\nNhận xét đã được ghi nhận trên cổng phê bình Cinephile.`);
+    showToast(`Cảm ơn đóng báo của bạn về phim ${selectedReviewMovie}!\nNhận xét đã được ghi nhận trên cổng phê bình Cinephile.`);
     setReviewsList([
       {
         id: Date.now(),
@@ -255,7 +256,7 @@ export default function MyTicketsView({
                   {/* Context trigger option */}
                   <div className="flex items-center space-x-1 shrink-0">
                     <button 
-                      onClick={() => alert(`Mã rạp chiếu kĩ thuật số: ${t.code} đã được gửi lên hệ thống. Đưa mã này khi nhận vé bắp nước combo VIP.`)}
+                      onClick={() => showToast(`Mã rạp chiếu kĩ thuật số: ${t.code} đã được gửi lên hệ thống. Đưa mã này khi nhận vé bắp nước combo VIP.`)}
                       className="p-1.5 hover:bg-neutral-900 text-neutral-500 hover:text-white transition rounded-full shrink-0"
                       title="Chi tiết vé"
                     >

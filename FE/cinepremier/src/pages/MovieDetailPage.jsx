@@ -56,7 +56,7 @@ const movieAiReports = {
   }
 };
 
-export default function DetailView({ movie, onBack, onBook }) {
+export default function DetailView({ movie, onBack, onBook, showToast = () => {} }) {
   const [showTrailer, setShowTrailer] = useState(false);
   const [showAiAnalysis, setShowAiAnalysis] = useState(false);
   const [reviews, setReviews] = useState([]);
@@ -872,7 +872,7 @@ export default function DetailView({ movie, onBack, onBook }) {
                       
                       {/* Left Block Circular Radial rating gauge */}
                       <div className="md:col-span-5 flex flex-col items-center justify-center p-6 border border-white/5 bg-[#08080c] rounded">
-                        <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest pb-3">ẢNH BẢN QUYÈN COGNITIVE</span>
+                        <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest pb-3">ẢNH BẢN QUYỀN COGNITIVE</span>
                         <div className="relative h-36 w-36 flex items-center justify-center">
                           <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                             <circle cx="50" cy="50" r="42" fill="transparent" stroke="rgba(255,255,255,0.03)" strokeWidth="5" />
@@ -903,7 +903,7 @@ export default function DetailView({ movie, onBack, onBook }) {
                           </div>
                         </div>
                         <div className="mt-4 text-center space-y-1">
-                          <p className="text-xs text-white uppercase font-bold tracking-wider">MẬP ĐỘ SỨC KHỐP TUYẾN TÍNH</p>
+                          <p className="text-xs text-white uppercase font-bold tracking-wider">MẬT ĐỘ SỨC KHỚP TUYẾN TÍNH</p>
                           <p className="text-[10px] text-zinc-400">Tỉ lệ phản hồi thấu cảm cảm quan tích cực đạt <b>98.8%</b></p>
                         </div>
                       </div>
@@ -975,7 +975,7 @@ export default function DetailView({ movie, onBack, onBook }) {
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3.5 border-b border-white/5 pb-3">
                         <div className="space-y-0.5">
                           <span className="text-[8px] font-mono text-violet-400 uppercase tracking-[0.2em] font-bold block">REAL-TIME FLUCTUATION GRAPH DISPLAY</span>
-                          <h4 className="text-xs font-sans font-bold uppercase tracking-wider text-zinc-300">PHỒ XUNG ĐỒNG ĐIỆU CẢM XÚC THUYẾT LƯỢNG TỬ</h4>
+                          <h4 className="text-xs font-sans font-bold uppercase tracking-wider text-zinc-300">PHỔ XUNG ĐỒNG ĐIỆU CẢM XÚC THUYẾT LƯỢNG TỬ</h4>
                         </div>
 
                         {/* Legends identifiers */}
@@ -1084,7 +1084,7 @@ export default function DetailView({ movie, onBack, onBook }) {
                     <button
                       onClick={() => {
                         playPing(880, 'sine', 0.15);
-                        alert(`[AI Report Downloader] Đang kết xuất và chụp trực quan Poster phân tích của phim "${movie.title}"...\nKết nối thành công! Tệp tin infographic_cognitive_${movie.id}.png đã được xuất thành công vào thư viện khóa ngoại của trình duyệt.`);
+                        showToast(`[AI Report Downloader] Đang kết xuất và chụp trực quan Poster phân tích của phim "${movie.title}"...\nKết nối thành công! Tệp tin infographic_cognitive_${movie.id}.png đã được xuất thành công vào thư viện khóa ngoại của trình duyệt.`);
                       }}
                       className="border border-violet-500/40 text-violet-400 hover:bg-violet-500 hover:text-black hover:border-violet-500 text-[10px] px-4 py-3 font-bold uppercase tracking-wider transition duration-300 cursor-pointer flex items-center gap-1.5"
                     >
