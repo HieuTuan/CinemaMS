@@ -170,19 +170,21 @@ export default function App() {
 
   const performLogout = async () => {
     const { refreshToken } = getStoredAuth();
+    if (!refreshToken) {
+      showToast("Không tìm thấy refresh token. Vui lòng đăng nhập lại để đồng bộ phiên với server.");
+      return;
+    }
+
     try {
-      if (refreshToken) {
-        await authApi.logout(refreshToken);
-      }
-    } catch (error) {
-      // Local cleanup still happens if the server token is already invalid.
-    } finally {
+      await authApi.logout(refreshToken);
       clearAuthSession();
       setIsLoggedIn(false);
       setCurrentUser(null);
       setCurrentRole('user');
       navigateApp('home');
       showToast("Đăng xuất tài khoản thành công.");
+    } catch (error) {
+      showToast(error.message || "Không thể kết nối BE để đăng xuất. Tài khoản vẫn được giữ đăng nhập trên FE.");
     }
   };
 

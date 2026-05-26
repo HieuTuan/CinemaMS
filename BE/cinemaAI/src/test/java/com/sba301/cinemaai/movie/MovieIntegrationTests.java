@@ -139,10 +139,14 @@ class MovieIntegrationTests {
     }
 
     private Long createGenre(String token, String name) throws Exception {
+        String description = "Created by integration test. This genre description is intentionally long enough to satisfy " +
+                "the administrator validation rule for detailed catalog metadata before the genre payload is accepted. " +
+                "It also mirrors real editorial notes used by the cinema admin console.";
+
         String response = mockMvc.perform(post("/api/v1/admin/genres")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new GenreRequest(name, "Created by integration test"))))
+                        .content(objectMapper.writeValueAsString(new GenreRequest(name, description))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.name").value(name))
