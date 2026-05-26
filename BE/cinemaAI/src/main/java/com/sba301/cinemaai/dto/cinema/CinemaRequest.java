@@ -2,6 +2,7 @@ package com.sba301.cinemaai.dto.cinema;
 
 import com.sba301.cinemaai.enums.CinemaStatus;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record CinemaRequest(
@@ -16,6 +17,7 @@ public record CinemaRequest(
         String city,
 
         @Size(max = 20, message = "Phone must be at most 20 characters")
+        @Pattern(regexp = "^\\+?[0-9]{10,15}$", message = "Phone is invalid")
         String phone,
 
         CinemaStatus status

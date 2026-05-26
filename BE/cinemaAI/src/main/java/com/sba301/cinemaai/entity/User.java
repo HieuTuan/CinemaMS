@@ -9,6 +9,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -42,6 +43,9 @@ public class User extends BaseEntity {
     @Column(name = "email_verified", nullable = false)
     private boolean emailVerified;
 
+    @Column(name = "phone_verified", nullable = false)
+    private boolean phoneVerified;
+
     public User(String email, String passwordHash, String fullName, String phone) {
         this.email = email;
         this.passwordHash = passwordHash;
@@ -54,12 +58,20 @@ public class User extends BaseEntity {
         this.status = UserStatus.ACTIVE;
     }
 
+    public void activatePhone() {
+        this.phoneVerified = true;
+        this.status = UserStatus.ACTIVE;
+    }
+
     public void disable() {
         this.status = UserStatus.DISABLED;
     }
 
     public void updateProfile(String fullName, String phone) {
         this.fullName = fullName;
+        if (!Objects.equals(this.phone, phone)) {
+            this.phoneVerified = false;
+        }
         this.phone = phone;
     }
 

@@ -1,13 +1,16 @@
 package com.sba301.cinemaai.service;
 
 import com.sba301.cinemaai.dto.auth.AuthResponse;
+import com.sba301.cinemaai.dto.auth.GoogleLoginRequest;
+import com.sba301.cinemaai.dto.auth.GoogleOtpVerifyRequest;
 import com.sba301.cinemaai.dto.auth.LoginRequest;
+import com.sba301.cinemaai.dto.auth.PhoneOtpVerifyRequest;
 import com.sba301.cinemaai.dto.auth.RegisterRequest;
 import com.sba301.cinemaai.dto.auth.RegisterResponse;
-import com.sba301.cinemaai.entity.EmailVerificationToken;
 import com.sba301.cinemaai.entity.RefreshToken;
 import com.sba301.cinemaai.entity.User;
 import com.sba301.cinemaai.enums.RoleName;
+import com.sba301.cinemaai.enums.UserStatus;
 import com.sba301.cinemaai.exception.ConflictException;
 import com.sba301.cinemaai.exception.UnauthorizedException;
 import com.sba301.cinemaai.repository.UserRepository;
@@ -34,13 +37,19 @@ public class AuthService {
     private final JwtProperties jwtProperties;
     private final RefreshTokenService refreshTokenService;
     private final EmailVerificationService emailVerificationService;
+    private final PhoneVerificationService phoneVerificationService;
     private final UserRoleService userRoleService;
     private final UserService userService;
+    private final GoogleTokenVerifier googleTokenVerifier;
 
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.email())) {
             throw new ConflictException("Email already exists");
+        }
+        if (request.phone() != null && !request.phone().isBlank()
+                && userRepository.existsByPhone(request.phone())) {
+            throw new ConflictException("Phone already exists");
         }
 
         User user = userRepository.save(new User(
@@ -50,24 +59,58 @@ public class AuthService {
                 request.phone()
         ));
         userRoleService.assignRole(user, RoleName.CUSTOMER);
-        EmailVerificationToken verificationToken = emailVerificationService.create(user);
-        return new RegisterResponse(userService.toProfile(user), verificationToken.getToken());
+        emailVerificationService.create(user);
+        return new RegisterResponse(
+                userService.toProfile(user),
+                true,
+                10
+        );
     }
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
         try {
             authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(request.email(), request.password())
+                    new UsernamePasswordAuthenticationToken(request.username(), request.password())
             );
         } catch (DisabledException exception) {
             throw new UnauthorizedException("User is disabled or email is not verified");
         } catch (BadCredentialsException exception) {
-            throw new UnauthorizedException("Invalid email or password");
+            throw new UnauthorizedException("Invalid username or password");
         }
 
-        User user = userService.getByEmail(request.email());
+        User user = userService.getByEmail(request.username());
         return createAuthResponse(user);
+    }
+
+    @Transactional
+    public AuthResponse loginWithGoogle(GoogleLoginRequest request) {
+        GoogleTokenVerifier.GoogleTokenInfo tokenInfo = googleTokenVerifier.verify(request.credential());
+        User user = userRepository.findByEmail(tokenInfo.email())
+                .orElseGet(() -> createGoogleUser(tokenInfo));
+
+        if (user.getStatus() == UserStatus.DISABLED) {
+            throw new UnauthorizedException("User is disabled");
+        }
+        if (!user.isEmailVerified()) {
+            user.activateEmail();
+        }
+
+        return createAuthResponse(user);
+    }
+
+    @Transactional
+    public AuthResponse loginWithGoogleOtp(GoogleOtpVerifyRequest request) {
+        User user = emailVerificationService.verifyGoogleLogin(request.email(), request.otp());
+        if (user.getStatus() == UserStatus.DISABLED) {
+            throw new UnauthorizedException("User is disabled");
+        }
+        return createAuthResponse(user);
+    }
+
+    @Transactional
+    public AuthResponse loginWithOtp(PhoneOtpVerifyRequest request) {
+        return createAuthResponse(phoneVerificationService.verifyLoginOtp(request.phone(), request.otp()));
     }
 
     @Transactional
@@ -79,6 +122,23 @@ public class AuthService {
     @Transactional
     public void logout(String refreshTokenValue) {
         refreshTokenService.revoke(refreshTokenValue);
+    }
+
+    private User createGoogleUser(GoogleTokenVerifier.GoogleTokenInfo tokenInfo) {
+        String fullName = tokenInfo.name();
+        if (fullName == null || fullName.isBlank()) {
+            fullName = tokenInfo.email();
+        }
+
+        User user = userRepository.save(new User(
+                tokenInfo.email(),
+                passwordEncoder.encode(tokenInfo.subject()),
+                fullName,
+                null
+        ));
+        user.activateEmail();
+        userRoleService.assignRole(user, RoleName.CUSTOMER);
+        return user;
     }
 
     private AuthResponse createAuthResponse(User user) {

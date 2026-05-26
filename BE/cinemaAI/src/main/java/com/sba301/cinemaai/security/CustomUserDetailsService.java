@@ -36,6 +36,7 @@ public class CustomUserDetailsService implements UserDetailsService {
                 user.getPasswordHash(),
                 user.getStatus(),
                 user.isEmailVerified(),
+                user.isPhoneVerified(),
                 authorities
         );
     }

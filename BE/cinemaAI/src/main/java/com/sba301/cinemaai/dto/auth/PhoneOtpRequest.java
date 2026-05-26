@@ -1,12 +1,10 @@
-package com.sba301.cinemaai.dto.user;
+package com.sba301.cinemaai.dto.auth;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 
-public record UserProfileUpdateRequest(
-        @NotBlank(message = "Full name is required")
-        String fullName,
-
+public record PhoneOtpRequest(
+        @NotBlank(message = "Phone is required")
         @Pattern(regexp = "^\\+?[0-9]{10,15}$", message = "Phone is invalid")
         String phone
 ) {

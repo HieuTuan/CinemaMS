@@ -15,6 +15,7 @@ CREATE TABLE dbo.users (
     phone NVARCHAR(20),
     status NVARCHAR(30) NOT NULL,
     email_verified BIT NOT NULL DEFAULT 0,
+    phone_verified BIT NOT NULL DEFAULT 0,
     created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
 );
@@ -48,6 +49,7 @@ CREATE TABLE dbo.password_reset_tokens (
     id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
     user_id BIGINT NOT NULL,
     token NVARCHAR(500) NOT NULL UNIQUE,
+    purpose NVARCHAR(30) NOT NULL DEFAULT 'EMAIL_VERIFICATION',
     expires_at DATETIME2 NOT NULL,
     used BIT NOT NULL DEFAULT 0,
     created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
@@ -65,6 +67,20 @@ CREATE TABLE dbo.email_verification_tokens (
     created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT fk_email_verification_tokens_user FOREIGN KEY (user_id) REFERENCES dbo.users(id)
+);
+
+IF OBJECT_ID('dbo.phone_verification_tokens', 'U') IS NULL
+CREATE TABLE dbo.phone_verification_tokens (
+    id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    otp NVARCHAR(6) NOT NULL,
+    phone NVARCHAR(20) NOT NULL,
+    purpose NVARCHAR(30) NOT NULL,
+    expires_at DATETIME2 NOT NULL,
+    used BIT NOT NULL DEFAULT 0,
+    created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT fk_phone_verification_tokens_user FOREIGN KEY (user_id) REFERENCES dbo.users(id)
 );
 
 IF OBJECT_ID('dbo.genres', 'U') IS NULL
@@ -433,6 +449,10 @@ CREATE TABLE dbo.uploaded_files (
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_movies_status' AND object_id = OBJECT_ID('dbo.movies'))
 CREATE INDEX idx_movies_status ON dbo.movies(status);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'uk_users_phone_not_null' AND object_id = OBJECT_ID('dbo.users'))
+CREATE UNIQUE INDEX uk_users_phone_not_null ON dbo.users(phone) WHERE phone IS NOT NULL;
+IF COL_LENGTH('dbo.email_verification_tokens', 'purpose') IS NULL
+ALTER TABLE dbo.email_verification_tokens ADD purpose NVARCHAR(30) NOT NULL DEFAULT 'EMAIL_VERIFICATION';
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_movies_release_date' AND object_id = OBJECT_ID('dbo.movies'))
 CREATE INDEX idx_movies_release_date ON dbo.movies(release_date);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_showtimes_movie' AND object_id = OBJECT_ID('dbo.showtimes'))
