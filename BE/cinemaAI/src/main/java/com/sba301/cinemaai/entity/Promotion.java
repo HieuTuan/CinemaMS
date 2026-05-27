@@ -77,4 +77,15 @@ public class Promotion extends BaseEntity {
     public void changeStatus(PromotionStatus status) {
         this.status = status;
     }
+    public void updateMaxDiscount(BigDecimal maxDiscountAmount) {
+        this.maxDiscountAmount = maxDiscountAmount;
+    }
+
+    public void updateMinOrder(BigDecimal minOrderAmount) {
+        this.minOrderAmount = minOrderAmount;
+    }
+
+    public void updateUsageLimit(Integer usageLimit) {
+        this.usageLimit = usageLimit;
+    }
 }

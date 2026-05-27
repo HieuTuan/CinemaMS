@@ -1,33 +1,18 @@
 package com.sba301.cinemaai.config;
 
-import com.sba301.cinemaai.entity.Cinema;
-import com.sba301.cinemaai.entity.Genre;
-import com.sba301.cinemaai.entity.Movie;
-import com.sba301.cinemaai.entity.MovieGenre;
-import com.sba301.cinemaai.entity.Role;
-import com.sba301.cinemaai.entity.Room;
-import com.sba301.cinemaai.entity.Seat;
-import com.sba301.cinemaai.entity.Showtime;
-import com.sba301.cinemaai.enums.MovieStatus;
-import com.sba301.cinemaai.enums.RoleName;
-import com.sba301.cinemaai.enums.RoomType;
-import com.sba301.cinemaai.enums.SeatType;
-import com.sba301.cinemaai.enums.ShowtimeStatus;
-import com.sba301.cinemaai.repository.CinemaRepository;
-import com.sba301.cinemaai.repository.GenreRepository;
-import com.sba301.cinemaai.repository.MovieGenreRepository;
-import com.sba301.cinemaai.repository.MovieRepository;
-import com.sba301.cinemaai.repository.RoleRepository;
-import com.sba301.cinemaai.repository.RoomRepository;
-import com.sba301.cinemaai.repository.SeatRepository;
-import com.sba301.cinemaai.repository.ShowtimeRepository;
+import com.sba301.cinemaai.entity.*;
+import com.sba301.cinemaai.enums.*;
+import com.sba301.cinemaai.repository.*;
+import com.sba301.cinemaai.service.UserRoleService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,6 +29,13 @@ public class DevSeedDataRunner implements CommandLineRunner {
     private final RoomRepository roomRepository;
     private final SeatRepository seatRepository;
     private final ShowtimeRepository showtimeRepository;
+    private final UserRepository userRepository;
+    private final UserRoleService userRoleService;
+    private final PasswordEncoder passwordEncoder;
+
+    private final PromotionRepository promotionRepository;
+    private final BookingRepository bookingRepository;
+    private final BookingSeatRepository bookingSeatRepository;
 
     @Override
     @Transactional
@@ -52,6 +44,24 @@ public class DevSeedDataRunner implements CommandLineRunner {
         seedGenres();
         seedMovies();
         seedCinemaSchedule();
+        seedUsers();
+        seedPromotions();
+        seedBookings();
+    }
+
+    private void seedUsers() {
+        String email = "string@string.string";
+        if (userRepository.existsByEmail(email)) {
+            return;
+        }
+        User user = userRepository.save(new User(
+                email,
+                passwordEncoder.encode("12345678"),
+                "Demo User",
+                "0123456789"
+        ));
+        user.activateEmail();
+        userRoleService.assignRole(user, RoleName.CUSTOMER);
     }
 
     private void seedRoles() {
@@ -194,5 +204,143 @@ public class DevSeedDataRunner implements CommandLineRunner {
             String director,
             String genreNames
     ) {
+    }
+    private void seedPromotions() {
+        seedPromotion(new PromotionSeed(
+                "WELCOME50",
+                "Welcome - 50% off up to 50k",
+                PromotionType.PERCENTAGE,
+                new BigDecimal("50"),
+                new BigDecimal("50000"),
+                null,
+                10,
+                LocalDateTime.now().minusDays(1),
+                LocalDateTime.now().plusDays(30)
+        ));
+
+        seedPromotion(new PromotionSeed(
+                "FLAT30K",
+                "Flat 30,000 VND off any order",
+                PromotionType.FIXED_AMOUNT,
+                new BigDecimal("30000"),
+                null,
+                new BigDecimal("100000"),
+                20,
+                LocalDateTime.now().minusDays(1),
+                LocalDateTime.now().plusDays(30)
+        ));
+
+        seedPromotion(new PromotionSeed(
+                "COMBO99K",
+                "Combo ticket deal - fixed 99k discount",
+                PromotionType.COMBO,
+                new BigDecimal("99000"),
+                null,
+                new BigDecimal("200000"),
+                5,
+                LocalDateTime.now().minusDays(1),
+                LocalDateTime.now().plusDays(14)
+        ));
+
+        seedPromotion(new PromotionSeed(
+                "EXPIRED10",
+                "Expired promo - for testing only",
+                PromotionType.FIXED_AMOUNT,
+                new BigDecimal("10000"),
+                null,
+                null,
+                100,
+                LocalDateTime.now().minusDays(30),
+                LocalDateTime.now().minusDays(1)
+        ));
+    }
+
+    private void seedPromotion(PromotionSeed seed) {
+        if (promotionRepository.existsByCode(seed.code())) {
+            return;
+        }
+
+        Promotion promotion = new Promotion(
+                seed.code(),
+                seed.name(),
+                seed.type(),
+                seed.value(),
+                seed.startsAt(),
+                seed.endsAt()
+        );
+
+        if (seed.maxDiscountAmount() != null) {
+            promotion.updateMaxDiscount(seed.maxDiscountAmount());
+        }
+        if (seed.minOrderAmount() != null) {
+            promotion.updateMinOrder(seed.minOrderAmount());
+        }
+        if (seed.usageLimit() != null) {
+            promotion.updateUsageLimit(seed.usageLimit());
+        }
+
+        promotionRepository.save(promotion);
+    }
+
+    private record PromotionSeed(
+            String code,
+            String name,
+            PromotionType type,
+            BigDecimal value,
+            BigDecimal maxDiscountAmount,
+            BigDecimal minOrderAmount,
+            Integer usageLimit,
+            LocalDateTime startsAt,
+            LocalDateTime endsAt
+    ) {}
+
+    private void seedBookings() {
+        User user = userRepository.findByEmail("string@string.string").orElse(null);
+        if (user == null) return;
+
+        movieRepository.findByTitle("The Last Orbit").ifPresent(movie ->
+                showtimeRepository.findByRoomAndMovieAndStartTime(
+                        roomRepository.findByCinemaAndName(
+                                cinemaRepository.findByName("CineAI Central").orElse(null), "Room A"
+                        ).orElse(null),
+                        movie,
+                        LocalDateTime.now().plusDays(1).withHour(18).withMinute(30).withSecond(0).withNano(0)
+                ).ifPresent(showtime -> seedBooking("BOOK-DEMO-001", user, showtime,
+                        List.of("A1", "A2")))
+        );
+
+        movieRepository.findByTitle("Saigon Midnight").ifPresent(movie ->
+                showtimeRepository.findByRoomAndMovieAndStartTime(
+                        roomRepository.findByCinemaAndName(
+                                cinemaRepository.findByName("CineAI Central").orElse(null), "Room A"
+                        ).orElse(null),
+                        movie,
+                        LocalDateTime.now().plusDays(2).withHour(20).withMinute(0).withSecond(0).withNano(0)
+                ).ifPresent(showtime -> seedBooking("BOOK-DEMO-002", user, showtime,
+                        List.of("B1", "B2", "B3")))
+        );
+    }
+
+    private void seedBooking(String bookingCode, User user, Showtime showtime, List<String> seatLabels) {
+        if (bookingRepository.existsByBookingCode(bookingCode)) {
+            return;
+        }
+
+        Booking booking = bookingRepository.save(
+                new Booking(bookingCode, user, showtime, LocalDateTime.now().plusMinutes(10))
+        );
+
+        List<Seat> seats = seatRepository.findByRoom(showtime.getRoom()).stream()
+                .filter(seat -> seatLabels.contains(seat.getRowLabel() + seat.getSeatNumber()))
+                .toList();
+
+        BigDecimal subtotal = BigDecimal.ZERO;
+
+        for (Seat seat : seats) {
+            bookingSeatRepository.save(new BookingSeat(booking, showtime, seat, showtime.getBasePrice()));
+            subtotal = subtotal.add(showtime.getBasePrice());
+        }
+
+        booking.updateAmounts(subtotal, BigDecimal.ZERO, subtotal);
     }
 }

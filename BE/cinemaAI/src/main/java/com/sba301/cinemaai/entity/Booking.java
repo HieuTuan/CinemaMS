@@ -111,4 +111,9 @@ public class Booking extends BaseEntity {
         this.checkedInAt = LocalDateTime.now();
         this.status = BookingStatus.USED;
     }
+
+    public void clearPromotion() {
+        this.discountAmount = BigDecimal.ZERO;
+        this.totalAmount = this.subtotal;
+    }
 }
