@@ -7,6 +7,8 @@ import com.sba301.cinemaai.dto.auth.LoginRequest;
 import com.sba301.cinemaai.dto.auth.LogoutRequest;
 import com.sba301.cinemaai.dto.auth.RefreshTokenRequest;
 import com.sba301.cinemaai.dto.auth.RegisterRequest;
+import com.sba301.cinemaai.enums.EmailOtpPurpose;
+import com.sba301.cinemaai.repository.EmailVerificationTokenRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -29,6 +31,9 @@ class AuthIntegrationTests {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private EmailVerificationTokenRepository emailVerificationTokenRepository;
+
     @Test
     void shouldRegisterVerifyLoginRefreshAndLogout() throws Exception {
         String email = "phase2.customer@example.com";
@@ -40,19 +45,19 @@ class AuthIntegrationTests {
                 "0900111222"
         ));
 
-        String registerResponse = mockMvc.perform(post("/api/v1/auth/register")
+        mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registerBody))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.user.email").value(email))
                 .andExpect(jsonPath("$.data.user.roles[0]").value("CUSTOMER"))
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+                .andExpect(jsonPath("$.data.emailVerificationRequired").value(true));
 
-        JsonNode registerJson = objectMapper.readTree(registerResponse);
-        String verificationToken = registerJson.at("/data/emailVerificationToken").asText();
+        String verificationToken = emailVerificationTokenRepository
+                .findFirstByUserEmailAndPurposeAndUsedFalseOrderByCreatedAtDesc(email, EmailOtpPurpose.EMAIL_VERIFICATION)
+                .orElseThrow()
+                .getToken();
 
         mockMvc.perform(post("/api/v1/auth/verify-email")
                         .contentType(MediaType.APPLICATION_JSON)

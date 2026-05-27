@@ -1,12 +1,12 @@
 package com.sba301.cinemaai.dto.auth;
 
-import jakarta.validation.constraints.Email;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 
 public record LoginRequest(
-        @Email(message = "Email is invalid")
-        @NotBlank(message = "Email is required")
-        String email,
+        @JsonAlias("email")
+        @NotBlank(message = "Username is required")
+        String username,
 
         @NotBlank(message = "Password is required")
         String password

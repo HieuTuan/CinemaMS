@@ -2,10 +2,13 @@ package com.sba301.cinemaai.service;
 
 import com.sba301.cinemaai.entity.EmailVerificationToken;
 import com.sba301.cinemaai.entity.User;
+import com.sba301.cinemaai.enums.EmailOtpPurpose;
 import com.sba301.cinemaai.exception.BadRequestException;
+import com.sba301.cinemaai.exception.NotFoundException;
 import com.sba301.cinemaai.repository.EmailVerificationTokenRepository;
+import com.sba301.cinemaai.repository.UserRepository;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,24 +17,98 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class EmailVerificationService {
 
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
     private final EmailVerificationTokenRepository emailVerificationTokenRepository;
+    private final UserRepository userRepository;
+    private final MailService mailService;
 
     @Transactional
     public EmailVerificationToken create(User user) {
-        return emailVerificationTokenRepository.save(
-                new EmailVerificationToken(user, UUID.randomUUID().toString(), LocalDateTime.now().plusHours(24))
+        EmailVerificationToken verificationToken = emailVerificationTokenRepository.save(
+                new EmailVerificationToken(
+                        user,
+                        generateOtp(),
+                        EmailOtpPurpose.EMAIL_VERIFICATION,
+                        LocalDateTime.now().plusMinutes(10)
+                )
         );
+        mailService.sendOtp(user.getEmail(), verificationToken.getToken(), "Email verification");
+        return verificationToken;
+    }
+
+    @Transactional
+    public EmailVerificationToken createGoogleLoginOtp(User user) {
+        EmailVerificationToken verificationToken = emailVerificationTokenRepository.save(
+                new EmailVerificationToken(
+                        user,
+                        generateOtp(),
+                        EmailOtpPurpose.GOOGLE_LOGIN,
+                        LocalDateTime.now().plusMinutes(5)
+                )
+        );
+        mailService.sendOtp(user.getEmail(), verificationToken.getToken(), "Google login");
+        return verificationToken;
+    }
+
+    @Transactional
+    public void resendVerificationOtp(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        if (user.isEmailVerified()) {
+            throw new BadRequestException("Email is already verified");
+        }
+        create(user);
+    }
+
+    @Transactional
+    public void verifyEmail(String email, String otp) {
+        EmailVerificationToken verificationToken = findValidOtp(email, otp, EmailOtpPurpose.EMAIL_VERIFICATION);
+        verificationToken.getUser().activateEmail();
+        verificationToken.markUsed();
+    }
+
+    @Transactional
+    public User verifyGoogleLogin(String email, String otp) {
+        EmailVerificationToken verificationToken = findValidOtp(email, otp, EmailOtpPurpose.GOOGLE_LOGIN);
+        verificationToken.getUser().activateEmail();
+        verificationToken.markUsed();
+        return verificationToken.getUser();
     }
 
     @Transactional
     public void verify(String token) {
         EmailVerificationToken verificationToken = emailVerificationTokenRepository.findByToken(token)
-                .orElseThrow(() -> new BadRequestException("Invalid verification token"));
+                .orElseThrow(() -> new BadRequestException("Invalid OTP"));
         if (verificationToken.isUsed() || verificationToken.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new BadRequestException("Verification token is expired or already used");
+            throw new BadRequestException("OTP is expired or already used");
         }
-
         verificationToken.getUser().activateEmail();
         verificationToken.markUsed();
+    }
+
+    private EmailVerificationToken findValidOtp(String email, String otp, EmailOtpPurpose purpose) {
+        if (email == null || email.isBlank()) {
+            EmailVerificationToken verificationToken = emailVerificationTokenRepository.findByToken(otp)
+                    .filter(token -> token.getPurpose() == purpose)
+                    .filter(token -> !token.isUsed())
+                    .orElseThrow(() -> new BadRequestException("Invalid OTP"));
+            if (verificationToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+                throw new BadRequestException("OTP is expired or already used");
+            }
+            return verificationToken;
+        }
+
+        EmailVerificationToken verificationToken = emailVerificationTokenRepository
+                .findFirstByUserEmailAndTokenAndPurposeAndUsedFalseOrderByCreatedAtDesc(email, otp, purpose)
+                .orElseThrow(() -> new BadRequestException("Invalid OTP"));
+        if (verificationToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new BadRequestException("OTP is expired or already used");
+        }
+        return verificationToken;
+    }
+
+    private String generateOtp() {
+        return String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
     }
 }

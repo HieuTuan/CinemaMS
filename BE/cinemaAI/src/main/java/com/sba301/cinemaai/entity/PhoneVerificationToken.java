@@ -1,6 +1,6 @@
 package com.sba301.cinemaai.entity;
 
-import com.sba301.cinemaai.enums.EmailOtpPurpose;
+import com.sba301.cinemaai.enums.OtpPurpose;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -19,9 +19,9 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
-@Table(name = "email_verification_tokens")
+@Table(name = "phone_verification_tokens")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class EmailVerificationToken extends BaseEntity {
+public class PhoneVerificationToken extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -31,12 +31,15 @@ public class EmailVerificationToken extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(nullable = false, unique = true, length = 500)
-    private String token;
+    @Column(nullable = false, length = 6)
+    private String otp;
+
+    @Column(nullable = false, length = 20)
+    private String phone;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
-    private EmailOtpPurpose purpose = EmailOtpPurpose.EMAIL_VERIFICATION;
+    private OtpPurpose purpose;
 
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
@@ -44,15 +47,10 @@ public class EmailVerificationToken extends BaseEntity {
     @Column(nullable = false)
     private boolean used;
 
-    public EmailVerificationToken(User user, String token, LocalDateTime expiresAt) {
+    public PhoneVerificationToken(User user, String otp, String phone, OtpPurpose purpose, LocalDateTime expiresAt) {
         this.user = user;
-        this.token = token;
-        this.expiresAt = expiresAt;
-    }
-
-    public EmailVerificationToken(User user, String token, EmailOtpPurpose purpose, LocalDateTime expiresAt) {
-        this.user = user;
-        this.token = token;
+        this.otp = otp;
+        this.phone = phone;
         this.purpose = purpose;
         this.expiresAt = expiresAt;
     }
