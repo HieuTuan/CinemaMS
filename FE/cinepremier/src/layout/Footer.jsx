@@ -88,11 +88,11 @@ export default function Footer() {
 
         {/* Bottom copyright barrier */}
         <div className="mt-16 border-t border-white/5 pt-8 flex flex-col md:flex-row items-center justify-between text-[10px] uppercase tracking-[0.16em] text-neutral-500">
-          <p style={{ color: '#ffff' }}>© 2026 CINEPREMIER STUDIOS. ALL RIGHTS RESERVED.</p>
+          <p>© 2026 CINEPREMIER STUDIOS. ALL RIGHTS RESERVED.</p>
           <div className="mt-4 md:mt-0 flex space-x-4">
-            <span style={{ color: '#ffff' }}>Powered by Smart AI Rating Engine</span>
-            <span style={{ color: '#ffff' }}>•</span>
-            <span style={{ color: '#ffff' }}>Thế Điện Ảnh Tinh Hoa</span>
+            <span>Powered by Smart AI Rating Engine</span>
+            <span>•</span>
+            <span>Thế Điện Ảnh Tinh Hoa</span>
           </div>
         </div>
       </div>

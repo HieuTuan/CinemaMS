@@ -240,8 +240,13 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (!isLoggedIn) {
+      setFoodCatalog([]);
+      return;
+    }
+
     fetchPublicFoodCatalog();
-  }, []);
+  }, [isLoggedIn]);
 
   // Handle Select Movie Detail
   const handleSelectMovie = (id) => {

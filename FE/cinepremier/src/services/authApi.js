@@ -86,8 +86,20 @@ export const getStoredAuth = () => {
 
 export const authApi = {
   register: (payload) => request('/api/v1/auth/register', { method: 'POST', body: payload }),
-  verifyEmail: (token) => request('/api/v1/auth/verify-email', { method: 'POST', body: { token } }),
+  verifyEmail: (email, otp) => request('/api/v1/auth/verify-email', { method: 'POST', body: { email, otp } }),
+  requestEmailVerification: (email) => request('/api/v1/auth/verify-email/request', {
+    method: 'POST',
+    body: { email }
+  }),
   login: (payload) => request('/api/v1/auth/login', { method: 'POST', body: payload }),
+  loginWithGoogle: (credential) => request('/api/v1/auth/google', {
+    method: 'POST',
+    body: { credential }
+  }),
+  verifyGoogleLoginOtp: (email, otp) => request('/api/v1/auth/google/verify', {
+    method: 'POST',
+    body: { email, otp }
+  }),
   refresh: (refreshToken) => request('/api/v1/auth/refresh', { method: 'POST', body: { refreshToken } }),
   logout: (refreshToken) => request('/api/v1/auth/logout', { method: 'POST', body: { refreshToken } }),
   requestPasswordReset: (email) => request('/api/v1/auth/password-reset/request', {

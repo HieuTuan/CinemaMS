@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X, User, Mail, Lock, Phone, ShieldCheck, Check,
@@ -19,6 +19,9 @@ const GENRE_PRESETS = [
   'Hành Động • IMAX', 'Khoa Học Viễn Tưởng', 'Kinh Dị • Giật Gân', 'Trinh Thám Noir', 'Tình Cảm • Lãng Mạn'
 ];
 
+const GOOGLE_IDENTITY_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
+const EMAIL_VERIFICATION_TTL_SECONDS = 10 * 60;
+
 export default function AuthModal({
   isOpen,
   onClose,
@@ -35,7 +38,8 @@ export default function AuthModal({
   onLoginSuccess
 }) {
   const [activeTab, setActiveTab] = useState('login'); // 'login' | 'register' | 'forgot_password'
-  const [loginMethod, setLoginMethod] = useState('password'); // 'otp' | 'password'
+  const loginMethod = 'password';
+  const setLoginMethod = () => { };
 
   // Forgot Password / OTP Recovery States
   const [forgotEmail, setForgotEmail] = useState('');
@@ -50,46 +54,30 @@ export default function AuthModal({
   const [regPhone, setRegPhone] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
+  const [regOtp, setRegOtp] = useState('');
+  const [registerStep, setRegisterStep] = useState('form'); // 'form' | 'verify'
+  const [pendingRegistration, setPendingRegistration] = useState(null);
+  const [emailOtpSecondsLeft, setEmailOtpSecondsLeft] = useState(0);
+  const [emailOtpExpiresAt, setEmailOtpExpiresAt] = useState(null);
   const [selectedAvatar, setSelectedAvatar] = useState('director');
   const [selectedGenre, setSelectedGenre] = useState('Hành Động • IMAX');
   const [agreeTerms, setAgreeTerms] = useState(true);
 
   // Security & Visual States
   const [showPassword, setShowPassword] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [localOtp, setLocalOtp] = useState('');
   const [notification, setNotification] = useState(null); // { type: 'success'|'error', text: '' }
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [googleButtonError, setGoogleButtonError] = useState('');
+  const [googleButtonReady, setGoogleButtonReady] = useState(false);
+  const [googleButtonHostReady, setGoogleButtonHostReady] = useState(false);
+  const googleScriptPromiseRef = useRef(null);
+  const googleClientInitializedRef = useRef(false);
+  const googleButtonRef = useRef(null);
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
   // Password Login States
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPass, setLoginPass] = useState('');
-
-  // Local storage management for users to support real persistence flow
-  const INITIAL_USERS = [
-    { email: 'admin@gmail.com', pass: '123', name: 'Ban Quản Trị (ADMIN)', role: 'admin' },
-    { email: 'kh@gmail.com', pass: '123', name: 'Thượng Khách Minh Hồng (VIP)', role: 'user' },
-    { email: 'giabao.premier@gmail.com', pass: '123', name: 'GIA BẢO (GOOGLE VIP)', role: 'user' }
-  ];
-
-  const getStoredUsers = () => {
-    if (typeof window === 'undefined') return INITIAL_USERS;
-    const stored = localStorage.getItem('cinepremier_users');
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch (e) {
-        return INITIAL_USERS;
-      }
-    }
-    localStorage.setItem('cinepremier_users', JSON.stringify(INITIAL_USERS));
-    return INITIAL_USERS;
-  };
-
-  const saveStoredUsers = (users) => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('cinepremier_users', JSON.stringify(users));
-  };
 
   // Clean Web Audio VIP synth ping sound for high-class vibe
   const playPing = (freq = 440, type = 'sine', duration = 0.1) => {
@@ -128,40 +116,168 @@ export default function AuthModal({
     }, 4500);
   };
 
-  const handleSendOTP = (e) => {
-    e.preventDefault();
-    const phoneToTest = loginMethod === 'otp' ? phoneNumber : regPhone;
-    if (!phoneToTest) {
-      showToast('error', 'Vui lòng nhập số điện thoại hợp lệ.');
-      return;
-    }
-    playPing(440, 'triangle', 0.1);
-    setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setOtpSent(true);
-      showToast('success', 'Hệ thống đã phát đi mã OTP xác thực (123456) giả lập.');
-    }, 850);
+  const startEmailOtpTimer = () => {
+    const expiresAt = Date.now() + EMAIL_VERIFICATION_TTL_SECONDS * 1000;
+    setEmailOtpExpiresAt(expiresAt);
+    setEmailOtpSecondsLeft(EMAIL_VERIFICATION_TTL_SECONDS);
   };
 
-  const handleVerifyOTP = (e) => {
-    e.preventDefault();
-    if (localOtp === '123456' || localOtp === '000000') {
-      setIsSubmitting(true);
+  const bindGoogleButtonHost = useCallback((node) => {
+    googleButtonRef.current = node;
+    setGoogleButtonHostReady(Boolean(node));
+  }, []);
+
+  const loadGoogleIdentityScript = () => {
+    if (typeof window === 'undefined') {
+      return Promise.reject(new Error('Google Identity chỉ hoạt động trên trình duyệt.'));
+    }
+    if (window.google?.accounts?.id) {
+      return Promise.resolve(true);
+    }
+    if (googleScriptPromiseRef.current) {
+      return googleScriptPromiseRef.current;
+    }
+
+    googleScriptPromiseRef.current = new Promise((resolve, reject) => {
+      const existingScript = document.querySelector('script[data-google-identity="true"]');
+      if (existingScript) {
+        existingScript.addEventListener('load', () => resolve(true));
+        existingScript.addEventListener('error', () => reject(new Error('Không thể tải Google Identity.')));
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = GOOGLE_IDENTITY_SCRIPT_SRC;
+      script.async = true;
+      script.defer = true;
+      script.dataset.googleIdentity = 'true';
+      script.onload = () => resolve(true);
+      script.onerror = () => reject(new Error('Không thể tải Google Identity.'));
+      document.head.appendChild(script);
+    });
+
+    return googleScriptPromiseRef.current;
+  };
+
+  const renderGoogleSignInButton = async () => {
+    if (!googleClientId) {
+      throw new Error('Thiáº¿u VITE_GOOGLE_CLIENT_ID trong file .env cá»§a FE.');
+    }
+
+    await loadGoogleIdentityScript();
+    if (!window.google?.accounts?.id) {
+      throw new Error('KhÃ´ng thá»ƒ táº£i Google Identity.');
+    }
+
+    if (!googleClientInitializedRef.current) {
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: handleGoogleCredential,
+        ux_mode: 'popup'
+      });
+      googleClientInitializedRef.current = true;
+    }
+
+    if (!googleButtonRef.current) return false;
+
+    googleButtonRef.current.innerHTML = '';
+    const buttonWidth = Math.max(
+      320,
+      Math.ceil(googleButtonRef.current.getBoundingClientRect().width || 560)
+    );
+    window.google.accounts.id.renderButton(googleButtonRef.current, {
+      theme: 'outline',
+      size: 'large',
+      text: 'signin_with',
+      shape: 'rectangular',
+      logo_alignment: 'left',
+      width: buttonWidth
+    });
+    setGoogleButtonError('');
+    setGoogleButtonReady(true);
+    return true;
+  };
+
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'login') {
+      setGoogleButtonReady(false);
+      setGoogleButtonError('');
+      return undefined;
+    }
+
+    setGoogleButtonError('');
+    setGoogleButtonReady(false);
+
+    if (!googleClientId) {
+      setGoogleButtonError('Thiếu VITE_GOOGLE_CLIENT_ID trong file .env của FE.');
+      return;
+    }
+    if (!googleButtonHostReady) return undefined;
+
+    let cancelled = false;
+    let frameId = 0;
+
+    frameId = window.requestAnimationFrame(() => {
+      renderGoogleSignInButton()
+        .then(() => {
+          if (cancelled) return;
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            setGoogleButtonError(error.message || 'Không thể hiển thị nút Google.');
+          }
+        });
+    });
+
+    return () => {
+      cancelled = true;
+      if (frameId) window.cancelAnimationFrame(frameId);
+    };
+  }, [isOpen, activeTab, googleClientId, googleButtonHostReady]);
+
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'register' || registerStep !== 'verify' || !emailOtpExpiresAt) {
+      return undefined;
+    }
+
+    const syncSecondsLeft = () => {
+      setEmailOtpSecondsLeft(Math.max(Math.ceil((emailOtpExpiresAt - Date.now()) / 1000), 0));
+    };
+
+    syncSecondsLeft();
+    const timerId = window.setInterval(() => {
+      syncSecondsLeft();
+    }, 1000);
+
+    return () => window.clearInterval(timerId);
+  }, [isOpen, activeTab, registerStep, emailOtpExpiresAt]);
+
+  const handleGoogleCredential = async (credentialResponse) => {
+    const credential = credentialResponse?.credential;
+    if (!credential) {
+      showToast('error', 'Google không trả về credential hợp lệ.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const authData = await authApi.loginWithGoogle(credential);
+      const user = saveAuthSession(authData);
+
+      setIsLoggedIn(true);
+      if (setCurrentRole) setCurrentRole(user.role || 'user');
+      if (setCurrentUser) setCurrentUser(user);
+      if (onLoginSuccess) onLoginSuccess(user);
+      playPing(880, 'sine', 0.35);
+      showToast('success', `Chào mừng ${user.name || user.email} đến với CinePremier!`);
       setTimeout(() => {
-        setIsSubmitting(false);
-        setIsLoggedIn(true);
-        if (onLoginSuccess) onLoginSuccess();
-        playPing(880, 'sine', 0.35); // A5 high note for success
-        showToast('success', 'Đăng nhập đặc quyền CinePremier VIP thành công!');
-        setTimeout(() => {
-          onClose();
-          setOtpSent(false);
-          setLocalOtp('');
-        }, 1200);
-      }, 1000);
-    } else {
-      showToast('error', 'Mã xác thực OTP sai. Nhập: 123456 để kiểm nghiệm hệ thống.');
+        onClose();
+      }, 1200);
+    } catch (error) {
+      playPing(150, 'sawtooth', 0.2);
+      showToast('error', error.message || 'Đăng nhập Google thất bại.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -217,33 +333,27 @@ export default function AuthModal({
 
     setIsSubmitting(true);
     try {
-      const registerData = await authApi.register({
-        email: regEmail.trim(),
-        password: regPassword.trim(),
+      const cleanEmail = regEmail.trim();
+      const cleanPassword = regPassword.trim();
+      await authApi.register({
+        email: cleanEmail,
+        password: cleanPassword,
         fullName: regName.trim(),
         phone: regPhone.trim()
       });
 
-      if (registerData?.emailVerificationToken) {
-        await authApi.verifyEmail(registerData.emailVerificationToken);
-      }
-
-      const authData = await authApi.login({
-        email: regEmail.trim(),
-        password: regPassword.trim()
+      setPendingRegistration({
+        email: cleanEmail,
+        password: cleanPassword,
+        name: regName.trim(),
+        avatar: selectedAvatar,
+        genre: selectedGenre
       });
-      const user = saveAuthSession(authData);
-      const decoratedUser = { ...user, avatar: selectedAvatar, genre: selectedGenre };
-
-      setIsLoggedIn(true);
-      if (setCurrentRole) setCurrentRole(decoratedUser.role || 'user');
-      if (setCurrentUser) setCurrentUser(decoratedUser);
-      if (onLoginSuccess) onLoginSuccess(decoratedUser);
-      playPing(987.77, 'sine', 0.4); // B5 note for golden badge
-      showToast('success', `Đăng ký ${regName} thành công và đã xác minh email.`);
-      setTimeout(() => {
-        onClose();
-      }, 1500);
+      setRegOtp('');
+      setRegisterStep('verify');
+      startEmailOtpTimer();
+      playPing(660, 'sine', 0.2);
+      showToast('success', `Hệ thống đã gửi mã xác thực đến ${cleanEmail}. Vui lòng nhập mã trong 10 phút.`);
     } catch (error) {
       showToast('error', error.message || 'Đăng ký thất bại. Vui lòng thử lại.');
     } finally {
@@ -251,36 +361,97 @@ export default function AuthModal({
     }
   };
 
-  const handleGoogleSignIn = () => {
-    setIsSubmitting(true);
-    playPing(600, 'triangle', 0.1);
-    showToast('success', 'Đang thiết lập kênh đồng bộ bảo mật Google Cloud...');
-    setTimeout(() => {
-      setIsSubmitting(false);
+  const handleVerifyRegistrationEmail = async (e) => {
+    e.preventDefault();
 
-      const googleUser = {
-        name: 'GIA BẢO (GOOGLE VIP)',
-        email: 'giabao.premier@gmail.com',
-        role: 'user',
-        avatar: 'cyberpunk'
+    const email = pendingRegistration?.email || regEmail.trim();
+    const password = pendingRegistration?.password || regPassword.trim();
+    if (!email || !password) {
+      showToast('error', 'Không tìm thấy thông tin đăng ký. Vui lòng đăng ký lại.');
+      setRegisterStep('form');
+      return;
+    }
+    if (!/^[0-9]{6}$/.test(regOtp.trim())) {
+      showToast('error', 'Mã OTP phải gồm đúng 6 chữ số.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await authApi.verifyEmail(email, regOtp.trim());
+
+      const authData = await authApi.login({
+        email,
+        password
+      });
+      const user = saveAuthSession(authData);
+      const decoratedUser = {
+        ...user,
+        avatar: pendingRegistration?.avatar || selectedAvatar,
+        genre: pendingRegistration?.genre || selectedGenre
       };
 
-      // Put in DB too if not already there
-      const currentUsers = getStoredUsers();
-      if (!currentUsers.some(u => u.email.toLowerCase() === googleUser.email.toLowerCase())) {
-        saveStoredUsers([...currentUsers, { ...googleUser, pass: '123' }]);
-      }
-
       setIsLoggedIn(true);
-      if (setCurrentRole) setCurrentRole('user');
-      if (setCurrentUser) setCurrentUser(googleUser);
-      if (onLoginSuccess) onLoginSuccess(googleUser);
-      playPing(880, 'sine', 0.35);
-      showToast('success', 'Xin chào Thượng Khách Gia Bảo! Đồng bộ Google Account hoàn hảo.');
+      if (setCurrentRole) setCurrentRole(decoratedUser.role || 'user');
+      if (setCurrentUser) setCurrentUser(decoratedUser);
+      if (onLoginSuccess) onLoginSuccess(decoratedUser);
+      playPing(987.77, 'sine', 0.4);
+      showToast('success', `Đăng ký ${pendingRegistration?.name || regName} thành công và đã xác minh email.`);
       setTimeout(() => {
         onClose();
-      }, 1200);
-    }, 1200);
+        setRegisterStep('form');
+        setRegOtp('');
+        setPendingRegistration(null);
+        setEmailOtpSecondsLeft(0);
+        setEmailOtpExpiresAt(null);
+      }, 1500);
+    } catch (error) {
+      showToast('error', error.message || 'Xác minh email thất bại. Vui lòng kiểm tra OTP hoặc gửi lại mã.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRequestNewVerificationOtp = async () => {
+    const email = pendingRegistration?.email || regEmail.trim();
+    if (!email) {
+      showToast('error', 'Vui lòng nhập email trước khi gửi lại OTP.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await authApi.requestEmailVerification(email);
+      setRegOtp('');
+      startEmailOtpTimer();
+      playPing(660, 'triangle', 0.12);
+      showToast('success', `Hệ thống đã gửi lại mã xác thực đến ${email}. Mã mới có hiệu lực trong 10 phút.`);
+    } catch (error) {
+      showToast('error', error.message || 'Không thể gửi lại OTP xác minh email.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    if (!googleClientId) {
+      showToast('error', 'Thiếu VITE_GOOGLE_CLIENT_ID. Vui lòng cấu hình Google Client ID cho FE.');
+      return;
+    }
+
+    playPing(600, 'triangle', 0.1);
+    setGoogleButtonError('');
+    try {
+      const rendered = await renderGoogleSignInButton();
+      if (window.google?.accounts?.id?.prompt) {
+        window.google.accounts.id.prompt();
+      }
+      if (!rendered) {
+        showToast('error', 'Google Sign-In chua san sang. Vui long thu lai.');
+      }
+    } catch (error) {
+      showToast('error', error.message || 'Khong the khoi tao Google Sign-In.');
+    }
   };
 
   const handleForgotPassword = () => {
@@ -302,8 +473,7 @@ export default function AuthModal({
     const cleanEmail = forgotEmail.trim();
     // Support either clean email or short username mappings
     let resolvedEmail = cleanEmail;
-    if (cleanEmail.toLowerCase() === 'admin') resolvedEmail = 'admin@gmail.com';
-    if (cleanEmail.toLowerCase() === 'kh') resolvedEmail = 'kh@gmail.com';
+
 
     setIsSubmitting(true);
     playPing(440, 'triangle', 0.1);
@@ -338,7 +508,7 @@ export default function AuthModal({
   const handleUpdatePassword = async (e) => {
     e.preventDefault();
     if (!forgotNewPass || forgotNewPass.length < 8) {
-      showToast('error', 'Mật khẩu mới cần tối thiểu 8 ký tự để khớp yêu cầu từ BE.');
+      showToast('error', 'Mật khẩu mới cần tối thiểu 8 ký tự.');
       return;
     }
 
@@ -418,8 +588,8 @@ export default function AuthModal({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               className={`mx-6 mt-4 p-3.5 flex items-start gap-2.5 text-xs border ${notification.type === 'success'
-                  ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-400'
-                  : 'bg-rose-950/20 border-rose-500/40 text-rose-300'
+                ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-400'
+                : 'bg-rose-950/20 border-rose-500/40 text-rose-300'
                 } shadow-lg relative z-20`}
             >
               {notification.type === 'success' ? (
@@ -457,14 +627,13 @@ export default function AuthModal({
                 onClick={() => {
                   playPing(350, 'sine', 0.1);
                   setActiveTab('login');
-                  setOtpSent(false);
                 }}
                 className={`py-2.5 text-xs font-sans font-bold uppercase tracking-[0.15em] transition duration-300 relative ${activeTab === 'login'
-                    ? 'text-white'
-                    : 'text-neutral-400 hover:text-neutral-200'
+                  ? 'text-white'
+                  : 'text-neutral-400 hover:text-neutral-200'
                   }`}
               >
-                Đăng Nhập QR/OTP
+                Đăng Nhập
                 {activeTab === 'login' && (
                   <motion.div layoutId="activeAuthTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400" />
                 )}
@@ -475,11 +644,11 @@ export default function AuthModal({
                   setActiveTab('register');
                 }}
                 className={`py-2.5 text-xs font-sans font-bold uppercase tracking-[0.15em] transition duration-300 relative ${activeTab === 'register'
-                    ? 'text-white'
-                    : 'text-neutral-400 hover:text-neutral-200'
+                  ? 'text-white'
+                  : 'text-neutral-400 hover:text-neutral-200'
                   }`}
               >
-                Gia Nhập Hội Viên
+                Gia Nhập Cộng Đồng
                 {activeTab === 'register' && (
                   <motion.div layoutId="activeAuthTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400" />
                 )}
@@ -503,7 +672,7 @@ export default function AuthModal({
                 className="space-y-4"
               >
                 {/* Embedded Login Method Switch: OTP vs Password */}
-                <div className="flex items-center justify-between text-[11px] mb-3 border-b border-neutral-900 pb-2">
+                <div className="hidden">
                   <span className="text-neutral-400 uppercase tracking-widest font-mono">Phương thức kiểm định:</span>
                   <div className="flex gap-4">
                     <button
@@ -615,14 +784,14 @@ export default function AuthModal({
 
                     <div className="space-y-1.5 focus-within:text-white">
                       <label className="block text-[11px] font-sans font-extrabold uppercase tracking-wider text-neutral-300">
-                        Địa Chỉ Email VIP
+                        Địa Chỉ Email
                       </label>
                       <div className="relative">
                         <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-600" />
                         <input
                           type="text"
                           required
-                          placeholder="admin@gmail.com, kh@gmail.com hoặc email đã đăng ký..."
+                          placeholder="Enter your email..."
                           value={loginEmail}
                           onChange={(e) => setLoginEmail(e.target.value)}
                           className="w-full border border-neutral-800 focus:border-amber-400/70 bg-neutral-950 py-3 pl-10 pr-4 text-xs font-sans text-white focus:outline-none transition-all placeholder-neutral-500"
@@ -674,41 +843,39 @@ export default function AuthModal({
                   {/* Divider line */}
                   <div className="flex items-center">
                     <div className="flex-1 h-px bg-neutral-900"></div>
-                    <span className="px-3 text-[10px] font-mono uppercase text-neutral-400 tracking-[0.2em] font-extrabold">HOẶC ĐỒNG BỘ VIP</span>
+                    <span className="px-3 text-[10px] font-mono uppercase text-neutral-400 tracking-[0.2em] font-extrabold">HOẶC</span>
                     <div className="flex-1 h-px bg-neutral-900"></div>
                   </div>
 
                   {/* Google Authenticator */}
-                  <button
-                    type="button"
-                    onClick={handleGoogleSignIn}
-                    disabled={isSubmitting}
-                    className="w-full bg-[#0a0a0a] hover:bg-[#121212] active:bg-[#070707] text-neutral-200 border border-neutral-850 hover:border-neutral-700 font-sans font-bold text-xs uppercase tracking-[0.15em] py-3.5 transition duration-300 flex items-center justify-center gap-3 cursor-pointer shadow-md group relative overflow-hidden"
-                    id="google-signin-btn"
-                  >
-                    <div className="absolute inset-x-0 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-amber-400/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-
-                    {/* Native Google Mini G Logo SVG */}
-                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        fill="#4285F4"
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22l.81-.63z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1C7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                      />
-                    </svg>
-                    <span>TIÊU CHUẨN GOOGLE SIGN-IN</span>
-                  </button>
+                  <div className="google-signin-shell relative h-[52px] w-full overflow-hidden bg-white shadow-md">
+                    <div
+                      ref={bindGoogleButtonHost}
+                      className="google-signin-button absolute inset-0 flex h-[52px] w-full items-center justify-center overflow-hidden bg-black [&>div]:flex [&>div]:w-full [&>div]:justify-center [&_iframe]:mx-auto [&_iframe]:w-full [&_iframe]:max-w-full"
+                      aria-live="polite"
+                    />
+                    {!googleButtonReady && !googleButtonError && (
+                      <button
+                        type="button"
+                        onClick={handleGoogleSignIn}
+                        disabled={isSubmitting}
+                        className="google-signin-fallback absolute inset-0 flex h-[52px] w-full items-center justify-center gap-3 bg-white px-4 text-xs font-black uppercase tracking-[0.15em] text-neutral-800"
+                      >
+                        <span className="flex h-5 w-5 items-center justify-center text-base font-black text-blue-600">G</span>
+                        Dang nhap bang Google
+                      </button>
+                    )}
+                    {googleButtonError && (
+                      <button
+                        type="button"
+                        onClick={handleGoogleSignIn}
+                        className="flex min-h-[52px] w-full items-center justify-center gap-2 bg-white px-4 py-3 text-center text-[11px] font-black uppercase tracking-[0.12em] text-red-700"
+                      >
+                        <AlertCircle className="h-4 w-4 shrink-0" />
+                        {googleButtonError}
+                      </button>
+                    )}
+                  </div>
 
                   {/* Redirection Links for Registrations and Password retrieval */}
                   <div className="flex items-center justify-between text-[11px] font-sans text-neutral-400 px-1 pt-1">
@@ -753,174 +920,249 @@ export default function AuthModal({
                 transition={{ duration: 0.25 }}
                 className="space-y-4"
               >
-                <form onSubmit={handleRegister} className="space-y-4">
+                {registerStep === 'verify' ? (
+                  <form onSubmit={handleVerifyRegistrationEmail} className="space-y-4">
+                    <div className="border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-100 space-y-2">
+                      <div className="flex items-center gap-2 text-amber-300 font-black uppercase tracking-[0.16em]">
+                        <ShieldCheck className="h-4 w-4" />
+                        Xác thực email
+                      </div>
+                      <p className="leading-relaxed text-neutral-200">
+                        BE da gui OTP den <b>{pendingRegistration?.email || regEmail}</b>.
 
-                  {/* Avatar Preset Grid - Extremely satisfying UI */}
-                  <div className="space-y-2">
-                    <span className="block text-[11px] font-sans font-extrabold uppercase tracking-wider text-neutral-300 mb-1 flex items-center gap-1">
-                      <Sparkle className="h-3 w-3 text-amber-400" /> CHỌN DANH TÍNH AVATAR ĐIỆN ẢNH
-                    </span>
-                    <div className="grid grid-cols-5 gap-2" id="avatar-presets-box">
-                      {AVATAR_PRESETS.map((avatar) => (
-                        <button
-                          key={avatar.id}
-                          type="button"
-                          onClick={() => {
-                            playPing(450 + AVATAR_PRESETS.findIndex(a => a.id === avatar.id) * 30, 'sine', 0.12);
-                            setSelectedAvatar(avatar.id);
-                          }}
-                          className={`relative py-2 px-1 flex flex-col items-center justify-center border transition-all duration-300 ${selectedAvatar === avatar.id
-                              ? 'border-amber-400 bg-amber-950/20 scale-105 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
-                              : 'border-neutral-900 bg-neutral-950 hover:border-neutral-800'
-                            }`}
-                        >
-                          <span className="text-xl sm:text-2xl mb-1">{avatar.emoji}</span>
-                          <span className="text-[7.5px] font-bold tracking-tight text-neutral-400 text-center truncate w-full">
-                            {avatar.name}
-                          </span>
 
-                          {selectedAvatar === avatar.id && (
-                            <div className="absolute top-1 right-1 h-2 w-2 bg-amber-400 rounded-full"></div>
-                          )}
-                        </button>
-                      ))}
+
+                      </p>
+                      <p className="font-mono text-[11px] text-amber-300">
+                        {emailOtpSecondsLeft > 0
+                          ? `OTP het han sau ${Math.floor(emailOtpSecondsLeft / 60)}:${String(emailOtpSecondsLeft % 60).padStart(2, '0')}`
+                          : 'OTP da het han. Hay gui lai ma moi.'}
+                      </p>
                     </div>
-                  </div>
 
-                  {/* Dual Grid Fields */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-
-                    {/* Full Name */}
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       <label className="block text-[10px] font-sans font-extrabold uppercase tracking-wider text-neutral-300">
-                        Họ & Tên Thượng Khách
+                        Mã OTP Email
                       </label>
                       <div className="relative">
-                        <User className="absolute left-3 top-2.5 h-3.5 w-3.5 text-neutral-600" />
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-600" />
                         <input
                           type="text"
+                          inputMode="numeric"
+                          maxLength={6}
                           required
-                          placeholder="Minh Hồng..."
-                          value={regName}
-                          onChange={(e) => setRegName(e.target.value)}
-                          className="w-full border border-neutral-800 focus:border-amber-400 bg-neutral-950 py-2.5 pl-9 pr-3 text-xs text-white focus:outline-none transition-all placeholder-neutral-800"
+                          placeholder="Nhap 6 so OTP..."
+                          value={regOtp}
+                          onChange={(e) => setRegOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                          className="w-full border border-neutral-800 focus:border-amber-400 bg-neutral-950 py-3 pl-9 pr-3 text-sm font-mono tracking-[0.4em] text-white focus:outline-none transition-all placeholder-neutral-800"
                         />
                       </div>
                     </div>
 
-                    {/* Contact Phone */}
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-sans font-extrabold uppercase tracking-wider text-neutral-300">
-                        Số Điện Thoại Nhận Vé
-                      </label>
-                      <div className="relative">
-                        <Phone className="absolute left-3 top-2.5 h-3.5 w-3.5 text-neutral-600" />
-                        <input
-                          type="tel"
-                          required
-                          placeholder="0912 345 xxx..."
-                          value={regPhone}
-                          onChange={(e) => setRegPhone(e.target.value)}
-                          className="w-full border border-neutral-800 focus:border-amber-400 bg-neutral-950 py-2.5 pl-9 pr-3 text-xs font-mono tracking-wide text-white focus:outline-none transition-all placeholder-neutral-800"
-                        />
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full bg-amber-400 text-black border border-amber-400 font-sans font-black text-xs uppercase tracking-[0.2em] py-4 transition duration-300 flex items-center justify-center gap-2 cursor-pointer shadow-[0_4px_20px_rgba(245,158,11,0.2)]"
+                    >
+                      {isSubmitting ? (
+                        <span className="h-4 w-4 border-2 border-black border-t-transparent animate-spin rounded-full inline-block"></span>
+                      ) : (
+                        <>XÁC THỰC EMAIL <Check className="h-4 w-4" /></>
+                      )}
+                    </button>
+
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        disabled={isSubmitting}
+                        onClick={() => {
+                          setRegisterStep('form');
+                          setRegOtp('');
+                        }}
+                        className="w-1/3 border border-neutral-800 bg-[#060606] text-neutral-400 text-[10px] uppercase font-sans tracking-widest py-3.5 hover:text-white transition cursor-pointer"
+                      >
+                        Quay lai
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSubmitting || emailOtpSecondsLeft > 0}
+                        onClick={handleRequestNewVerificationOtp}
+                        className="flex-1 border border-amber-500/40 bg-amber-500/10 text-amber-300 disabled:border-neutral-800 disabled:bg-neutral-950 disabled:text-neutral-600 text-[10px] uppercase font-sans font-black tracking-widest py-3.5 transition cursor-pointer"
+                      >
+                        Gui lai OTP khi het han
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <form onSubmit={handleRegister} className="space-y-4">
+
+                    {/* Avatar Preset Grid - Extremely satisfying UI */}
+                    <div className="space-y-2">
+                      <span className="block text-[11px] font-sans font-extrabold uppercase tracking-wider text-neutral-300 mb-1 flex items-center gap-1">
+                        <Sparkle className="h-3 w-3 text-amber-400" /> CHỌN DANH TÍNH AVATAR ĐIỆN ẢNH
+                      </span>
+                      <div className="grid grid-cols-5 gap-2" id="avatar-presets-box">
+                        {AVATAR_PRESETS.map((avatar) => (
+                          <button
+                            key={avatar.id}
+                            type="button"
+                            onClick={() => {
+                              playPing(450 + AVATAR_PRESETS.findIndex(a => a.id === avatar.id) * 30, 'sine', 0.12);
+                              setSelectedAvatar(avatar.id);
+                            }}
+                            className={`relative py-2 px-1 flex flex-col items-center justify-center border transition-all duration-300 ${selectedAvatar === avatar.id
+                              ? 'border-amber-400 bg-amber-950/20 scale-105 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                              : 'border-neutral-900 bg-neutral-950 hover:border-neutral-800'
+                              }`}
+                          >
+                            <span className="text-xl sm:text-2xl mb-1">{avatar.emoji}</span>
+                            <span className="text-[7.5px] font-bold tracking-tight text-neutral-400 text-center truncate w-full">
+                              {avatar.name}
+                            </span>
+
+                            {selectedAvatar === avatar.id && (
+                              <div className="absolute top-1 right-1 h-2 w-2 bg-amber-400 rounded-full"></div>
+                            )}
+                          </button>
+                        ))}
                       </div>
                     </div>
 
-                  </div>
+                    {/* Dual Grid Fields */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
 
-                  {/* Email & Password Registration Row */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-
-                    {/* Email */}
-                    <div className="space-y-1">
-                      <label className="block text-[9px] font-sans font-black uppercase tracking-wider text-neutral-500">
-                        Địa Chỉ Email
-                      </label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-2.5 h-3.5 w-3.5 text-neutral-600" />
-                        <input
-                          type="email"
-                          required
-                          placeholder="tuan01062004kt@gmail.com..."
-                          value={regEmail}
-                          onChange={(e) => setRegEmail(e.target.value)}
-                          className="w-full border border-neutral-800 focus:border-amber-400 bg-neutral-950 py-2.5 pl-9 pr-3 text-xs text-white focus:outline-none transition-all placeholder-neutral-800"
-                        />
+                      {/* Full Name */}
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-sans font-extrabold uppercase tracking-wider text-neutral-300">
+                          Họ & Tên Thượng Khách
+                        </label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-2.5 h-3.5 w-3.5 text-neutral-600" />
+                          <input
+                            type="text"
+                            required
+                            placeholder="Minh Hồng..."
+                            value={regName}
+                            onChange={(e) => setRegName(e.target.value)}
+                            className="w-full border border-neutral-800 focus:border-amber-400 bg-neutral-950 py-2.5 pl-9 pr-3 text-xs text-white focus:outline-none transition-all placeholder-neutral-800"
+                          />
+                        </div>
                       </div>
+
+                      {/* Contact Phone */}
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-sans font-extrabold uppercase tracking-wider text-neutral-300">
+                          Số Điện Thoại Nhận Vé
+                        </label>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-2.5 h-3.5 w-3.5 text-neutral-600" />
+                          <input
+                            type="tel"
+                            required
+                            placeholder="0912 345 xxx..."
+                            value={regPhone}
+                            onChange={(e) => setRegPhone(e.target.value)}
+                            className="w-full border border-neutral-800 focus:border-amber-400 bg-neutral-950 py-2.5 pl-9 pr-3 text-xs font-mono tracking-wide text-white focus:outline-none transition-all placeholder-neutral-800"
+                          />
+                        </div>
+                      </div>
+
                     </div>
 
-                    {/* Password Registration */}
-                    <div className="space-y-1">
-                      <label className="block text-[9px] font-sans font-black uppercase tracking-wider text-neutral-500">
-                        Đặt Mật Khẩu Khóa
-                      </label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-2.5 h-3.5 w-3.5 text-neutral-600" />
-                        <input
-                          type="password"
-                          required
-                          placeholder="Cực kì an tâm..."
-                          value={regPassword}
-                          onChange={(e) => setRegPassword(e.target.value)}
-                          className="w-full border border-neutral-800 focus:border-amber-400 bg-neutral-950 py-2.5 pl-9 pr-3 text-xs text-white focus:outline-none transition-all placeholder-neutral-850"
-                        />
+                    {/* Email & Password Registration Row */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+
+                      {/* Email */}
+                      <div className="space-y-1">
+                        <label className="block text-[9px] font-sans font-black uppercase tracking-wider text-neutral-500">
+                          Địa Chỉ Email
+                        </label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-2.5 h-3.5 w-3.5 text-neutral-600" />
+                          <input
+                            type="email"
+                            required
+                            placeholder="tuan01062004kt@gmail.com..."
+                            value={regEmail}
+                            onChange={(e) => setRegEmail(e.target.value)}
+                            className="w-full border border-neutral-800 focus:border-amber-400 bg-neutral-950 py-2.5 pl-9 pr-3 text-xs text-white focus:outline-none transition-all placeholder-neutral-800"
+                          />
+                        </div>
                       </div>
+
+                      {/* Password Registration */}
+                      <div className="space-y-1">
+                        <label className="block text-[9px] font-sans font-black uppercase tracking-wider text-neutral-500">
+                          Đặt Mật Khẩu Khóa
+                        </label>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-2.5 h-3.5 w-3.5 text-neutral-600" />
+                          <input
+                            type="password"
+                            required
+                            placeholder="Cực kì an tâm..."
+                            value={regPassword}
+                            onChange={(e) => setRegPassword(e.target.value)}
+                            className="w-full border border-neutral-800 focus:border-amber-400 bg-neutral-950 py-2.5 pl-9 pr-3 text-xs text-white focus:outline-none transition-all placeholder-neutral-850"
+                          />
+                        </div>
+                      </div>
+
                     </div>
 
-                  </div>
-
-                  {/* Favorite Genre Selection */}
-                  <div className="space-y-1.5">
-                    <span className="block text-[10px] font-sans font-extrabold uppercase tracking-wider text-neutral-300">
-                      Gu phim yêu thích áp dụng tổ hợp Gợi ý AI
-                    </span>
-                    <div className="flex flex-wrap gap-1.5" id="genre-box">
-                      {GENRE_PRESETS.map((genre) => (
-                        <button
-                          key={genre}
-                          type="button"
-                          onClick={() => { playPing(520, 'sine', 0.05); setSelectedGenre(genre); }}
-                          className={`px-3 py-1.5 text-[8.5px] uppercase tracking-wider font-bold transition-all ${selectedGenre === genre
+                    {/* Favorite Genre Selection */}
+                    <div className="space-y-1.5">
+                      <span className="block text-[10px] font-sans font-extrabold uppercase tracking-wider text-neutral-300">
+                        Gu phim yêu thích áp dụng tổ hợp Gợi ý AI
+                      </span>
+                      <div className="flex flex-wrap gap-1.5" id="genre-box">
+                        {GENRE_PRESETS.map((genre) => (
+                          <button
+                            key={genre}
+                            type="button"
+                            onClick={() => { playPing(520, 'sine', 0.05); setSelectedGenre(genre); }}
+                            className={`px-3 py-1.5 text-[8.5px] uppercase tracking-wider font-bold transition-all ${selectedGenre === genre
                               ? 'bg-amber-400 text-black font-extrabold'
                               : 'bg-neutral-950 text-neutral-400 border border-neutral-850 hover:bg-neutral-900'
-                            }`}
-                        >
-                          {genre}
-                        </button>
-                      ))}
+                              }`}
+                          >
+                            {genre}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Double constraints age + loyalty */}
-                  <div className="space-y-2 pt-1 border-t border-neutral-900">
-                    <label className="flex items-start space-x-2.5 text-[11px] text-neutral-400 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        required
-                        checked={agreeTerms}
-                        onChange={(e) => { playPing(500, 'sine', 0.05); setAgreeTerms(e.target.checked); }}
-                        className="mt-0.5 accent-amber-500 h-3.5 w-3.5 border-neutral-800 bg-black"
-                      />
-                      <span>
-                        Xác nhận tôi trên <b>18 tuổi</b> cho các phim bom tấn T18 và đồng thuận quy chế Thượng Khách CinePremier VIP.
-                      </span>
-                    </label>
-                  </div>
+                    {/* Double constraints age + loyalty */}
+                    <div className="space-y-2 pt-1 border-t border-neutral-900">
+                      <label className="flex items-start space-x-2.5 text-[11px] text-neutral-400 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          required
+                          checked={agreeTerms}
+                          onChange={(e) => { playPing(500, 'sine', 0.05); setAgreeTerms(e.target.checked); }}
+                          className="mt-0.5 accent-amber-500 h-3.5 w-3.5 border-neutral-800 bg-black"
+                        />
+                        <span>
+                          Xác nhận tôi trên <b>18 tuổi</b> cho các phim bom tấn T18 và đồng thuận quy chế Thượng Khách CinePremier VIP.
+                        </span>
+                      </label>
+                    </div>
 
-                  {/* Large Register Button */}
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full bg-amber-400 text-black border border-amber-400 font-sans font-black text-xs uppercase tracking-[0.2em] py-4 transition duration-300 flex items-center justify-center gap-2 cursor-pointer shadow-[0_4px_20px_rgba(245,158,11,0.2)]"
-                  >
-                    {isSubmitting ? (
-                      <span className="h-4 w-4 border-2 border-black border-t-transparent animate-spin rounded-full inline-block"></span>
-                    ) : (
-                      <>THÀNH LẬP THẺ VIP GOLD <ArrowRight className="h-4 w-4" /></>
-                    )}
-                  </button>
+                    {/* Large Register Button */}
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full bg-amber-400 text-black border border-amber-400 font-sans font-black text-xs uppercase tracking-[0.2em] py-4 transition duration-300 flex items-center justify-center gap-2 cursor-pointer shadow-[0_4px_20px_rgba(245,158,11,0.2)]"
+                    >
+                      {isSubmitting ? (
+                        <span className="h-4 w-4 border-2 border-black border-t-transparent animate-spin rounded-full inline-block"></span>
+                      ) : (
+                        <>THÀNH LẬP THẺ VIP GOLD <ArrowRight className="h-4 w-4" /></>
+                      )}
+                    </button>
 
-                </form>
+                  </form>
+                )}
               </motion.div>
             ) : (
 
