@@ -85,6 +85,7 @@ class AIAnalysisIntegrationTests {
                         .content(objectMapper.writeValueAsString(new AIAnalysisDecisionRequest("Looks good"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("APPROVED"))
+                .andExpect(jsonPath("$.data.decisionReason").value("Looks good"))
                 .andExpect(jsonPath("$.data.approvedByUserId").isNumber());
 
         mockMvc.perform(get("/api/v1/movies/{movieId}/analysis", movie.getId()))
@@ -97,7 +98,8 @@ class AIAnalysisIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new AIAnalysisDecisionRequest("Needs changes"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("REJECTED"));
+                .andExpect(jsonPath("$.data.status").value("REJECTED"))
+                .andExpect(jsonPath("$.data.decisionReason").value("Needs changes"));
 
         mockMvc.perform(get("/api/v1/movies/{movieId}/analysis", movie.getId()))
                 .andExpect(status().isNotFound());
