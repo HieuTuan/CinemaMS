@@ -69,6 +69,19 @@ CREATE TABLE dbo.email_verification_tokens (
     CONSTRAINT fk_email_verification_tokens_user FOREIGN KEY (user_id) REFERENCES dbo.users(id)
 );
 
+IF OBJECT_ID('dbo.pending_registrations', 'U') IS NULL
+CREATE TABLE dbo.pending_registrations (
+    id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    email NVARCHAR(255) NOT NULL UNIQUE,
+    password_hash NVARCHAR(255) NOT NULL,
+    full_name NVARCHAR(255) NOT NULL,
+    phone NVARCHAR(20),
+    otp NVARCHAR(6) NOT NULL,
+    expires_at DATETIME2 NOT NULL,
+    created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
 IF OBJECT_ID('dbo.phone_verification_tokens', 'U') IS NULL
 CREATE TABLE dbo.phone_verification_tokens (
     id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
@@ -193,6 +206,7 @@ CREATE TABLE dbo.ai_analyses (
     provider_raw_response NVARCHAR(MAX),
     approved_at DATETIME2,
     approved_by_user_id BIGINT,
+    decision_reason NVARCHAR(500),
     created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT fk_ai_analyses_movie FOREIGN KEY (movie_id) REFERENCES dbo.movies(id),

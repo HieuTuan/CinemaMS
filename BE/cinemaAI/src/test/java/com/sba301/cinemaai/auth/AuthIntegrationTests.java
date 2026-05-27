@@ -7,8 +7,8 @@ import com.sba301.cinemaai.dto.auth.LoginRequest;
 import com.sba301.cinemaai.dto.auth.LogoutRequest;
 import com.sba301.cinemaai.dto.auth.RefreshTokenRequest;
 import com.sba301.cinemaai.dto.auth.RegisterRequest;
-import com.sba301.cinemaai.enums.EmailOtpPurpose;
-import com.sba301.cinemaai.repository.EmailVerificationTokenRepository;
+import com.sba301.cinemaai.repository.PendingRegistrationRepository;
+import com.sba301.cinemaai.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -32,7 +32,10 @@ class AuthIntegrationTests {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private EmailVerificationTokenRepository emailVerificationTokenRepository;
+    private PendingRegistrationRepository pendingRegistrationRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Test
     void shouldRegisterVerifyLoginRefreshAndLogout() throws Exception {
@@ -54,16 +57,21 @@ class AuthIntegrationTests {
                 .andExpect(jsonPath("$.data.user.roles[0]").value("CUSTOMER"))
                 .andExpect(jsonPath("$.data.emailVerificationRequired").value(true));
 
-        String verificationToken = emailVerificationTokenRepository
-                .findFirstByUserEmailAndPurposeAndUsedFalseOrderByCreatedAtDesc(email, EmailOtpPurpose.EMAIL_VERIFICATION)
+        org.assertj.core.api.Assertions.assertThat(userRepository.existsByEmail(email)).isFalse();
+
+        String verificationToken = pendingRegistrationRepository
+                .findByEmail(email)
                 .orElseThrow()
-                .getToken();
+                .getOtp();
 
         mockMvc.perform(post("/api/v1/auth/verify-email")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new EmailVerificationRequest(verificationToken))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
+
+        org.assertj.core.api.Assertions.assertThat(userRepository.existsByEmail(email)).isTrue();
+        org.assertj.core.api.Assertions.assertThat(pendingRegistrationRepository.findByEmail(email)).isEmpty();
 
         String loginResponse = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

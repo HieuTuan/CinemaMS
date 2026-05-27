@@ -52,7 +52,8 @@ public class AdminMovieAnalysisController {
             @AuthenticationPrincipal AuthenticatedUser user,
             @Valid @RequestBody(required = false) AIAnalysisDecisionRequest request
     ) {
-        return ApiResponse.success(analysisService.approve(analysisId, user.id()), "Analysis approved successfully");
+        String reason = request == null ? null : request.reason();
+        return ApiResponse.success(analysisService.approve(analysisId, user.id(), reason), "Analysis approved successfully");
     }
 
     @PostMapping("/analyses/{analysisId}/reject")
@@ -60,6 +61,7 @@ public class AdminMovieAnalysisController {
             @PathVariable Long analysisId,
             @Valid @RequestBody(required = false) AIAnalysisDecisionRequest request
     ) {
-        return ApiResponse.success(analysisService.reject(analysisId), "Analysis rejected successfully");
+        String reason = request == null ? null : request.reason();
+        return ApiResponse.success(analysisService.reject(analysisId, reason), "Analysis rejected successfully");
     }
 }

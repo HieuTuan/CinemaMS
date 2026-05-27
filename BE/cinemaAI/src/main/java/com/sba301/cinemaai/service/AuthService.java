@@ -7,15 +7,21 @@ import com.sba301.cinemaai.dto.auth.LoginRequest;
 import com.sba301.cinemaai.dto.auth.PhoneOtpVerifyRequest;
 import com.sba301.cinemaai.dto.auth.RegisterRequest;
 import com.sba301.cinemaai.dto.auth.RegisterResponse;
+import com.sba301.cinemaai.dto.user.UserProfileResponse;
+import com.sba301.cinemaai.entity.PendingRegistration;
 import com.sba301.cinemaai.entity.RefreshToken;
 import com.sba301.cinemaai.entity.User;
 import com.sba301.cinemaai.enums.RoleName;
 import com.sba301.cinemaai.enums.UserStatus;
+import com.sba301.cinemaai.exception.BadRequestException;
 import com.sba301.cinemaai.exception.ConflictException;
 import com.sba301.cinemaai.exception.UnauthorizedException;
+import com.sba301.cinemaai.repository.PendingRegistrationRepository;
 import com.sba301.cinemaai.repository.UserRepository;
 import com.sba301.cinemaai.security.JwtProperties;
 import com.sba301.cinemaai.security.JwtService;
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -30,7 +36,11 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AuthService {
 
+    private static final int EMAIL_VERIFICATION_EXPIRES_IN_SECONDS = 90;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
     private final UserRepository userRepository;
+    private final PendingRegistrationRepository pendingRegistrationRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
@@ -41,30 +51,100 @@ public class AuthService {
     private final UserRoleService userRoleService;
     private final UserService userService;
     private final GoogleTokenVerifier googleTokenVerifier;
+    private final MailService mailService;
 
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.email())) {
             throw new ConflictException("Email already exists");
         }
-        if (request.phone() != null && !request.phone().isBlank()
-                && userRepository.existsByPhone(request.phone())) {
+        if (request.phone() != null && !request.phone().isBlank()) {
+            if (userRepository.existsByPhone(request.phone())) {
+                throw new ConflictException("Phone already exists");
+            }
+            pendingRegistrationRepository.findByPhone(request.phone())
+                    .filter(pendingRegistration -> !pendingRegistration.getEmail().equals(request.email()))
+                    .ifPresent(pendingRegistration -> {
+                        throw new ConflictException("Phone already exists");
+                    });
+        }
+
+        String otp = generateOtp();
+        LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(EMAIL_VERIFICATION_EXPIRES_IN_SECONDS);
+        PendingRegistration pendingRegistration = pendingRegistrationRepository.findByEmail(request.email())
+                .map(existing -> {
+                    existing.refresh(
+                            passwordEncoder.encode(request.password()),
+                            request.fullName(),
+                            request.phone(),
+                            otp,
+                            expiresAt
+                    );
+                    return existing;
+                })
+                .orElseGet(() -> pendingRegistrationRepository.save(new PendingRegistration(
+                        request.email(),
+                        passwordEncoder.encode(request.password()),
+                        request.fullName(),
+                        request.phone(),
+                        otp,
+                        expiresAt
+                )));
+        mailService.sendOtp(pendingRegistration.getEmail(), pendingRegistration.getOtp(), "Email verification");
+        return new RegisterResponse(
+                toPendingProfile(pendingRegistration),
+                true,
+                EMAIL_VERIFICATION_EXPIRES_IN_SECONDS
+        );
+    }
+
+    @Transactional
+    public void resendVerificationOtp(String email) {
+        PendingRegistration pendingRegistration = pendingRegistrationRepository.findByEmail(email).orElse(null);
+        if (pendingRegistration == null) {
+            emailVerificationService.resendVerificationOtp(email);
+            return;
+        }
+
+        pendingRegistration.refresh(
+                pendingRegistration.getPasswordHash(),
+                pendingRegistration.getFullName(),
+                pendingRegistration.getPhone(),
+                generateOtp(),
+                LocalDateTime.now().plusSeconds(EMAIL_VERIFICATION_EXPIRES_IN_SECONDS)
+        );
+        mailService.sendOtp(pendingRegistration.getEmail(), pendingRegistration.getOtp(), "Email verification");
+    }
+
+    @Transactional
+    public void verifyEmail(String email, String otp) {
+        PendingRegistration pendingRegistration = findPendingRegistration(email, otp);
+        if (pendingRegistration == null) {
+            emailVerificationService.verifyEmail(email, otp);
+            return;
+        }
+        if (pendingRegistration.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new BadRequestException("OTP is expired or already used");
+        }
+        if (userRepository.existsByEmail(pendingRegistration.getEmail())) {
+            pendingRegistrationRepository.delete(pendingRegistration);
+            throw new ConflictException("Email already exists");
+        }
+        if (pendingRegistration.getPhone() != null && !pendingRegistration.getPhone().isBlank()
+                && userRepository.existsByPhone(pendingRegistration.getPhone())) {
+            pendingRegistrationRepository.delete(pendingRegistration);
             throw new ConflictException("Phone already exists");
         }
 
         User user = userRepository.save(new User(
-                request.email(),
-                passwordEncoder.encode(request.password()),
-                request.fullName(),
-                request.phone()
+                pendingRegistration.getEmail(),
+                pendingRegistration.getPasswordHash(),
+                pendingRegistration.getFullName(),
+                pendingRegistration.getPhone()
         ));
+        user.activateEmail();
         userRoleService.assignRole(user, RoleName.CUSTOMER);
-        emailVerificationService.create(user);
-        return new RegisterResponse(
-                userService.toProfile(user),
-                true,
-                10
-        );
+        pendingRegistrationRepository.delete(pendingRegistration);
     }
 
     @Transactional
@@ -152,5 +232,33 @@ public class AuthService {
                 userService.toProfile(user),
                 roles
         );
+    }
+
+    private PendingRegistration findPendingRegistration(String email, String otp) {
+        if (email == null || email.isBlank()) {
+            return pendingRegistrationRepository.findFirstByOtpOrderByCreatedAtDesc(otp).orElse(null);
+        }
+        return pendingRegistrationRepository.findByEmail(email)
+                .filter(pendingRegistration -> pendingRegistration.getOtp().equals(otp))
+                .orElse(null);
+    }
+
+    private UserProfileResponse toPendingProfile(PendingRegistration pendingRegistration) {
+        return new UserProfileResponse(
+                null,
+                pendingRegistration.getEmail(),
+                pendingRegistration.getFullName(),
+                pendingRegistration.getPhone(),
+                UserStatus.PENDING_VERIFICATION,
+                false,
+                false,
+                List.of(RoleName.CUSTOMER.name()),
+                pendingRegistration.getCreatedAt(),
+                pendingRegistration.getUpdatedAt()
+        );
+    }
+
+    private String generateOtp() {
+        return String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
     }
 }

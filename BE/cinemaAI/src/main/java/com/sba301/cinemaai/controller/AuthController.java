@@ -18,7 +18,6 @@ import com.sba301.cinemaai.dto.auth.RegisterResponse;
 import com.sba301.cinemaai.dto.auth.TokenResponse;
 import com.sba301.cinemaai.dto.response.ApiResponse;
 import com.sba301.cinemaai.service.AuthService;
-import com.sba301.cinemaai.service.EmailVerificationService;
 import com.sba301.cinemaai.service.PasswordResetService;
 import com.sba301.cinemaai.service.PhoneVerificationService;
 import jakarta.validation.Valid;
@@ -36,7 +35,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
-    private final EmailVerificationService emailVerificationService;
     private final PhoneVerificationService phoneVerificationService;
     private final PasswordResetService passwordResetService;
 
@@ -87,13 +85,13 @@ public class AuthController {
 
     @PostMapping("/verify-email")
     public ApiResponse<Void> verifyEmail(@Valid @RequestBody EmailVerificationRequest request) {
-        emailVerificationService.verifyEmail(request.email(), request.otp());
+        authService.verifyEmail(request.email(), request.otp());
         return ApiResponse.success(null, "Email verified successfully");
     }
 
     @PostMapping("/verify-email/request")
     public ApiResponse<Void> requestEmailVerificationOtp(@Valid @RequestBody EmailOtpRequest request) {
-        emailVerificationService.resendVerificationOtp(request.email());
+        authService.resendVerificationOtp(request.email());
         return ApiResponse.success(null, "Email verification OTP sent");
     }
 

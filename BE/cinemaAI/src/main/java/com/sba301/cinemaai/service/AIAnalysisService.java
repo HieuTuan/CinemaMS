@@ -52,24 +52,24 @@ public class AIAnalysisService {
     }
 
     @Transactional
-    public AIAnalysisResponse approve(Long analysisId, Long userId) {
+    public AIAnalysisResponse approve(Long analysisId, Long userId, String reason) {
         AIAnalysis analysis = findAnalysis(analysisId);
         if (analysis.getStatus() != AIAnalysisStatus.DONE && analysis.getStatus() != AIAnalysisStatus.APPROVED) {
             throw new BadRequestException("Only completed analysis can be approved");
         }
         User approver = userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("Approver not found"));
-        analysis.approve(approver);
+        analysis.approve(approver, normalizeReason(reason));
         return toResponse(analysis);
     }
 
     @Transactional
-    public AIAnalysisResponse reject(Long analysisId) {
+    public AIAnalysisResponse reject(Long analysisId, String reason) {
         AIAnalysis analysis = findAnalysis(analysisId);
         if (analysis.getStatus() != AIAnalysisStatus.DONE && analysis.getStatus() != AIAnalysisStatus.APPROVED) {
             throw new BadRequestException("Only completed analysis can be rejected");
         }
-        analysis.reject();
+        analysis.reject(normalizeReason(reason));
         return toResponse(analysis);
     }
 
@@ -139,5 +139,12 @@ public class AIAnalysisService {
     private Movie findMovie(Long movieId) {
         return movieRepository.findById(movieId)
                 .orElseThrow(() -> new NotFoundException("Movie not found"));
+    }
+
+    private String normalizeReason(String reason) {
+        if (reason == null || reason.isBlank()) {
+            return null;
+        }
+        return reason.trim();
     }
 }

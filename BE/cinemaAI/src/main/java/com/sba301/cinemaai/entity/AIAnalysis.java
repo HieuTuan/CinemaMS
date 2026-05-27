@@ -81,6 +81,9 @@ public class AIAnalysis extends BaseEntity {
     @JoinColumn(name = "approved_by_user_id")
     private User approvedBy;
 
+    @Column(name = "decision_reason", length = 500)
+    private String decisionReason;
+
     public AIAnalysis(Movie movie) {
         this.movie = movie;
     }
@@ -110,13 +113,15 @@ public class AIAnalysis extends BaseEntity {
         this.status = AIAnalysisStatus.DONE;
     }
 
-    public void approve(User approvedBy) {
+    public void approve(User approvedBy, String decisionReason) {
         this.approvedBy = approvedBy;
         this.approvedAt = LocalDateTime.now();
+        this.decisionReason = decisionReason;
         this.status = AIAnalysisStatus.APPROVED;
     }
 
-    public void reject() {
+    public void reject(String decisionReason) {
+        this.decisionReason = decisionReason;
         this.status = AIAnalysisStatus.REJECTED;
     }
 
