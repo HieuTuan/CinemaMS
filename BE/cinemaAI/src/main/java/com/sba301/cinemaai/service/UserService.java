@@ -1,6 +1,7 @@
 package com.sba301.cinemaai.service;
 
 import com.sba301.cinemaai.dto.user.AdminUserStatusUpdateRequest;
+import com.sba301.cinemaai.dto.user.ChangePasswordRequest;
 import com.sba301.cinemaai.dto.user.UserProfileResponse;
 import com.sba301.cinemaai.dto.user.UserProfileUpdateRequest;
 import com.sba301.cinemaai.entity.User;
@@ -11,6 +12,7 @@ import com.sba301.cinemaai.mapper.UserMapper;
 import com.sba301.cinemaai.repository.UserRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final UserRoleService userRoleService;
     private final UserMapper userMapper;
+    private final PasswordEncoder passwordEncoder;
 
     @Transactional(readOnly = true)
     public User getByEmail(String email) {
@@ -39,6 +42,23 @@ public class UserService {
         User user = getByEmail(email);
         user.updateProfile(request.fullName(), request.phone());
         return toProfile(user);
+    }
+
+    @Transactional
+    public void changePassword(String email, ChangePasswordRequest request) {
+        if (!request.newPassword().equals(request.confirmPassword())) {
+            throw new BadRequestException("Confirm password does not match");
+        }
+
+        User user = getByEmail(email);
+        if (!passwordEncoder.matches(request.oldPassword(), user.getPasswordHash())) {
+            throw new BadRequestException("Old password is incorrect");
+        }
+        if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
+            throw new BadRequestException("New password must be different from old password");
+        }
+
+        user.changePassword(passwordEncoder.encode(request.newPassword()));
     }
 
     @Transactional(readOnly = true)

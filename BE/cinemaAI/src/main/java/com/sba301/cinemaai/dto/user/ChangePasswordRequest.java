@@ -1,18 +1,11 @@
-package com.sba301.cinemaai.dto.auth;
+package com.sba301.cinemaai.dto.user;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-public record PasswordResetConfirmRequest(
-        @Email(message = "Email is invalid")
-        @NotBlank(message = "Email is required")
-        String email,
-
-        @NotBlank(message = "OTP is required")
-        @Pattern(regexp = "^[0-9]{6}$", message = "OTP is invalid")
-        String otp,
+public record ChangePasswordRequest(
+        @NotBlank(message = "Old password is required")
+        String oldPassword,
 
         @NotBlank(message = "New password is required")
         @Size(min = 8, message = "Password must be at least 8 characters")

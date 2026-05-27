@@ -4,7 +4,6 @@ import com.sba301.cinemaai.dto.auth.AuthResponse;
 import com.sba301.cinemaai.dto.auth.GoogleLoginRequest;
 import com.sba301.cinemaai.dto.auth.GoogleOtpVerifyRequest;
 import com.sba301.cinemaai.dto.auth.LoginRequest;
-import com.sba301.cinemaai.dto.auth.PhoneOtpVerifyRequest;
 import com.sba301.cinemaai.dto.auth.RegisterRequest;
 import com.sba301.cinemaai.dto.auth.RegisterResponse;
 import com.sba301.cinemaai.dto.user.UserProfileResponse;
@@ -47,7 +46,6 @@ public class AuthService {
     private final JwtProperties jwtProperties;
     private final RefreshTokenService refreshTokenService;
     private final EmailVerificationService emailVerificationService;
-    private final PhoneVerificationService phoneVerificationService;
     private final UserRoleService userRoleService;
     private final UserService userService;
     private final GoogleTokenVerifier googleTokenVerifier;
@@ -186,11 +184,6 @@ public class AuthService {
             throw new UnauthorizedException("User is disabled");
         }
         return createAuthResponse(user);
-    }
-
-    @Transactional
-    public AuthResponse loginWithOtp(PhoneOtpVerifyRequest request) {
-        return createAuthResponse(phoneVerificationService.verifyLoginOtp(request.phone(), request.otp()));
     }
 
     @Transactional

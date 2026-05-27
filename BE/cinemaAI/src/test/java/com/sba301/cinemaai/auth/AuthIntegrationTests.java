@@ -5,8 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sba301.cinemaai.dto.auth.EmailVerificationRequest;
 import com.sba301.cinemaai.dto.auth.LoginRequest;
 import com.sba301.cinemaai.dto.auth.LogoutRequest;
+import com.sba301.cinemaai.dto.auth.PasswordResetConfirmRequest;
+import com.sba301.cinemaai.dto.auth.PasswordResetRequest;
 import com.sba301.cinemaai.dto.auth.RefreshTokenRequest;
 import com.sba301.cinemaai.dto.auth.RegisterRequest;
+import com.sba301.cinemaai.dto.user.ChangePasswordRequest;
+import com.sba301.cinemaai.repository.PasswordResetTokenRepository;
 import com.sba301.cinemaai.repository.PendingRegistrationRepository;
 import com.sba301.cinemaai.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -33,6 +37,9 @@ class AuthIntegrationTests {
 
     @Autowired
     private PendingRegistrationRepository pendingRegistrationRepository;
+
+    @Autowired
+    private PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -91,6 +98,57 @@ class AuthIntegrationTests {
                         .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.email").value(email));
+
+        mockMvc.perform(post("/api/v1/users/me/password")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ChangePasswordRequest(
+                                "Password123",
+                                "NewPassword456",
+                                "NewPassword456"
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest(email, "Password123"))))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest(email, "NewPassword456"))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/auth/password-reset/request")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new PasswordResetRequest(email))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.token").isNotEmpty());
+
+        String passwordResetOtp = passwordResetTokenRepository
+                .findFirstByUserEmailAndTokenAndUsedFalseOrderByCreatedAtDesc(
+                        email,
+                        passwordResetTokenRepository.findAll().get(0).getToken()
+                )
+                .orElseThrow()
+                .getToken();
+
+        mockMvc.perform(post("/api/v1/auth/password-reset/confirm")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new PasswordResetConfirmRequest(
+                                email,
+                                passwordResetOtp,
+                                "ResetPassword789",
+                                "ResetPassword789"
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest(email, "ResetPassword789"))))
+                .andExpect(status().isOk());
 
         mockMvc.perform(post("/api/v1/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)

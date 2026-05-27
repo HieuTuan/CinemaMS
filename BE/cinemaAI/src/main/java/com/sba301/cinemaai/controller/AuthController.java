@@ -9,9 +9,6 @@ import com.sba301.cinemaai.dto.auth.LoginRequest;
 import com.sba301.cinemaai.dto.auth.LogoutRequest;
 import com.sba301.cinemaai.dto.auth.PasswordResetConfirmRequest;
 import com.sba301.cinemaai.dto.auth.PasswordResetRequest;
-import com.sba301.cinemaai.dto.auth.PhoneOtpRequest;
-import com.sba301.cinemaai.dto.auth.PhoneOtpVerifyRequest;
-import com.sba301.cinemaai.dto.auth.PhoneVerificationRequest;
 import com.sba301.cinemaai.dto.auth.RefreshTokenRequest;
 import com.sba301.cinemaai.dto.auth.RegisterRequest;
 import com.sba301.cinemaai.dto.auth.RegisterResponse;
@@ -19,7 +16,6 @@ import com.sba301.cinemaai.dto.auth.TokenResponse;
 import com.sba301.cinemaai.dto.response.ApiResponse;
 import com.sba301.cinemaai.service.AuthService;
 import com.sba301.cinemaai.service.PasswordResetService;
-import com.sba301.cinemaai.service.PhoneVerificationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -35,7 +31,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
-    private final PhoneVerificationService phoneVerificationService;
     private final PasswordResetService passwordResetService;
 
     @PostMapping("/register")
@@ -57,19 +52,6 @@ public class AuthController {
     @PostMapping("/google/verify")
     public ApiResponse<AuthResponse> loginWithGoogleOtp(@Valid @RequestBody GoogleOtpVerifyRequest request) {
         return ApiResponse.success(authService.loginWithGoogleOtp(request), "Logged in with Google successfully");
-    }
-
-    @PostMapping("/otp/request")
-    public ApiResponse<TokenResponse> requestOtp(@Valid @RequestBody PhoneOtpRequest request) {
-        return ApiResponse.success(
-                new TokenResponse(phoneVerificationService.createLoginOtp(request.phone()).getOtp()),
-                "OTP created"
-        );
-    }
-
-    @PostMapping("/otp/verify")
-    public ApiResponse<AuthResponse> loginWithOtp(@Valid @RequestBody PhoneOtpVerifyRequest request) {
-        return ApiResponse.success(authService.loginWithOtp(request), "Logged in with OTP successfully");
     }
 
     @PostMapping("/refresh")
@@ -95,23 +77,22 @@ public class AuthController {
         return ApiResponse.success(null, "Email verification OTP sent");
     }
 
-    @PostMapping("/verify-phone")
-    public ApiResponse<Void> verifyPhone(@Valid @RequestBody PhoneVerificationRequest request) {
-        phoneVerificationService.verifyPhone(request.phone(), request.otp());
-        return ApiResponse.success(null, "Phone verified successfully");
-    }
-
     @PostMapping("/password-reset/request")
     public ApiResponse<TokenResponse> requestPasswordReset(@Valid @RequestBody PasswordResetRequest request) {
         return ApiResponse.success(
                 new TokenResponse(passwordResetService.request(request.email()).getToken()),
-                "Password reset token created"
+                "Password reset OTP sent"
         );
     }
 
     @PostMapping("/password-reset/confirm")
     public ApiResponse<Void> confirmPasswordReset(@Valid @RequestBody PasswordResetConfirmRequest request) {
-        passwordResetService.confirm(request.token(), request.newPassword());
+        passwordResetService.confirm(
+                request.email(),
+                request.otp(),
+                request.newPassword(),
+                request.confirmPassword()
+        );
         return ApiResponse.success(null, "Password reset successfully");
     }
 }
