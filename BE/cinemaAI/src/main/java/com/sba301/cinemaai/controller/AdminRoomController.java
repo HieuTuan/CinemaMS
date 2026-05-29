@@ -7,6 +7,10 @@ import com.sba301.cinemaai.dto.cinema.SeatResponse;
 import com.sba301.cinemaai.dto.response.ApiResponse;
 import com.sba301.cinemaai.enums.RoomStatus;
 import com.sba301.cinemaai.service.RoomService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -25,27 +29,60 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/admin/rooms")
 @RequiredArgsConstructor
+@SecurityRequirement(name = "Bearer Authentication")
+@Tag(name = "Admin Rooms", description = "Admin room management endpoints - requires ADMIN role")
 public class AdminRoomController {
 
     private final RoomService roomService;
 
     @GetMapping("/{roomId}")
+    @Operation(summary = "Get room by ID (Admin)", description = "Get a specific room by ID (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Room retrieved successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized - JWT token missing or invalid"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Forbidden - User does not have ADMIN role"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Room not found")
+    })
     public ApiResponse<RoomResponse> getRoom(@PathVariable Long roomId) {
         return ApiResponse.success(roomService.getRoom(roomId));
     }
 
     @GetMapping("/{roomId}/seats")
+    @Operation(summary = "Get room seats (Admin)", description = "Get all seats in a room (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Seats retrieved successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized - JWT token missing or invalid"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Forbidden - User does not have ADMIN role"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Room not found")
+    })
     public ApiResponse<List<SeatResponse>> getSeats(@PathVariable Long roomId) {
         return ApiResponse.success(roomService.getSeats(roomId));
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Create new room (Admin)", description = "Create a new room (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Room created successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid request body"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized - JWT token missing or invalid"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Forbidden - User does not have ADMIN role"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "Conflict - Room already exists")
+    })
     public ApiResponse<RoomResponse> createRoom(@Valid @RequestBody RoomRequest request) {
         return ApiResponse.success(roomService.create(request), "Room created successfully");
     }
 
     @PutMapping("/{roomId}")
+    @Operation(summary = "Update room (Admin)", description = "Update an existing room (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Room updated successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid request body"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized - JWT token missing or invalid"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Forbidden - User does not have ADMIN role"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Room not found"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "Conflict - Room already exists")
+    })
     public ApiResponse<RoomResponse> updateRoom(
             @PathVariable Long roomId,
             @Valid @RequestBody RoomRequest request
@@ -54,6 +91,13 @@ public class AdminRoomController {
     }
 
     @PatchMapping("/{roomId}/status")
+    @Operation(summary = "Update room status (Admin)", description = "Update the status of a room (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Room status updated successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized - JWT token missing or invalid"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Forbidden - User does not have ADMIN role"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Room not found")
+    })
     public ApiResponse<RoomResponse> updateStatus(
             @PathVariable Long roomId,
             @RequestParam RoomStatus status
@@ -62,6 +106,14 @@ public class AdminRoomController {
     }
 
     @PostMapping("/{roomId}/seats/generate")
+    @Operation(summary = "Generate room seats (Admin)", description = "Generate seats for a room (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Seats generated successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid request body"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized - JWT token missing or invalid"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Forbidden - User does not have ADMIN role"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Room not found")
+    })
     public ApiResponse<List<SeatResponse>> generateSeats(
             @PathVariable Long roomId,
             @Valid @RequestBody SeatGenerationRequest request

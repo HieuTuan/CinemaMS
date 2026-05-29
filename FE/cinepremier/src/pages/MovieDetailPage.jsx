@@ -69,6 +69,7 @@ export default function DetailView({ movie, onBack, onBook, showToast = () => {}
   
   const canvasRef = useRef(null);
   const modalCanvasRef = useRef(null);
+  const isBookable = movie.status === 'NOW_SHOWING' || (!movie.status && !movie.isUpcoming);
 
   const playPing = (freq = 440, type = 'sine', duration = 0.1) => {
     try {
@@ -400,7 +401,7 @@ export default function DetailView({ movie, onBack, onBook, showToast = () => {}
 
             {/* Book & Trailer Action trigger buttons */}
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-3">
-              {!movie.isUpcoming ? (
+              {isBookable ? (
                 <button
                   onClick={() => onBook(movie)}
                   className="border border-white bg-white text-black text-xs font-bold font-sans uppercase tracking-[0.15em] px-8 py-3.5 hover:bg-black hover:text-white transition duration-300"
@@ -1093,7 +1094,7 @@ export default function DetailView({ movie, onBack, onBook, showToast = () => {}
                     </button>
 
                     {/* Book now immediately */}
-                    {!movie.isUpcoming ? (
+                    {isBookable ? (
                       <button
                         onClick={() => {
                           playPing(987.77, 'sine', 0.2);

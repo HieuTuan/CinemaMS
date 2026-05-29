@@ -6,6 +6,14 @@ import {
   Heart, Sparkle, AlertCircle
 } from 'lucide-react';
 import { authApi, saveAuthSession } from '../../services/authApi';
+import {
+  MAX_NAME_LENGTH,
+  NAME_VALIDATION_MESSAGE,
+  PHONE_VALIDATION_MESSAGE,
+  isValidVietnamPhone,
+  normalizeNameInput,
+  normalizePhoneInput
+} from '../../utils/validation';
 
 const AVATAR_PRESETS = [
   { id: 'critic', name: 'Nhà Phê Bình', emoji: '🎬', bg: 'from-amber-500 to-orange-600' },
@@ -35,7 +43,8 @@ export default function AuthModal({
   setPhoneNumber,
   otpCode,
   setOtpCode,
-  onLoginSuccess
+  onLoginSuccess,
+  onPolicyClick = () => { }
 }) {
   const [activeTab, setActiveTab] = useState('login'); // 'login' | 'register' | 'forgot_password'
   const loginMethod = 'password';
@@ -45,6 +54,7 @@ export default function AuthModal({
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotOtp, setForgotOtp] = useState('');
   const [forgotNewPass, setForgotNewPass] = useState('');
+  const [forgotConfirmPass, setForgotConfirmPass] = useState('');
   const [forgotStep, setForgotStep] = useState(1); // 1: Email Input, 2: Code verification, 3: Set new Password
   const [generatedForgotOtp, setGeneratedForgotOtp] = useState('');
   const [showForgotConfirmPass, setShowForgotConfirmPass] = useState(false);
@@ -54,6 +64,7 @@ export default function AuthModal({
   const [regPhone, setRegPhone] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
+  const [showRegPassword, setShowRegPassword] = useState(false);
   const [regOtp, setRegOtp] = useState('');
   const [registerStep, setRegisterStep] = useState('form'); // 'form' | 'verify'
   const [pendingRegistration, setPendingRegistration] = useState(null);
@@ -161,12 +172,12 @@ export default function AuthModal({
 
   const renderGoogleSignInButton = async () => {
     if (!googleClientId) {
-      throw new Error('Thiáº¿u VITE_GOOGLE_CLIENT_ID trong file .env cá»§a FE.');
+      throw new Error('Thiếu VITE_GOOGLE_CLIENT_ID trong file .env của FE.');
     }
 
     await loadGoogleIdentityScript();
     if (!window.google?.accounts?.id) {
-      throw new Error('KhÃ´ng thá»ƒ táº£i Google Identity.');
+      throw new Error('Không thể tải Google Identity.');
     }
 
     if (!googleClientInitializedRef.current) {
@@ -318,8 +329,19 @@ export default function AuthModal({
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    if (!regName || !regPhone || !regEmail || !regPassword) {
+    const cleanName = regName.trim();
+    const cleanPhone = regPhone.trim();
+
+    if (!cleanName || !cleanPhone || !regEmail || !regPassword) {
       showToast('error', 'Quý khách vui lòng điền trọn vẹn thông tin đăng ký.');
+      return;
+    }
+    if (cleanName.length > MAX_NAME_LENGTH) {
+      showToast('error', NAME_VALIDATION_MESSAGE);
+      return;
+    }
+    if (!isValidVietnamPhone(cleanPhone)) {
+      showToast('error', PHONE_VALIDATION_MESSAGE);
       return;
     }
     if (regPassword.length < 8) {
@@ -338,14 +360,14 @@ export default function AuthModal({
       await authApi.register({
         email: cleanEmail,
         password: cleanPassword,
-        fullName: regName.trim(),
-        phone: regPhone.trim()
+        fullName: cleanName,
+        phone: cleanPhone
       });
 
       setPendingRegistration({
         email: cleanEmail,
         password: cleanPassword,
-        name: regName.trim(),
+        name: cleanName,
         avatar: selectedAvatar,
         genre: selectedGenre
       });
@@ -462,6 +484,8 @@ export default function AuthModal({
     setForgotEmail(loginEmail);
     setForgotOtp('');
     setForgotNewPass('');
+    setForgotConfirmPass('');
+    setGeneratedForgotOtp('');
   };
 
   const handleSendForgotOTP = async (e) => {
@@ -471,58 +495,54 @@ export default function AuthModal({
       return;
     }
     const cleanEmail = forgotEmail.trim();
-    // Support either clean email or short username mappings
-    let resolvedEmail = cleanEmail;
-
-
     setIsSubmitting(true);
     playPing(440, 'triangle', 0.1);
     try {
-      const tokenData = await authApi.requestPasswordReset(resolvedEmail);
+      const tokenData = await authApi.requestPasswordReset(cleanEmail);
       setGeneratedForgotOtp(tokenData?.token || '');
-      setForgotEmail(resolvedEmail);
+      setForgotEmail(cleanEmail);
       setForgotStep(2);
-      showToast('success', 'Đã tạo reset token từ BE. Hãy nhập token hiển thị để tiếp tục.');
+      showToast('success', 'Đã gửi mã OTP đặt lại mật khẩu. Vui lòng kiểm tra email và nhập mã OTP.');
     } catch (error) {
-      showToast('error', error.message || 'Không thể tạo token reset password.');
+      showToast('error', error.message || 'Không thể gửi mã OTP đặt lại mật khẩu.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleVerifyForgotOTP = (e) => {
-    e.preventDefault();
-    if (forgotOtp.trim() === generatedForgotOtp) {
-      setIsSubmitting(true);
-      setTimeout(() => {
-        setIsSubmitting(false);
-        setForgotStep(3);
-        playPing(660, 'sine', 0.15);
-        showToast('success', 'Token hợp lệ. Quý khách vui lòng thiết lập mật khẩu mới.');
-      }, 700);
-    } else {
-      showToast('error', 'Reset token không chính xác. Hãy nhập đúng token BE vừa trả về.');
-    }
-  };
-
   const handleUpdatePassword = async (e) => {
     e.preventDefault();
+    if (!/^[0-9]{6}$/.test(forgotOtp.trim())) {
+      showToast('error', 'Mã OTP phải gồm đúng 6 chữ số.');
+      return;
+    }
     if (!forgotNewPass || forgotNewPass.length < 8) {
       showToast('error', 'Mật khẩu mới cần tối thiểu 8 ký tự.');
       return;
     }
 
+    if (forgotNewPass !== forgotConfirmPass) {
+      showToast('error', 'Mật khẩu mới không khớp.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      await authApi.confirmPasswordReset(generatedForgotOtp, forgotNewPass.trim());
+      await authApi.confirmPasswordReset({
+        email: forgotEmail.trim(),
+        otp: forgotOtp.trim(),
+        newPassword: forgotNewPass.trim(),
+        confirmPassword: forgotConfirmPass.trim()
+      });
       playPing(880, 'sine', 0.45);
       showToast('success', 'Đặt lại mật khẩu thành công. Hãy đăng nhập bằng mật khẩu mới.');
 
-      // Clean up states and switch back to standard login tab
       setActiveTab('login');
       setForgotEmail('');
       setForgotOtp('');
       setForgotNewPass('');
+      setForgotConfirmPass('');
+      setGeneratedForgotOtp('');
       setForgotStep(1);
     } catch (error) {
       showToast('error', error.message || 'Không thể đặt lại mật khẩu.');
@@ -928,7 +948,7 @@ export default function AuthModal({
                         Xác thực email
                       </div>
                       <p className="leading-relaxed text-neutral-200">
-                        BE da gui OTP den <b>{pendingRegistration?.email || regEmail}</b>.
+                        Hệ thống đã gửi OTP đến  <b>{pendingRegistration?.email || regEmail}</b>.
 
 
 
@@ -1041,12 +1061,14 @@ export default function AuthModal({
                           <input
                             type="text"
                             required
+                            maxLength={MAX_NAME_LENGTH}
                             placeholder="Minh Hồng..."
                             value={regName}
-                            onChange={(e) => setRegName(e.target.value)}
+                            onChange={(e) => setRegName(normalizeNameInput(e.target.value))}
                             className="w-full border border-neutral-800 focus:border-amber-400 bg-neutral-950 py-2.5 pl-9 pr-3 text-xs text-white focus:outline-none transition-all placeholder-neutral-800"
                           />
                         </div>
+                        <p className="text-[9px] text-neutral-600 font-mono text-right">{regName.length}/{MAX_NAME_LENGTH}</p>
                       </div>
 
                       {/* Contact Phone */}
@@ -1059,12 +1081,16 @@ export default function AuthModal({
                           <input
                             type="tel"
                             required
-                            placeholder="0912 345 xxx..."
+                            inputMode="numeric"
+                            pattern="(03|05|08|09)[0-9]{8}"
+                            maxLength={10}
+                            placeholder="0912345678"
                             value={regPhone}
-                            onChange={(e) => setRegPhone(e.target.value)}
+                            onChange={(e) => setRegPhone(normalizePhoneInput(e.target.value))}
                             className="w-full border border-neutral-800 focus:border-amber-400 bg-neutral-950 py-2.5 pl-9 pr-3 text-xs font-mono tracking-wide text-white focus:outline-none transition-all placeholder-neutral-800"
                           />
                         </div>
+                        <p className="text-[9px] text-neutral-600 font-mono">10 số, bắt đầu 03/05/08/09</p>
                       </div>
 
                     </div>
@@ -1098,13 +1124,21 @@ export default function AuthModal({
                         <div className="relative">
                           <Lock className="absolute left-3 top-2.5 h-3.5 w-3.5 text-neutral-600" />
                           <input
-                            type="password"
+                            type={showRegPassword ? "text" : "password"}
                             required
                             placeholder="Cực kì an tâm..."
                             value={regPassword}
                             onChange={(e) => setRegPassword(e.target.value)}
-                            className="w-full border border-neutral-800 focus:border-amber-400 bg-neutral-950 py-2.5 pl-9 pr-3 text-xs text-white focus:outline-none transition-all placeholder-neutral-850"
+                            className="w-full border border-neutral-800 focus:border-amber-400 bg-neutral-950 py-2.5 pl-9 pr-10 text-xs text-white focus:outline-none transition-all placeholder-neutral-850"
                           />
+                          <button
+                            type="button"
+                            onClick={() => { playPing(350, 'sine', 0.05); setShowRegPassword(!showRegPassword); }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-600 hover:text-white transition"
+                            aria-label={showRegPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                          >
+                            {showRegPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </button>
                         </div>
                       </div>
 
@@ -1134,7 +1168,7 @@ export default function AuthModal({
 
                     {/* Double constraints age + loyalty */}
                     <div className="space-y-2 pt-1 border-t border-neutral-900">
-                      <label className="flex items-start space-x-2.5 text-[11px] text-neutral-400 cursor-pointer">
+                      <div className="flex items-start space-x-2.5 text-[11px] text-neutral-400">
                         <input
                           type="checkbox"
                           required
@@ -1143,9 +1177,16 @@ export default function AuthModal({
                           className="mt-0.5 accent-amber-500 h-3.5 w-3.5 border-neutral-800 bg-black"
                         />
                         <span>
-                          Xác nhận tôi trên <b>18 tuổi</b> cho các phim bom tấn T18 và đồng thuận quy chế Thượng Khách CinePremier VIP.
+                          Xác nhận tôi trên <b>18 tuổi</b> cho các phim bom tấn T18 và đồng thuận{' '}
+                          <button
+                            type="button"
+                            onClick={onPolicyClick}
+                            className="font-black text-amber-300 underline underline-offset-4 decoration-amber-500/50 hover:text-white"
+                          >
+                            quy chế Thượng Khách CinePremier VIP
+                          </button>.
                         </span>
-                      </label>
+                      </div>
                     </div>
 
                     {/* Large Register Button */}
@@ -1179,14 +1220,14 @@ export default function AuthModal({
                 <div className="flex justify-between items-center bg-[#09090c] border border-neutral-900 p-3 text-[10.5px] font-mono mb-2">
                   <span className={forgotStep >= 1 ? "text-amber-400 font-extrabold" : "text-neutral-500"}>1. Nhập Email {forgotStep > 1 && '✓'}</span>
                   <span className="text-neutral-700">➔</span>
-                  <span className={forgotStep >= 2 ? "text-amber-400 font-extrabold" : "text-neutral-500"}>2. Xác Thực OTP {forgotStep > 2 && '✓'}</span>
+                  <span className={forgotStep >= 2 ? "text-amber-400 font-extrabold" : "text-neutral-500"}>2. OTP & Mật Khẩu Mới</span>
                   <span className="text-neutral-700">➔</span>
                   <span className={forgotStep >= 3 ? "text-amber-400 font-extrabold" : "text-neutral-500"}>3. Mật Khẩu Mới</span>
                 </div>
 
                 <p className="text-xs text-neutral-300 font-light leading-relaxed">
                   {forgotStep === 1 && "Nhập địa chỉ Email VIP liên kết để bảo lưu tài khoản hội viên và gửi tín hiệu kích hoạt mã bảo an."}
-                  {forgotStep === 2 && "Hệ thống đã tạo reset token từ BE. Hãy sao chép và nhập chính xác token để đặt lại mật khẩu."}
+                  {forgotStep === 2 && "Nhập mã OTP và mật khẩu mới. Hệ thống sẽ gọi API xác nhận OTP trước khi đổi mật khẩu."}
                   {forgotStep === 3 && "Nhập mật khẩu VIP mới bảo mật tối thiểu 8 ký tự để đồng bộ cập nhật vào hệ thống."}
                 </p>
 
@@ -1217,35 +1258,81 @@ export default function AuthModal({
                       {isSubmitting ? (
                         <span className="h-4 w-4 border-2 border-black border-t-transparent animate-spin rounded-full inline-block"></span>
                       ) : (
-                        <>TẠO RESET TOKEN <ArrowRight className="h-3.5 w-3.5" /></>
+                        <>GỬI MÃ OTP <ArrowRight className="h-3.5 w-3.5" /></>
                       )}
                     </button>
                   </form>
                 )}
 
                 {forgotStep === 2 && (
-                  <form onSubmit={handleVerifyForgotOTP} className="space-y-4">
+                  <form onSubmit={handleUpdatePassword} className="space-y-4">
                     <div className="bg-[#0c0a05] border border-amber-500/20 p-4 text-xs space-y-1.5 text-amber-300 rounded mb-2">
-                      <p className="font-bold text-amber-400">✓ ĐÃ TẠO RESET TOKEN!</p>
-                      <p className="opacity-90">Token reset password từ BE là:</p>
+                      <p className="font-bold text-amber-400">Đã gửi mã OTP đặt lại mật khẩu</p>
+                      <p className="opacity-90">Nhập mã OTP 6 chữ số được gửi đến email của bạn. API BE sẽ xác nhận OTP cùng mật khẩu mới.</p>
                       <div className="flex items-center gap-2 pt-1">
-                        <span className="font-mono font-black text-amber-400 bg-amber-500/15 px-3 py-1.5 border border-amber-500/40 text-[10px] rounded break-all">{generatedForgotOtp}</span>
-                        <span className="text-[10px] text-zinc-400 italic">(Nhập đúng token này)</span>
+                        {/* {generatedForgotOtp && (
+                          <span className="font-mono font-black text-amber-400 bg-amber-500/15 px-3 py-1.5 border border-amber-500/40 text-[10px] rounded break-all">
+                            Mã OTP: {generatedForgotOtp}
+                          </span>
+                        )} */}
                       </div>
                     </div>
 
                     <div className="space-y-1.5 focus-within:text-amber-400">
                       <label className="block text-[11px] font-sans font-extrabold uppercase tracking-wider text-neutral-300">
-                        Nhập Reset Token
+                        Nhập mã OTP
                       </label>
                       <input
                         type="text"
                         required
-                        placeholder="Dán reset token từ BE..."
+                        inputMode="numeric"
+                        maxLength={6}
+                        placeholder="Nhập mã OTP gồm 6 chữ số..."
                         value={forgotOtp}
-                        onChange={(e) => setForgotOtp(e.target.value)}
+                        onChange={(e) => setForgotOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                         className="w-full border border-neutral-800 focus:border-amber-500 bg-neutral-950 py-3 px-3 text-xs font-mono font-black text-white focus:outline-none transition-all placeholder-neutral-800"
                       />
+                    </div>
+
+                    <div className="space-y-1.5 focus-within:text-white">
+                      <label className="block text-[11px] font-sans font-extrabold uppercase tracking-wider text-neutral-300">
+                        Thiết lập mật khẩu mới
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-600" />
+                        <input
+                          type={showForgotConfirmPass ? "text" : "password"}
+                          required
+                          placeholder="Nhập mật khẩu mới tối thiểu 8 ký tự..."
+                          value={forgotNewPass}
+                          onChange={(e) => setForgotNewPass(e.target.value)}
+                          className="w-full border border-neutral-800 focus:border-amber-400/70 bg-neutral-950 py-3 pl-10 pr-10 text-xs text-white focus:outline-none transition-all placeholder-neutral-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => { playPing(400, 'sine', 0.05); setShowForgotConfirmPass(!showForgotConfirmPass); }}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white p-1"
+                        >
+                          {showForgotConfirmPass ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 focus-within:text-white">
+                      <label className="block text-[11px] font-sans font-extrabold uppercase tracking-wider text-neutral-300">
+                        Xác nhận mật khẩu mới
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-600" />
+                        <input
+                          type={showForgotConfirmPass ? "text" : "password"}
+                          required
+                          placeholder="Nhập lại mật khẩu mới..."
+                          value={forgotConfirmPass}
+                          onChange={(e) => setForgotConfirmPass(e.target.value)}
+                          className="w-full border border-neutral-800 focus:border-amber-400/70 bg-neutral-950 py-3 pl-10 pr-10 text-xs text-white focus:outline-none transition-all placeholder-neutral-500"
+                        />
+                      </div>
                     </div>
 
                     <div className="flex gap-3 pt-2">
@@ -1264,7 +1351,7 @@ export default function AuthModal({
                         {isSubmitting ? (
                           <span className="h-4 w-4 border-2 border-black border-t-transparent animate-spin rounded-full inline-block"></span>
                         ) : (
-                          'XÁC MINH CẬP NHẬT'
+                          'XÁC NHẬN OTP & ĐỔI MẬT KHẨU'
                         )}
                       </button>
                     </div>
@@ -1275,14 +1362,14 @@ export default function AuthModal({
                   <form onSubmit={handleUpdatePassword} className="space-y-4">
                     <div className="space-y-1.5 focus-within:text-white">
                       <label className="block text-[11px] font-sans font-extrabold uppercase tracking-wider text-neutral-300">
-                        Thiết Lập Mật Khẩu VIP Mới
+                        Thiết lập mật khẩu mới
                       </label>
                       <div className="relative">
                         <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-600" />
                         <input
                           type={showForgotConfirmPass ? "text" : "password"}
                           required
-                          placeholder="Nhập mật khẩu cực kì an tâm..."
+                          placeholder="Nhập mật khẩu mới tối thiểu 8 ký tự..."
                           value={forgotNewPass}
                           onChange={(e) => setForgotNewPass(e.target.value)}
                           className="w-full border border-neutral-800 focus:border-amber-400/70 bg-neutral-950 py-3 pl-10 pr-10 text-xs text-white focus:outline-none transition-all placeholder-neutral-500"
@@ -1294,6 +1381,23 @@ export default function AuthModal({
                         >
                           {showForgotConfirmPass ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                         </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 focus-within:text-white">
+                      <label className="block text-[11px] font-sans font-extrabold uppercase tracking-wider text-neutral-300">
+                        Xác nhận mật khẩu mới
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-600" />
+                        <input
+                          type={showForgotConfirmPass ? "text" : "password"}
+                          required
+                          placeholder="Nhập lại mật khẩu mới..."
+                          value={forgotConfirmPass}
+                          onChange={(e) => setForgotConfirmPass(e.target.value)}
+                          className="w-full border border-neutral-800 focus:border-amber-400/70 bg-neutral-950 py-3 pl-10 pr-10 text-xs text-white focus:outline-none transition-all placeholder-neutral-500"
+                        />
                       </div>
                     </div>
 
@@ -1310,7 +1414,6 @@ export default function AuthModal({
                     </button>
                   </form>
                 )}
-
                 {/* Subtext info logs */}
                 <div className="bg-[#050505] p-3 text-[10px] text-zinc-400 border border-white/10 font-sans leading-relaxed text-center">
                   🔐 <span className="text-zinc-300 font-extrabold uppercase">Bảo mật chuẩn AES:</span> Mật khẩu mới được bảo mật nguyên gốc bằng tài khoản bảo mật cục bộ.
