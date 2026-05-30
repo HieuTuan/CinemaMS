@@ -9,6 +9,7 @@ import com.sba301.cinemaai.entity.Genre;
 import com.sba301.cinemaai.entity.Movie;
 import com.sba301.cinemaai.entity.MovieGenre;
 import com.sba301.cinemaai.enums.MovieStatus;
+import com.sba301.cinemaai.exception.BadRequestException;
 import com.sba301.cinemaai.exception.ConflictException;
 import com.sba301.cinemaai.exception.NotFoundException;
 import com.sba301.cinemaai.mapper.MovieMapper;
@@ -87,7 +88,8 @@ public class MovieService {
 
         Movie movie = new Movie(request.title(), request.durationMinutes(), request.status());
         applyMovieFields(movie, request.description(), request.releaseDate(), request.trailerUrl(), request.posterUrl(),
-                request.language(), request.subtitleLanguage(), request.ageRating(), request.director(), request.castList(), request.status());
+                request.avatarUrl(), request.language(), request.subtitleLanguage(), request.ageRating(),
+                request.director(), request.mainActors(), request.castList(), request.status());
         Movie saved = movieRepository.save(movie);
         replaceGenres(saved, request.genreIds());
         return toResponse(saved);
@@ -96,13 +98,17 @@ public class MovieService {
     @Transactional
     public MovieResponse update(Long id, MovieUpdateRequest request) {
         Movie movie = findById(id);
+        if (movie.getStatus() != MovieStatus.UPCOMING) {
+            throw new BadRequestException("Only UPCOMING movies can be updated");
+        }
         movieRepository.findByTitle(request.title())
                 .filter(existing -> !existing.getId().equals(id))
                 .ifPresent(existing -> {
                     throw new ConflictException("Movie title already exists");
                 });
         applyMovieFields(movie, request.description(), request.releaseDate(), request.trailerUrl(), request.posterUrl(),
-                request.language(), request.subtitleLanguage(), request.ageRating(), request.director(), request.castList(), request.status());
+                request.avatarUrl(), request.language(), request.subtitleLanguage(), request.ageRating(),
+                request.director(), request.mainActors(), request.castList(), request.status());
         movie.updateDetails(request.title(), request.description(), request.durationMinutes(), request.releaseDate());
         replaceGenres(movie, request.genreIds());
         return toResponse(movie);
@@ -127,16 +133,18 @@ public class MovieService {
             LocalDate releaseDate,
             String trailerUrl,
             String posterUrl,
+            String avatarUrl,
             String language,
             String subtitleLanguage,
             String ageRating,
             String director,
+            String mainActors,
             String castList,
             MovieStatus status
     ) {
         movie.updateDetails(movie.getTitle(), description, movie.getDurationMinutes(), releaseDate);
-        movie.updateMedia(trailerUrl, posterUrl);
-        movie.updateMetadata(language, subtitleLanguage, ageRating, director, castList);
+        movie.updateMedia(trailerUrl, posterUrl, avatarUrl);
+        movie.updateMetadata(language, subtitleLanguage, ageRating, director, mainActors, castList);
         movie.changeStatus(status);
     }
 

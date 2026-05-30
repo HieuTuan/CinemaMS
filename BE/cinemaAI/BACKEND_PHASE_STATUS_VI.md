@@ -182,11 +182,13 @@ Nội dung tập trung vào nghiệp vụ và trạng thái hoàn thành, không
 - Đã có sinh QR ticket nội bộ.
 - Đã có staff/admin check-in bằng QR.
 - Đã có public và admin F&B flow.
+- Đã bổ sung admin CRUD đầy đủ hơn cho F&B, seat, booking và AI analysis trong phạm vi Phase 0 đến Phase 6.
+- Đã có scheduler dọn hold ghế hết hạn.
 - Đã có booking integration test.
 
 ### Còn thiếu
 
-- Có thể bổ sung scheduler dọn hold ghế hết hạn.
+- Không còn hạng mục bắt buộc cho core Phase 6.
 - Payment thật sẽ nằm ngoài phạm vi Phase 0 đến Phase 6.
 
 ---
@@ -226,4 +228,3 @@ CinemaAI - Mã xác minh của bạn
 - `V1__baseline_schema.sql`
 - `AuthIntegrationTests.java`
 - `.env.example`
-

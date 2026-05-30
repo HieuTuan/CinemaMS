@@ -69,13 +69,15 @@ class MovieIntegrationTests {
                                 "A testable movie catalog entry.",
                                 "https://example.com/trailer",
                                 "https://example.com/poster.jpg",
+                                "https://example.com/avatar.jpg",
                                 121,
                                 LocalDate.of(2026, 5, 19),
                                 "English",
                                 "Vietnamese",
-                                MovieStatus.NOW_SHOWING,
+                                MovieStatus.UPCOMING,
                                 "13+",
                                 "Test Director",
+                                "Actor One",
                                 "Actor One, Actor Two",
                                 List.of(genreId)
                         ))))
@@ -98,7 +100,7 @@ class MovieIntegrationTests {
         mockMvc.perform(get("/api/v1/movies/{movieId}", movieId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(movieId))
-                .andExpect(jsonPath("$.data.status").value("NOW_SHOWING"));
+                .andExpect(jsonPath("$.data.status").value("UPCOMING"));
 
         mockMvc.perform(put("/api/v1/admin/movies/{movieId}", movieId)
                         .header("Authorization", "Bearer " + token)
@@ -108,6 +110,7 @@ class MovieIntegrationTests {
                                 "Updated movie catalog entry.",
                                 "https://example.com/trailer-2",
                                 "https://example.com/poster-2.jpg",
+                                "https://example.com/avatar-2.jpg",
                                 125,
                                 LocalDate.of(2026, 6, 1),
                                 "English",
@@ -116,11 +119,43 @@ class MovieIntegrationTests {
                                 "16+",
                                 "Updated Director",
                                 "Actor Three",
+                                "Actor Three",
                                 List.of(genreId)
                         ))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.title").value("Phase 3 Orbit Updated"))
-                .andExpect(jsonPath("$.data.status").value("UPCOMING"));
+                .andExpect(jsonPath("$.data.status").value("UPCOMING"))
+                .andExpect(jsonPath("$.data.avatarUrl").value("https://example.com/avatar-2.jpg"))
+                .andExpect(jsonPath("$.data.mainActors").value("Actor Three"));
+
+        mockMvc.perform(patch("/api/v1/admin/movies/{movieId}/status", movieId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new MovieStatusUpdateRequest(MovieStatus.NOW_SHOWING))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("NOW_SHOWING"));
+
+        mockMvc.perform(put("/api/v1/admin/movies/{movieId}", movieId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new MovieUpdateRequest(
+                                "Blocked Update",
+                                "Should not update now showing movie.",
+                                "https://example.com/trailer-3",
+                                "https://example.com/poster-3.jpg",
+                                "https://example.com/avatar-3.jpg",
+                                126,
+                                LocalDate.of(2026, 6, 2),
+                                "English",
+                                "Vietnamese",
+                                MovieStatus.UPCOMING,
+                                "16+",
+                                "Blocked Director",
+                                "Blocked Actor",
+                                "Blocked Actor",
+                                List.of(genreId)
+                        ))))
+                .andExpect(status().isBadRequest());
 
         mockMvc.perform(patch("/api/v1/admin/movies/{movieId}/status", movieId)
                         .header("Authorization", "Bearer " + token)

@@ -96,6 +96,13 @@ public class AIAnalysisService {
         return toResponse(analysis);
     }
 
+    @Transactional
+    public void delete(Long analysisId) {
+        AIAnalysis analysis = findAnalysis(analysisId);
+        segmentRepository.deleteByAnalysis(analysis);
+        analysisRepository.delete(analysis);
+    }
+
     private void runAnalysis(AIAnalysis analysis, Movie movie) {
         try {
             analysis.markProcessing();

@@ -122,7 +122,7 @@ public class DevSeedDataRunner implements CommandLineRunner {
         Movie movie = movieRepository.findByTitle(seed.title())
                 .orElseGet(() -> movieRepository.save(new Movie(seed.title(), seed.durationMinutes(), seed.status())));
         movie.updateDetails(seed.title(), seed.description(), seed.durationMinutes(), seed.releaseDate());
-        movie.updateMetadata(seed.language(), seed.subtitleLanguage(), seed.ageRating(), seed.director(), "Sample cast");
+        movie.updateMetadata(seed.language(), seed.subtitleLanguage(), seed.ageRating(), seed.director(), "Sample lead actors", "Sample cast");
         movie.changeStatus(seed.status());
 
         for (String genreName : seed.genreNames().split(",")) {
