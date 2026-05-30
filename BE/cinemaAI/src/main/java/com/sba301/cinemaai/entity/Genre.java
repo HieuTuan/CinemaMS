@@ -23,7 +23,7 @@ public class Genre extends BaseEntity {
     @Column(nullable = false, unique = true, length = 100)
     private String name;
 
-    @Column(length = 500)
+    @Column(length = 1000)
     private String description;
 
     public Genre(String name, String description) {
