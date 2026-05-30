@@ -22,8 +22,8 @@ import lombok.NoArgsConstructor;
 @Table(
         name = "notifications",
         indexes = {
-                @Index(name = "idx_notifications_user",        columnList = "user_id"),
-                @Index(name = "idx_notifications_user_unread", columnList = "user_id,is_read")
+                @Index(name = "idx_notifications_user_id",          columnList = "user_id"),
+                @Index(name = "idx_notifications_user_id_is_read",  columnList = "user_id, is_read")
         }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
