@@ -378,8 +378,8 @@ Mô tả nhiệm vụ:
 - Admin có thể tạo, cập nhật, kiểm soát mã khuyến mãi.
 
 Status:
-- Chưa làm.
-- Progress: 0%.
+- Hoàn thành.
+- Progress: 100%.
 
 Cần làm:
 - Promotion migration.
