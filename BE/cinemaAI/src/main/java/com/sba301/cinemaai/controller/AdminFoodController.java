@@ -6,6 +6,10 @@ import com.sba301.cinemaai.dto.food.FoodItemRequest;
 import com.sba301.cinemaai.dto.food.FoodItemResponse;
 import com.sba301.cinemaai.dto.response.ApiResponse;
 import com.sba301.cinemaai.service.FoodService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -23,33 +27,69 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/admin/foods")
 @RequiredArgsConstructor
+@SecurityRequirement(name = "Bearer Authentication")
+@Tag(name = "Admin Foods", description = "Admin food management endpoints - requires ADMIN role")
 public class AdminFoodController {
 
     private final FoodService foodService;
 
     @GetMapping("/items")
+    @Operation(summary = "Get all food items (Admin)", description = "Get all food items (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Food items retrieved successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized - JWT token missing or invalid"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Forbidden - User does not have ADMIN role")
+    })
     public ApiResponse<List<FoodItemResponse>> getItems() {
         return ApiResponse.success(foodService.getAllItems());
     }
 
     @GetMapping("/combos")
+    @Operation(summary = "Get all food combos (Admin)", description = "Get all food combos (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Food combos retrieved successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized - JWT token missing or invalid"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Forbidden - User does not have ADMIN role")
+    })
     public ApiResponse<List<FoodComboResponse>> getCombos() {
         return ApiResponse.success(foodService.getAllCombos());
     }
 
     @PostMapping("/items")
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Create food item (Admin)", description = "Create a new food item (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Food item created successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid request body"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized - JWT token missing or invalid"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Forbidden - User does not have ADMIN role")
+    })
     public ApiResponse<FoodItemResponse> createItem(@Valid @RequestBody FoodItemRequest request) {
         return ApiResponse.success(foodService.createItem(request), "Food item created successfully");
     }
 
     @PostMapping("/combos")
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Create food combo (Admin)", description = "Create a new food combo (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Food combo created successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid request body"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized - JWT token missing or invalid"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Forbidden - User does not have ADMIN role")
+    })
     public ApiResponse<FoodComboResponse> createCombo(@Valid @RequestBody FoodComboRequest request) {
         return ApiResponse.success(foodService.createCombo(request), "Food combo created successfully");
     }
 
     @PutMapping("/items/{itemId}")
+    @Operation(summary = "Update food item (Admin)", description = "Update an existing food item (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Food item updated successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid request body"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized - JWT token missing or invalid"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Forbidden - User does not have ADMIN role"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Food item not found")
+    })
     public ApiResponse<FoodItemResponse> updateItem(
             @PathVariable Long itemId,
             @Valid @RequestBody FoodItemRequest request
@@ -58,6 +98,14 @@ public class AdminFoodController {
     }
 
     @PutMapping("/combos/{comboId}")
+    @Operation(summary = "Update food combo (Admin)", description = "Update an existing food combo (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Food combo updated successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid request body"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized - JWT token missing or invalid"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Forbidden - User does not have ADMIN role"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Food combo not found")
+    })
     public ApiResponse<FoodComboResponse> updateCombo(
             @PathVariable Long comboId,
             @Valid @RequestBody FoodComboRequest request

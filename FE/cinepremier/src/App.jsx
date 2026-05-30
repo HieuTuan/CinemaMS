@@ -10,6 +10,7 @@ import ProfileView from './pages/ProfilePage';
 import MyTicketsView from './pages/MyTicketsPage';
 import WishlistView from './pages/WishlistPage';
 import AdminDashboard from './pages/AdminPage';
+import PoliciesPage from './pages/PoliciesPage';
 import AuthModal from './features/auth/AuthModal';
 import { movies, cinemaLocations } from './services/cinemaData';
 import { authApi, clearAuthSession, getStoredAuth, normalizeUser, saveAuthSession } from './services/authApi';
@@ -24,17 +25,26 @@ export default function App() {
     if (path === '/tickets') return { tab: 'my-tickets', adminSection: 'overview' };
     if (path === '/watchlist') return { tab: 'wishlist', adminSection: 'overview' };
     if (path === '/profile') return { tab: 'profile', adminSection: 'overview' };
+    if (path === '/policies') return { tab: 'policies', adminSection: 'overview' };
     return { tab: 'home', adminSection: 'overview' };
   };
 
   const initialRoute = resolveRoute();
   const [activeTab, setActiveTab] = useState(initialRoute.tab);
   const [moviesList, setMoviesList] = useState(movies);
+  const [moviePagination, setMoviePagination] = useState({
+    page: 0,
+    size: 8,
+    totalPages: Math.max(1, Math.ceil(movies.length / 8)),
+    totalElements: movies.length
+  });
+  const [isMoviesLoading, setIsMoviesLoading] = useState(false);
   const [currentRole, setCurrentRole] = useState('user'); // 'user' | 'admin'
   const [adminSection, setAdminSection] = useState(initialRoute.adminSection);
   const [selectedMovieId, setSelectedMovieId] = useState(null);
   const [bookingMovie, setBookingMovie] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [movieDateFilter, setMovieDateFilter] = useState('');
   const [selectedCity, setSelectedCity] = useState(cinemaLocations[0]);
 
   // Modals state
@@ -64,7 +74,8 @@ export default function App() {
       explore: '/movies',
       'my-tickets': '/tickets',
       wishlist: '/watchlist',
-      profile: '/profile'
+      profile: '/profile',
+      policies: '/policies'
     };
 
     if (tab === 'admin') {
@@ -116,6 +127,44 @@ export default function App() {
       }
     };
   }, [toast?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timeoutId = setTimeout(async () => {
+      setIsMoviesLoading(true);
+      try {
+        const pageData = await authApi.searchMoviesPage({
+          keyword: activeTab === 'explore' ? searchQuery.trim() : '',
+          fromDate: activeTab === 'explore' ? movieDateFilter : '',
+          toDate: activeTab === 'explore' ? movieDateFilter : '',
+          page: moviePagination.page,
+          size: moviePagination.size
+        });
+        if (!cancelled) {
+          const visibleMovies = pageData.items.filter((movie) => movie.status !== 'INACTIVE' && !movie.isInactive);
+          setMoviesList(visibleMovies);
+          setMoviePagination((prev) => ({
+            ...prev,
+            page: pageData.page,
+            size: pageData.size,
+            totalPages: pageData.totalPages,
+            totalElements: pageData.totalElements
+          }));
+        }
+      } catch (error) {
+        if (!cancelled) {
+          showToast(error.message || 'Không thể tải danh sách phim từ hệ thống. Đang dùng dữ liệu mẫu.', 5000, null, 'sad');
+        }
+      } finally {
+        if (!cancelled) setIsMoviesLoading(false);
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [activeTab, searchQuery, movieDateFilter, moviePagination.page, moviePagination.size]);
 
   useEffect(() => {
     const restoreSession = async () => {
@@ -240,8 +289,13 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (!isLoggedIn) {
+      setFoodCatalog([]);
+      return;
+    }
+
     fetchPublicFoodCatalog();
-  }, []);
+  }, [isLoggedIn]);
 
   // Handle Select Movie Detail
   const handleSelectMovie = (id) => {
@@ -287,6 +341,44 @@ export default function App() {
     localStorage.setItem('cinepremier_homepage_video_url', url);
     showToast('Đã cập nhật video nền trang chủ.');
   };
+
+  useEffect(() => {
+    if (!selectedMovieId) return undefined;
+
+    let cancelled = false;
+    const currentFallback = moviesList.find((movie) => movie.id === selectedMovieId);
+
+    const fetchMovieDetail = async () => {
+      try {
+        const { accessToken } = getStoredAuth();
+        const detail = currentRole === 'admin' && accessToken
+          ? await authApi.getAdminMovieDetail(accessToken, selectedMovieId)
+          : await authApi.getMovieDetail(selectedMovieId);
+
+        if (cancelled || !detail?.id) return;
+        const nextMovie = { ...currentFallback, ...detail };
+        setMoviesList((prev) => {
+          const exists = prev.some((movie) => movie.id === selectedMovieId || movie.id === nextMovie.id);
+          if (!exists) return [nextMovie, ...prev];
+          return prev.map((movie) => (
+            movie.id === selectedMovieId || movie.id === nextMovie.id ? { ...movie, ...nextMovie } : movie
+          ));
+        });
+        if (nextMovie.id !== selectedMovieId) {
+          setSelectedMovieId(nextMovie.id);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          showToast(error.message || 'Không thể tải chi tiết phim từ hệ thống.', 4500, null, 'sad');
+        }
+      }
+    };
+
+    fetchMovieDetail();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMovieId, currentRole]);
 
   const selectedMovie = moviesList.find(m => m.id === selectedMovieId);
 
@@ -432,6 +524,7 @@ export default function App() {
             searchQuery={searchQuery}
             onSearchChange={(q) => {
               setSearchQuery(q);
+              setMoviePagination((prev) => ({ ...prev, page: 0 }));
               if (activeTab !== 'explore') {
                 navigateApp('explore');
               }
@@ -487,10 +580,21 @@ export default function App() {
                   // Step Explore Search list View
                   <ExploreView
                     searchQuery={searchQuery}
-                    onSearchChange={setSearchQuery}
+                    onSearchChange={(q) => {
+                      setSearchQuery(q);
+                      setMoviePagination((prev) => ({ ...prev, page: 0 }));
+                    }}
+                    selectedDate={movieDateFilter}
+                    onDateChange={(date) => {
+                      setMovieDateFilter(date);
+                      setMoviePagination((prev) => ({ ...prev, page: 0 }));
+                    }}
                     onSelectMovie={handleSelectMovie}
                     onBookMovie={handleBookMovie}
                     moviesList={moviesList}
+                    isLoading={isMoviesLoading}
+                    pagination={moviePagination}
+                    onPageChange={(page) => setMoviePagination((prev) => ({ ...prev, page: page - 1 }))}
                   />
                 ) : activeTab === 'profile' ? (
                   // Custom Profile Page - Minh Hong VIP Gold
@@ -543,6 +647,8 @@ export default function App() {
                     onFoodCatalogChanged={fetchPublicFoodCatalog}
                     isAdmin={currentRole === 'admin'}
                   />
+                ) : activeTab === 'policies' ? (
+                  <PoliciesPage />
                 ) : (
                   // Fallback
                   <HomeView
@@ -559,7 +665,13 @@ export default function App() {
         </div>
 
         {/* Footer */}
-        <Footer />
+        <Footer
+          onTabChange={(tab) => {
+            navigateApp(tab);
+            setSelectedMovieId(null);
+            setBookingMovie(null);
+          }}
+        />
 
       </div>
 
@@ -643,7 +755,7 @@ export default function App() {
 
                 {watchlist.length > 0 ? (
                   <div className="space-y-3">
-                    {watchlist.map((mv) => (
+                    {watchlist.filter((mv) => mv.status !== 'INACTIVE' && !mv.isInactive).map((mv) => (
                       <div key={mv.id} className="flex gap-3 bg-[#0a0a0a] border border-white/10 p-2 items-center justify-between">
                         <div className="flex gap-3 items-center min-w-0">
                           <img
@@ -732,6 +844,12 @@ export default function App() {
               navigateApp('home');
             }
           }
+        }}
+        onPolicyClick={() => {
+          setShowOTP(false);
+          navigateApp('policies');
+          setSelectedMovieId(null);
+          setBookingMovie(null);
         }}
       />
 

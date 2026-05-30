@@ -8,6 +8,14 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { movies } from '../services/cinemaData';
 import { authApi, getStoredAuth, normalizeUser } from '../services/authApi';
+import {
+  MAX_NAME_LENGTH,
+  NAME_VALIDATION_MESSAGE,
+  PHONE_VALIDATION_MESSAGE,
+  isValidVietnamPhone,
+  normalizeNameInput,
+  normalizePhoneInput
+} from '../utils/validation';
 
 export default function ProfileView({
   onSelectMovie,
@@ -51,6 +59,7 @@ export default function ProfileView({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showOldPass, setShowOldPass] = useState(false);
   const [showNewPass, setShowNewPass] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [twoFactorAuth, setTwoFactorAuth] = useState(true);
   const [passwordNotification, setPasswordNotification] = useState(null); // { type, text }
 
@@ -62,13 +71,24 @@ export default function ProfileView({
       if (currentUser.email) {
         setProfileEmailInput(currentUser.email);
       }
-      setProfilePhoneInput(currentUser.phone || '');
+      setProfilePhoneInput(normalizePhoneInput(currentUser.phone || ''));
     }
   }, [currentUser]);
 
   const handleSaveProfile = async () => {
-    if (!profileNameInput.trim()) {
+    const cleanName = profileNameInput.trim();
+    const cleanPhone = profilePhoneInput.trim();
+
+    if (!cleanName) {
       showToast("Vui lòng nhập tên hồ sơ.");
+      return;
+    }
+    if (cleanName.length > MAX_NAME_LENGTH) {
+      showToast(NAME_VALIDATION_MESSAGE);
+      return;
+    }
+    if (!isValidVietnamPhone(cleanPhone)) {
+      showToast(PHONE_VALIDATION_MESSAGE);
       return;
     }
 
@@ -82,8 +102,8 @@ export default function ProfileView({
     setIsSavingProfile(true);
     try {
       const updatedProfile = await authApi.updateMyProfile(accessToken, {
-        fullName: profileNameInput.trim(),
-        phone: profilePhoneInput.trim()
+        fullName: cleanName,
+        phone: cleanPhone
       });
       const nextUser = normalizeUser(updatedProfile, updatedProfile.roles || currentUser?.roles || []);
       localStorage.setItem('cinepremier_auth_user', JSON.stringify(nextUser));
@@ -98,6 +118,49 @@ export default function ProfileView({
       showToast(error.message || "Không thể cập nhật hồ sơ.");
     } finally {
       setIsSavingProfile(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      showToast("Vui lòng nhập đầy đủ mật khẩu hiện tại, mật khẩu mới và xác nhận mật khẩu.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      showToast("Mật khẩu mới cần tối thiểu 8 ký tự.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showToast("Mật khẩu xác nhận không khớp.");
+      return;
+    }
+
+    const { accessToken } = getStoredAuth();
+    if (!accessToken) {
+      showToast("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+      onOpenOTP();
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await authApi.changeMyPassword(accessToken, {
+        oldPassword,
+        newPassword,
+        confirmPassword
+      });
+      playPing(880, 'sine', 0.25);
+      showToast("Đổi mật khẩu thành công.");
+      setPasswordNotification({ type: 'success', text: 'Mật khẩu đã được cập nhật an toàn.' });
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setActivePanel(null);
+    } catch (error) {
+      showToast(error.message || "Không thể đổi mật khẩu. Vui lòng kiểm tra mật khẩu hiện tại.");
+      setPasswordNotification({ type: 'error', text: error.message || 'Không thể đổi mật khẩu.' });
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -249,8 +312,9 @@ export default function ProfileView({
                       {isEditingName ? (
                         <input
                           type="text"
+                          maxLength={MAX_NAME_LENGTH}
                           value={name}
-                          onChange={(e) => setName(e.target.value)}
+                          onChange={(e) => setName(normalizeNameInput(e.target.value))}
                           onBlur={() => setIsEditingName(false)}
                           onKeyDown={(e) => e.key === 'Enter' && setIsEditingName(false)}
                           className="bg-black border border-white/20 text-white text-xl px-2 py-0.5 focus:outline-none focus:border-white font-sans max-w-[200px]"
@@ -665,10 +729,12 @@ export default function ProfileView({
                               <label className="text-[9px] uppercase tracking-wider font-extrabold text-neutral-500">Tên Thượng Khách</label>
                               <input
                                 type="text"
+                                maxLength={MAX_NAME_LENGTH}
                                 value={profileNameInput}
-                                onChange={(e) => setProfileNameInput(e.target.value)}
+                                onChange={(e) => setProfileNameInput(normalizeNameInput(e.target.value))}
                                 className="w-full bg-black border border-neutral-850 focus:border-amber-400 text-white p-2 text-xs focus:outline-none focus:ring-0 rounded-none font-bold"
                               />
+                              <p className="text-[9px] text-neutral-600 font-mono text-right">{profileNameInput.length}/{MAX_NAME_LENGTH}</p>
                             </div>
 
                             <div className="space-y-1">
@@ -695,10 +761,15 @@ export default function ProfileView({
                               <label className="text-[9px] uppercase tracking-wider font-extrabold text-neutral-500">Số điện thoại</label>
                               <input
                                 type="tel"
+                                inputMode="numeric"
+                                pattern="(03|05|08|09)[0-9]{8}"
+                                maxLength={10}
+                                placeholder="0912345678"
                                 value={profilePhoneInput}
-                                onChange={(e) => setProfilePhoneInput(e.target.value)}
+                                onChange={(e) => setProfilePhoneInput(normalizePhoneInput(e.target.value))}
                                 className="w-full bg-black border border-neutral-850 focus:border-amber-400 text-white p-2 text-xs focus:outline-none focus:ring-0 rounded-none font-mono"
                               />
+                              <p className="text-[9px] text-neutral-600 font-mono">10 số, bắt đầu 03/05/08/09</p>
                             </div>
                           </div>
 
@@ -966,7 +1037,7 @@ export default function ProfileView({
                                   type={showOldPass ? "text" : "password"}
                                   value={oldPassword}
                                   onChange={(e) => setOldPassword(e.target.value)}
-                                  placeholder="Nhập khóa điện tử đang dùng..."
+                                  placeholder="Nhập mật khẩu hiện tại..."
                                   className="w-full bg-black border border-neutral-850 p-2 text-xs text-white focus:outline-none focus:border-white tracking-widest placeholder-neutral-805"
                                 />
                                 <button
@@ -986,7 +1057,7 @@ export default function ProfileView({
                                   type={showNewPass ? "text" : "password"}
                                   value={newPassword}
                                   onChange={(e) => setNewPassword(e.target.value)}
-                                  placeholder="Mật khẩu cực mạnh..."
+                                  placeholder="Nhập mật khẩu mới..."
                                   className="w-full bg-black border border-neutral-850 p-2 text-xs text-white focus:outline-none focus:border-white tracking-widest placeholder-neutral-805"
                                 />
                                 <button
@@ -1002,21 +1073,43 @@ export default function ProfileView({
 
 
 
+                          <div className="space-y-3">
+                            <div className="space-y-1">
+                              <label className="text-[8px] uppercase tracking-wider text-neutral-500 font-bold block">Xác nhận mật khẩu mới</label>
+                              <div className="relative">
+                                <input
+                                  type={showNewPass ? "text" : "password"}
+                                  value={confirmPassword}
+                                  onChange={(e) => setConfirmPassword(e.target.value)}
+                                  placeholder="Nhập lại mật khẩu mới..."
+                                  className="w-full bg-black border border-neutral-850 p-2 text-xs text-white focus:outline-none focus:border-white tracking-widest placeholder-neutral-805"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => { playPing(350, 'sine', 0.05); setShowNewPass(!showNewPass); }}
+                                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-550 hover:text-white"
+                                >
+                                  {showNewPass ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {passwordNotification && (
+                            <div className={`border p-2 text-[10px] font-semibold leading-relaxed ${passwordNotification.type === 'success'
+                              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                              : 'border-rose-500/30 bg-rose-500/10 text-rose-300'
+                              }`}>
+                              {passwordNotification.text}
+                            </div>
+                          )}
+
                           <button
-                            onClick={() => {
-                              if (!oldPassword || !newPassword) {
-                                showToast("Vui lòng nhập trọn vẹn thông tin mật khẩu bảo mật.");
-                                return;
-                              }
-                              playPing(880, 'sine', 0.25);
-                              showToast("Mật khẩu tài khoản đã được thay đổi an toàn toàn diện.");
-                              setOldPassword('');
-                              setNewPassword('');
-                              setActivePanel(null);
-                            }}
-                            className="w-full py-2.5 bg-[#121212] border border-white/10 text-white font-sans uppercase text-[10px] hover:border-white transition tracking-widest font-black"
+                            onClick={handleChangePassword}
+                            disabled={isChangingPassword}
+                            className="w-full py-2.5 bg-[#121212] border border-white/10 text-white font-sans uppercase text-[10px] hover:border-white transition tracking-widest font-black disabled:opacity-60"
                           >
-                            XÁC NHẬN ĐỔI MẬT KHẨU
+                            {isChangingPassword ? 'ĐANG ĐỔI MẬT KHẨU...' : 'XÁC NHẬN ĐỔI MẬT KHẨU'}
                           </button>
 
                         </div>
