@@ -26,6 +26,7 @@ import com.sba301.cinemaai.repository.BookingRepository;
 import com.sba301.cinemaai.repository.BookingSeatRepository;
 import com.sba301.cinemaai.repository.SeatRepository;
 import com.sba301.cinemaai.repository.ShowtimeRepository;
+import com.sba301.cinemaai.service.LoyaltyPointService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -54,6 +55,7 @@ public class BookingService {
     private final FoodService foodService;
     private final QrTicketService qrTicketService;
     private final BookingMapper bookingMapper;
+    private final LoyaltyPointService loyaltyPointService;
 
     @Transactional
     public BookingResponse holdSeats(String email, HoldSeatsRequest request) {
@@ -106,6 +108,7 @@ public class BookingService {
                 .forEach(seat -> seat.changeStatus(SeatRuntimeStatus.BOOKED));
         booking.updateAmounts(subtotal, BigDecimal.ZERO, subtotal);
         booking.markPaid(qrTicketService.generate(booking));
+        loyaltyPointService.addPointsFromBooking(user, booking);
         return toResponse(booking);
     }
 
