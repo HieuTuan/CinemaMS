@@ -646,6 +646,7 @@ export default function App() {
                     onHomepageVideoUrlChange={handleHomepageVideoUrlChange}
                     onFoodCatalogChanged={fetchPublicFoodCatalog}
                     isAdmin={currentRole === 'admin'}
+                    currentUser={currentUser}
                   />
                 ) : activeTab === 'policies' ? (
                   <PoliciesPage />

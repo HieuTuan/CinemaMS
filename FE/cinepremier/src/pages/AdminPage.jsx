@@ -30,7 +30,8 @@ export default function AdminDashboard({
   homepageVideoUrl = 'https://www.youtube.com/watch?v=k8m0SaGQ_1c',
   onHomepageVideoUrlChange = () => { },
   onFoodCatalogChanged = () => { },
-  isAdmin = false
+  isAdmin = false,
+  currentUser = null
 }) {
   const [activeTab, setActiveTab] = useState(initialSection || 'overview'); // 'overview' | 'movies' | 'genres' | 'foods' | 'homepage' | 'showtimes' | 'transactions' | 'users' | 'ai-analysis'
   const [selectedAnalysisMovieId, setSelectedAnalysisMovieId] = useState(moviesList[0]?.id || 'neon-horizon');
@@ -519,6 +520,15 @@ export default function AdminDashboard({
   };
 
   const handleUpdateAdminUserStatus = async (userId, status) => {
+    const isCurrentAdmin =
+      String(currentUser?.id || '') === String(userId || '') ||
+      (selectedAdminUser?.email && currentUser?.email && selectedAdminUser.email === currentUser.email);
+
+    if (isCurrentAdmin) {
+      showToast('Không thể đổi trạng thái của chính tài khoản admin đang đăng nhập.');
+      return;
+    }
+
     const token = getAdminToken();
     if (!token) return;
 
@@ -1090,7 +1100,8 @@ export default function AdminDashboard({
     homepageVideoUrl,
     onHomepageVideoUrlChange,
     onFoodCatalogChanged,
-    isAdmin
+    isAdmin,
+    currentUser
   };
 
   const adminPanels = {
@@ -1141,19 +1152,19 @@ export default function AdminDashboard({
       </div>
 
       {/* CORE GRID: RESPONSIVE SIDEBAR + ACTIVE VIEW */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[250px_minmax(0,1fr)] gap-5 items-start">
 
         {/* LEFT COMPONENT: THE DASHBOARD SELECTOR BAR (Cols 3) */}
-        <div className="lg:col-span-3 space-y-5 lg:sticky lg:top-8" id="admin-sidebar-bar">
+        <div className="space-y-4 lg:sticky lg:top-8" id="admin-sidebar-bar">
 
           {/* Active Admin Profile */}
-          <div className="bg-gradient-to-b from-[#0a0a0a] to-[#040404] border border-neutral-850 p-4.5 space-y-3">
-            <div className="flex items-center space-x-3">
-              <div className="h-10 w-10 overflow-hidden rounded-sm border border-amber-500 bg-neutral-900 flex items-center justify-center text-amber-400 font-serif italic text-lg font-black">
+          <div className="bg-gradient-to-b from-[#0a0a0a] to-[#040404] border border-neutral-850 p-3 space-y-2.5">
+            <div className="flex items-center space-x-2.5">
+              <div className="h-8 w-8 overflow-hidden rounded-sm border border-amber-500 bg-neutral-900 flex items-center justify-center text-amber-400 font-serif italic text-base font-black">
                 A
               </div>
-              <div>
-                <h4 className="text-xs font-black uppercase text-white tracking-wide">QUẢN TRỊ VIÊN</h4>
+              <div className="min-w-0">
+                <h4 className="truncate text-[11px] font-black uppercase text-white tracking-wide">QUẢN TRỊ VIÊN</h4>
                 <p className="text-[9px] text-[#88959C] font-mono">ID: CP-99210-ADMIN</p>
               </div>
             </div>
@@ -1167,8 +1178,8 @@ export default function AdminDashboard({
           </div>
 
           {/* Navigation Sidebar List (like image layout) */}
-          <div className="bg-[#070707] border border-neutral-850 p-4 space-y-1.5" id="nav-sidebar-items">
-            <span className="text-[8px] font-mono uppercase tracking-[0.2em] text-neutral-500 block px-2.5 pb-2 font-black">
+          <div className="bg-[#070707] border border-neutral-850 p-3 space-y-1.5 [&_button]:px-2.5 [&_button]:py-2.5 [&_button]:text-[9.5px] [&_svg]:h-3.5 [&_svg]:w-3.5" id="nav-sidebar-items">
+            <span className="text-[7.5px] font-mono uppercase tracking-[0.18em] text-neutral-500 block px-2 pb-1.5 font-black">
               CÔNG CỤ PHÂN PHỐI
             </span>
 
@@ -1315,7 +1326,7 @@ export default function AdminDashboard({
           </div>
 
           {/* Infrastructure Metrics indicators */}
-          <div className="bg-[#0b0b0b] border border-neutral-850 p-4 space-y-3" id="sidebar-telemetry">
+          <div className="bg-[#0b0b0b] border border-neutral-850 p-3 space-y-2" id="sidebar-telemetry">
             <span className="text-[7.5px] font-mono tracking-widest text-neutral-500 uppercase block font-black">ĐỒNG BỘ MÁY CHỦ</span>
             <div className="space-y-1.5 text-[10px] font-mono">
               <div className="flex justify-between items-center text-zinc-400">
@@ -1331,7 +1342,7 @@ export default function AdminDashboard({
         </div>
 
         {/* RIGHT COMPONENT: MAIN VIEW DETAILS (Cols 9) */}
-        <div className="lg:col-span-9 space-y-6">
+        <div className="min-w-0 space-y-6">
 
           {/* 2. CORPORATE CORE BENTO METRICS */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" id="corporate-bento-metrics">

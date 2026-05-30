@@ -140,8 +140,8 @@ export default function AdminGenresPanel({ ctx }) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 2xl:grid-cols-12 gap-6">
-                    <div className="2xl:col-span-5 border border-neutral-850 bg-[#070707] p-5 space-y-5">
+                  <div className="grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)] gap-5 items-start">
+                    <div className="border border-neutral-850 bg-[#070707] p-4 space-y-4">
                       <div className="flex items-center justify-between border-b border-neutral-900 pb-3">
                         <div>
                           <span className="text-[8px] font-mono uppercase tracking-[0.2em] text-neutral-500 font-black">
@@ -173,7 +173,7 @@ export default function AdminGenresPanel({ ctx }) {
                           <textarea
                             value={genreForm.name}
                             maxLength={100}
-                            rows={4}
+                            rows={2}
                             wrap="soft"
                             onChange={(e) => {
                               const nextName = e.target.value.replace(/[\r\n]+/g, ' ');
@@ -181,7 +181,7 @@ export default function AdminGenresPanel({ ctx }) {
                               if (genreErrors.name) setGenreErrors((prev) => ({ ...prev, name: undefined }));
                             }}
                             placeholder="Ví dụ: Hành động, Tâm lý, Sci-Fi..."
-                            className={`w-full min-h-[112px] resize-none break-words bg-black border p-3 text-sm text-white focus:outline-none rounded-none font-bold leading-relaxed caret-amber-300 ${genreErrors.name ? 'border-rose-500 focus:border-rose-400' : 'border-neutral-800 focus:border-amber-400'
+                            className={`w-full min-h-[64px] resize-none break-words bg-black border p-2.5 text-sm text-white focus:outline-none rounded-none font-bold leading-relaxed caret-amber-300 ${genreErrors.name ? 'border-rose-500 focus:border-rose-400' : 'border-neutral-800 focus:border-amber-400'
                               }`}
                           />
                           {genreErrors.name && (
@@ -199,13 +199,13 @@ export default function AdminGenresPanel({ ctx }) {
                           <textarea
                             value={genreForm.description}
                             maxLength={1000}
-                            rows={8}
+                            rows={5}
                             onChange={(e) => {
                               setGenreForm((prev) => ({ ...prev, description: e.target.value }));
                               if (genreErrors.description) setGenreErrors((prev) => ({ ...prev, description: undefined }));
                             }}
                             placeholder="Mô tả ngắn về gu phim, nhịp kể, nhóm khán giả phù hợp..."
-                            className={`w-full resize-none bg-black border p-3 text-sm text-white focus:outline-none rounded-none leading-relaxed ${genreErrors.description ? 'border-rose-500 focus:border-rose-400' : 'border-neutral-800 focus:border-amber-400'
+                            className={`w-full resize-none bg-black border p-2.5 text-sm text-white focus:outline-none rounded-none leading-relaxed ${genreErrors.description ? 'border-rose-500 focus:border-rose-400' : 'border-neutral-800 focus:border-amber-400'
                               }`}
                           />
                           {genreErrors.description && (
@@ -229,8 +229,8 @@ export default function AdminGenresPanel({ ctx }) {
                       </form>
                     </div>
 
-                    <div className="2xl:col-span-7 border border-neutral-850 bg-neutral-950 overflow-hidden">
-                      <div className="p-4 border-b border-neutral-850 flex flex-col md:flex-row md:items-center gap-3 justify-between">
+                    <div className="min-w-0 border border-neutral-850 bg-neutral-950 overflow-hidden">
+                      <div className="p-3 border-b border-neutral-850 flex flex-col md:flex-row md:items-center gap-3 justify-between">
                         <div>
                           <span className="text-[8px] font-mono text-white uppercase tracking-[0.2em] font-black " >Danh sách loại phim </span>
                           <h3 className="text-sm font-sans font-black uppercase tracking-wider text-white mt-1">
@@ -249,14 +249,14 @@ export default function AdminGenresPanel({ ctx }) {
                         </div>
                       </div>
 
-                      <div className="overflow-x-auto">
-                        <table className="w-full min-w-[620px] text-left border-collapse">
+                      <div>
+                        <table className="w-full table-fixed text-left border-collapse">
                           <thead>
                             <tr className="bg-black/60 border-b border-neutral-850 text-[9px] uppercase tracking-widest text-neutral-500 font-sans">
-                              <th className="py-3 px-4">ID</th>
-                              <th className="py-3 px-4">Tên thể loại</th>
-                              <th className="py-3 px-4">Mô tả</th>
-                              <th className="py-3 px-4 text-right">Thao tác</th>
+                              <th className="py-2.5 px-3 w-[54px]">ID</th>
+                              <th className="py-2.5 px-3 w-[170px]">Tên thể loại</th>
+                              <th className="py-2.5 px-3">Mô tả</th>
+                              <th className="py-2.5 px-3 text-right w-[86px]">Thao tác</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-neutral-900">
@@ -269,22 +269,22 @@ export default function AdminGenresPanel({ ctx }) {
                             ) : filteredGenres.length > 0 ? (
                               filteredGenres.map((genre) => (
                                 <tr key={genre.id} className="hover:bg-neutral-900/50 transition">
-                                  <td className="py-3.5 px-4 text-[10px] font-mono text-neutral-500">#{genre.id}</td>
-                                  <td className="py-3.5 px-4">
-                                    <div className="font-black text-white text-sm uppercase tracking-wide">{genre.name}</div>
+                                  <td className="py-2.5 px-3 text-[10px] font-mono text-neutral-500">#{genre.id}</td>
+                                  <td className="py-2.5 px-3">
+                                    <div className="font-black text-white text-xs uppercase tracking-wide truncate">{genre.name}</div>
                                     <div className="text-[9px] text-neutral-600 font-mono mt-0.5">
                                       {genre.updatedAt ? `Cập nhật: ${new Date(genre.updatedAt).toLocaleDateString('vi-VN')}` : 'Chưa có mốc cập nhật'}
                                     </div>
                                   </td>
-                                  <td className="py-3.5 px-4 text-xs text-neutral-300 leading-relaxed max-w-md">
-                                    {genre.description || <span className="text-neutral-600 italic">Chưa có mô tả</span>}
+                                  <td className="py-2.5 px-3 text-xs text-neutral-300 leading-relaxed">
+                                    <div className="line-clamp-2 break-words">{genre.description || <span className="text-neutral-600 italic">Chưa có mô tả</span>}</div>
                                   </td>
-                                  <td className="py-3.5 px-4">
+                                  <td className="py-2.5 px-3">
                                     <div className="flex justify-end gap-2">
                                       <button
                                         type="button"
                                         onClick={() => handleEditGenre(genre)}
-                                        className="p-2 text-amber-300 border border-amber-500/20 bg-amber-500/5 hover:bg-amber-400 hover:text-black transition"
+                                        className="p-1.5 text-amber-300 border border-amber-500/20 bg-amber-500/5 hover:bg-amber-400 hover:text-black transition"
                                         title="Chỉnh sửa thể loại"
                                       >
                                         <Edit3 className="h-3.5 w-3.5" />
@@ -292,7 +292,7 @@ export default function AdminGenresPanel({ ctx }) {
                                       <button
                                         type="button"
                                         onClick={() => handleDeleteGenre(genre)}
-                                        className="p-2 text-rose-400 border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500 hover:text-black transition"
+                                        className="p-1.5 text-rose-400 border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500 hover:text-black transition"
                                         title="Xóa thể loại"
                                       >
                                         <Trash2 className="h-3.5 w-3.5" />
