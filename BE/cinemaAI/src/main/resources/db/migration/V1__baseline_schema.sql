@@ -112,6 +112,7 @@ CREATE TABLE dbo.movies (
     description NVARCHAR(MAX),
     trailer_url NVARCHAR(500),
     poster_url NVARCHAR(500),
+    avatar_url NVARCHAR(500),
     duration_minutes INT NOT NULL,
     release_date DATE,
     language NVARCHAR(50),
@@ -119,6 +120,7 @@ CREATE TABLE dbo.movies (
     status NVARCHAR(30) NOT NULL,
     age_rating NVARCHAR(20),
     director NVARCHAR(255),
+    main_actors NVARCHAR(1000),
     cast_list NVARCHAR(MAX),
     created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()

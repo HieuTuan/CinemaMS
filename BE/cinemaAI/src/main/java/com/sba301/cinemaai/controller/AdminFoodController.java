@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -110,5 +111,15 @@ public class AdminFoodController {
             @Valid @RequestBody FoodComboRequest request
     ) {
         return ApiResponse.success(foodService.updateCombo(comboId, request), "Food combo updated successfully");
+    }
+
+    @DeleteMapping("/items/{itemId}")
+    public ApiResponse<FoodItemResponse> deleteItem(@PathVariable Long itemId) {
+        return ApiResponse.success(foodService.deleteItem(itemId), "Food item deleted successfully");
+    }
+
+    @DeleteMapping("/combos/{comboId}")
+    public ApiResponse<FoodComboResponse> deleteCombo(@PathVariable Long comboId) {
+        return ApiResponse.success(foodService.deleteCombo(comboId), "Food combo deleted successfully");
     }
 }

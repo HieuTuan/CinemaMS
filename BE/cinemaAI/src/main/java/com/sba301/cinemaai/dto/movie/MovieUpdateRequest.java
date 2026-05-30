@@ -20,6 +20,9 @@ public record MovieUpdateRequest(
         @Size(max = 500, message = "Poster URL must be at most 500 characters")
         String posterUrl,
 
+        @Size(max = 500, message = "Avatar URL must be at most 500 characters")
+        String avatarUrl,
+
         @Min(value = 1, message = "Duration must be positive")
         int durationMinutes,
 
@@ -32,6 +35,10 @@ public record MovieUpdateRequest(
 
         String ageRating,
         String director,
+
+        @NotBlank(message = "Main actors are required")
+        String mainActors,
+
         String castList,
         List<Long> genreIds
 ) {

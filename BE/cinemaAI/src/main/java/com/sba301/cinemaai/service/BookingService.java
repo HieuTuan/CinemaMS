@@ -116,6 +116,12 @@ public class BookingService {
     }
 
     @Transactional(readOnly = true)
+    public List<BookingResponse> getAdminBookings(BookingStatus status) {
+        List<Booking> bookings = status == null ? bookingRepository.findAll() : bookingRepository.findByStatus(status);
+        return bookings.stream().map(this::toResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
     public BookingResponse getMyBooking(String email, Long bookingId) {
         User user = userService.getByEmail(email);
         Booking booking = findBooking(bookingId);
@@ -123,11 +129,25 @@ public class BookingService {
         return toResponse(booking);
     }
 
+    @Transactional(readOnly = true)
+    public BookingResponse getAdminBooking(Long bookingId) {
+        return toResponse(findBooking(bookingId));
+    }
+
     @Transactional
     public BookingResponse cancel(String email, Long bookingId) {
         User user = userService.getByEmail(email);
         Booking booking = findBooking(bookingId);
         validateOwner(booking, user);
+        return cancelBooking(booking);
+    }
+
+    @Transactional
+    public BookingResponse cancelAdmin(Long bookingId) {
+        return cancelBooking(findBooking(bookingId));
+    }
+
+    private BookingResponse cancelBooking(Booking booking) {
         if (booking.getStatus() == BookingStatus.USED) {
             throw new BadRequestException("Checked-in booking cannot be cancelled");
         }
@@ -153,6 +173,39 @@ public class BookingService {
         bookingSeatRepository.findByBooking(booking)
                 .forEach(seat -> seat.changeStatus(SeatRuntimeStatus.CHECKED_IN));
         return toResponse(booking);
+    }
+
+    @Transactional
+    public BookingResponse checkInAdmin(Long bookingId, String qrCode) {
+        Booking booking = findBooking(bookingId);
+        if (qrCode != null && !qrCode.isBlank()) {
+            String bookingCode;
+            try {
+                bookingCode = qrTicketService.extractBookingCode(qrCode);
+            } catch (IllegalArgumentException exception) {
+                throw new BadRequestException(exception.getMessage());
+            }
+            if (!booking.getBookingCode().equals(bookingCode)) {
+                throw new BadRequestException("QR code does not match booking");
+            }
+        }
+        if (booking.getStatus() != BookingStatus.PAID) {
+            throw new BadRequestException("Only paid booking can be checked in");
+        }
+        booking.checkIn();
+        bookingSeatRepository.findByBooking(booking)
+                .forEach(seat -> seat.changeStatus(SeatRuntimeStatus.CHECKED_IN));
+        return toResponse(booking);
+    }
+
+    @Transactional
+    public int releaseExpiredHolds() {
+        List<Booking> expiredBookings = bookingRepository.findByStatusAndHoldExpiresAtBefore(
+                BookingStatus.HOLDING,
+                LocalDateTime.now()
+        );
+        expiredBookings.forEach(this::expireBooking);
+        return expiredBookings.size();
     }
 
     private BookingFoodItem createFoodItem(Booking booking, BookingFoodRequest request) {
@@ -200,11 +253,6 @@ public class BookingService {
         }
         return bookingSeat.getStatus() == SeatRuntimeStatus.BOOKED
                 || bookingSeat.getStatus() == SeatRuntimeStatus.CHECKED_IN;
-    }
-
-    private void releaseExpiredHolds() {
-        bookingRepository.findByStatusAndHoldExpiresAtBefore(BookingStatus.HOLDING, LocalDateTime.now())
-                .forEach(this::expireBooking);
     }
 
     private void expireBooking(Booking booking) {
