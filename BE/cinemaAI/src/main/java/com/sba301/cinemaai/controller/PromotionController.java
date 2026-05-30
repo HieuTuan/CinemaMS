@@ -3,17 +3,20 @@ package com.sba301.cinemaai.controller;
 import com.sba301.cinemaai.dto.response.ApiResponse;
 import com.sba301.cinemaai.dto.promotion.ApplyPromotionResponse;
 import com.sba301.cinemaai.dto.promotion.PromotionResponse;
+import com.sba301.cinemaai.dto.promotion.ValidatePromotionRequest;
 import com.sba301.cinemaai.service.PromotionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -78,5 +81,21 @@ public class PromotionController {
     ) {
         promotionService.removePromotion(bookingId);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @PostMapping("/validate")
+    @Operation(
+            summary = "Validate / preview promotion",
+            description = "Checks if a promotion code is valid for the given order amount and returns the discount preview. Does NOT apply the promotion."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Promotion is valid"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Promotion conditions not met"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Promotion not found or inactive")
+    })
+    public ResponseEntity<ApiResponse<ApplyPromotionResponse>> validate(
+            @Valid @RequestBody ValidatePromotionRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(promotionService.validatePromotion(request)));
     }
 }

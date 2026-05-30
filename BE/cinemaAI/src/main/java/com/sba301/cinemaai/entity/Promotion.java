@@ -77,6 +77,7 @@ public class Promotion extends BaseEntity {
     public void changeStatus(PromotionStatus status) {
         this.status = status;
     }
+
     public void updateMaxDiscount(BigDecimal maxDiscountAmount) {
         this.maxDiscountAmount = maxDiscountAmount;
     }
@@ -87,5 +88,22 @@ public class Promotion extends BaseEntity {
 
     public void updateUsageLimit(Integer usageLimit) {
         this.usageLimit = usageLimit;
+    }
+
+    public void updateName(String name) {
+        this.name = name;
+    }
+
+    public void updateType(PromotionType type) {
+        this.type = type;
+    }
+
+    public void updateValue(BigDecimal value) {
+        this.value = value;
+    }
+
+    public void updateDates(LocalDateTime startsAt, LocalDateTime endsAt) {
+        this.startsAt = startsAt;
+        this.endsAt = endsAt;
     }
 }
