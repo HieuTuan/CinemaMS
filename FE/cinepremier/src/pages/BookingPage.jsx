@@ -205,20 +205,7 @@ export default function BookingView({ movie, onBack, onConfirmBooking, showToast
         }
       }
 
-      // Thử VNPAY trước, nếu lỗi thì fallback mock
-      setPaymentState('payment_processing');
-      try {
-        const paymentResult = await authApi.createVnpayPayment(accessToken, holdResult.id);
-        const paymentUrl = paymentResult?.paymentUrl ?? paymentResult?.payment_url;
-        if (paymentUrl) {
-          window.location.href = paymentUrl;
-          return;
-        }
-      } catch { /* fallback mock */ }
-
-      // Fallback: mock payment cho demo
-      await authApi.mockPayment(accessToken, holdResult.id);
-      setPaymentState('payment_success');
+      setPaymentState('payment_method');
     } catch (err) {
       showToast(err.message || 'Không thể đặt vé. Vui lòng thử lại.');
       setPaymentState('booking');
@@ -242,18 +229,19 @@ export default function BookingView({ movie, onBack, onConfirmBooking, showToast
     setPaymentState('payment_processing');
     try {
       const result = await authApi.createVnpayPayment(accessToken, holdBookingId);
-      console.log('[VNPAY] result:', result);
       const paymentUrl = result?.paymentUrl ?? result?.payment_url;
       if (paymentUrl) {
         window.location.href = paymentUrl;
-      } else {
-        showToast('BE không trả về link thanh toán VNPAY.');
-        console.error('[VNPAY] missing paymentUrl, full result:', result);
-        setPaymentState('payment_method');
+        return;
       }
+    } catch { /* fallback mock */ }
+
+    // Fallback mock khi VNPAY chưa được duyệt
+    try {
+      await authApi.mockPayment(accessToken, holdBookingId);
+      setPaymentState('payment_success');
     } catch (err) {
-      console.error('[VNPAY] error:', err);
-      showToast(err.message || 'Lỗi tạo thanh toán VNPAY.');
+      showToast(err.message || 'Lỗi thanh toán.');
       setPaymentState('payment_failed');
     }
   };

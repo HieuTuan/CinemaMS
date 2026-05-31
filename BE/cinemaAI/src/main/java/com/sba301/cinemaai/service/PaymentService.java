@@ -125,7 +125,7 @@ public class PaymentService {
             throw new BadRequestException("Only HOLDING bookings can be paid");
         }
         Payment payment = paymentRepository.save(new Payment(booking, PaymentProvider.MOCK, booking.getTotalAmount()));
-        confirmPayment(payment, "MOCK-" + System.currentTimeMillis(), "{\"provider\":\"MOCK\"}");
+        confirmPayment(payment, "MOCK-" + System.currentTimeMillis(), Map.of("provider", "MOCK"));
         return toResponse(payment, null);
     }
 
