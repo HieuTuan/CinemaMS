@@ -52,7 +52,8 @@ class AuthIntegrationTests {
                 email,
                 "Password123",
                 "Phase Two Customer",
-                "0900111222"
+                "0900111222",
+                2000
         ));
 
         mockMvc.perform(post("/api/v1/auth/register")

@@ -14,6 +14,7 @@ public class UserMapper {
                 user.getEmail(),
                 user.getFullName(),
                 user.getPhone(),
+                user.getBirthYear(),
                 user.getStatus(),
                 user.isEmailVerified(),
                 user.isPhoneVerified(),

@@ -39,7 +39,6 @@ export default function BookingView({ movie, onBack, onConfirmBooking, showToast
   const [bookingStep, setBookingStep] = useState('seats');
 
   // Age confirmation check state
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
 
   // Payment simulated process states: 
   // 'booking' (seat map/combos choosing)
@@ -139,11 +138,6 @@ export default function BookingView({ movie, onBack, onConfirmBooking, showToast
   const handleProceedToPayment = () => {
     if (selectedSeats.length === 0) {
       showToast("Vui lòng chọn ít nhất một ghế để tiếp tục đặt vé.");
-      return;
-    }
-
-    if (!ageConfirmed) {
-      showToast(`QUY ĐỊNH ĐỘ TUỔI TỪ CHỐI GIAO DỊCH:\nBạn vui lòng tích chọn xác nhận đủ điều kiện độ tuổi tối thiểu (${movie.ageRating}) để xem bộ phim này trước khi thực hiện thanh toán.`);
       return;
     }
 
@@ -1255,55 +1249,18 @@ export default function BookingView({ movie, onBack, onConfirmBooking, showToast
 
           </div>
 
-          {/* Age Rating Warning and Checkbox verification */}
-          <div className={`p-4 border transition-all text-left space-y-3.5 ${
-            ageConfirmed 
-              ? 'border-emerald-500/20 bg-emerald-950/5' 
-              : 'border-amber-500/30 bg-amber-950/10'
-          }`}>
-            <div className="flex items-start gap-3">
-              <input
-                type="checkbox"
-                id="age-verification-checkbox"
-                checked={ageConfirmed}
-                onChange={(e) => setAgeConfirmed(e.target.checked)}
-                style={{ contentVisibility: 'auto' }}
-                className="mt-1 h-4 w-4 rounded-none bg-neutral-900 border-white/20 text-amber-500 focus:ring-transparent accent-amber-500 cursor-pointer"
-              />
-              <label 
-                htmlFor="age-verification-checkbox" 
-                className="text-[10.5px] leading-relaxed text-neutral-300 font-sans cursor-pointer select-none block flex-1"
-              >
-                <span className="text-amber-400 font-black tracking-wider uppercase block mb-1 flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 inline-block"></span>
-                  XÁC NHẬN ĐỦ ĐỘ TUỔI {movie.ageRating}
-                </span>
-                Xác nhận tôi đã đạt từ <span className="underline text-white font-bold">{movie.ageRating === 'T18' ? '18 tuổi trở lên' : movie.ageRating === 'T16' ? '16 tuổi trở lên' : movie.ageRating === 'T13' ? '13 tuổi trở lên' : 'đủ độ tuổi quy định'}</span> ứng với phân loại phim này để vào rạp thưởng thức tác phẩm.
-              </label>
-            </div>
-          </div>
-
           {/* CTA Proceed triggers */}
           <button
             onClick={handleProceedToPayment}
             className={`w-full flex items-center justify-center space-x-2 py-4 text-xs font-bold font-sans uppercase tracking-[0.2em] transition-all border ${
               selectedSeats.length === 0
                 ? 'bg-neutral-900 border-neutral-800 text-neutral-600 cursor-not-allowed opacity-30'
-                : !ageConfirmed
-                  ? 'bg-amber-500/10 border-amber-500/35 text-amber-500 hover:bg-amber-500 hover:text-black hover:border-amber-500'
-                  : 'bg-white hover:bg-black hover:text-white border-white text-black'
+                : 'bg-white hover:bg-black hover:text-white border-white text-black'
             }`}
             id="proceed-payment-submit"
           >
             <Ticket className="h-4.5 w-4.5" />
-            <span>
-              {selectedSeats.length === 0 
-                ? 'CHƯA CHỌN GHẾ' 
-                : !ageConfirmed 
-                  ? 'XÁC NHẬN TUỔI ĐỂ THANH TOÁN' 
-                  : 'TIẾP TỤC THANH TOÁN'
-              }
-            </span>
+            <span>{selectedSeats.length === 0 ? 'CHƯA CHỌN GHẾ' : 'TIẾP TỤC THANH TOÁN'}</span>
           </button>
 
         </div>

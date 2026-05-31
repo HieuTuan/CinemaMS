@@ -42,6 +42,7 @@ export default function ProfileView({
   const [profileBioInput, setProfileBioInput] = useState('Chuyên gia phê bình Điện ảnh VIP Gold của CinePremier.');
   const [profileEmailInput, setProfileEmailInput] = useState('minhhong.vip@cinepremier.vn');
   const [profilePhoneInput, setProfilePhoneInput] = useState('');
+  const [profileDateOfBirth, setProfileDateOfBirth] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Settings - Payment card states
@@ -72,6 +73,7 @@ export default function ProfileView({
         setProfileEmailInput(currentUser.email);
       }
       setProfilePhoneInput(normalizePhoneInput(currentUser.phone || ''));
+      setProfileDateOfBirth(currentUser.birthYear ? String(currentUser.birthYear) : '');
     }
   }, [currentUser]);
 
@@ -103,7 +105,8 @@ export default function ProfileView({
     try {
       const updatedProfile = await authApi.updateMyProfile(accessToken, {
         fullName: cleanName,
-        phone: cleanPhone
+        phone: cleanPhone,
+        birthYear: profileDateOfBirth ? parseInt(profileDateOfBirth) : null
       });
       const nextUser = normalizeUser(updatedProfile, updatedProfile.roles || currentUser?.roles || []);
       localStorage.setItem('cinepremier_auth_user', JSON.stringify(nextUser));
@@ -770,6 +773,20 @@ export default function ProfileView({
                                 className="w-full bg-black border border-neutral-850 focus:border-amber-400 text-white p-2 text-xs focus:outline-none focus:ring-0 rounded-none font-mono"
                               />
                               <p className="text-[9px] text-neutral-600 font-mono">10 số, bắt đầu 03/05/08/09</p>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[9px] uppercase tracking-wider font-extrabold text-neutral-500">Năm sinh</label>
+                              <input
+                                type="number"
+                                min={1900}
+                                max={new Date().getFullYear() - 5}
+                                placeholder="VD: 2000"
+                                value={profileDateOfBirth}
+                                onChange={(e) => setProfileDateOfBirth(e.target.value)}
+                                className="w-full bg-black border border-neutral-850 focus:border-amber-400 text-white p-2 text-xs focus:outline-none focus:ring-0 rounded-none font-mono"
+                              />
+                              <p className="text-[9px] text-neutral-600 font-mono">Dùng để xác minh độ tuổi xem phim</p>
                             </div>
                           </div>
 

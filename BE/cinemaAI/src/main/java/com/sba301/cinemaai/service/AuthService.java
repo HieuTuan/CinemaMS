@@ -75,6 +75,7 @@ public class AuthService {
                             passwordEncoder.encode(request.password()),
                             request.fullName(),
                             request.phone(),
+                            request.birthYear(),
                             otp,
                             expiresAt
                     );
@@ -85,6 +86,7 @@ public class AuthService {
                         passwordEncoder.encode(request.password()),
                         request.fullName(),
                         request.phone(),
+                        request.birthYear(),
                         otp,
                         expiresAt
                 )));
@@ -108,6 +110,7 @@ public class AuthService {
                 pendingRegistration.getPasswordHash(),
                 pendingRegistration.getFullName(),
                 pendingRegistration.getPhone(),
+                pendingRegistration.getBirthYear(),
                 generateOtp(),
                 LocalDateTime.now().plusSeconds(EMAIL_VERIFICATION_EXPIRES_IN_SECONDS)
         );
@@ -140,6 +143,9 @@ public class AuthService {
                 pendingRegistration.getFullName(),
                 pendingRegistration.getPhone()
         ));
+        if (pendingRegistration.getBirthYear() != null) {
+            user.updateProfile(user.getFullName(), user.getPhone(), pendingRegistration.getBirthYear());
+        }
         user.activateEmail();
         userRoleService.assignRole(user, RoleName.CUSTOMER);
         pendingRegistrationRepository.delete(pendingRegistration);
@@ -242,6 +248,7 @@ public class AuthService {
                 pendingRegistration.getEmail(),
                 pendingRegistration.getFullName(),
                 pendingRegistration.getPhone(),
+                pendingRegistration.getBirthYear(),
                 UserStatus.PENDING_VERIFICATION,
                 false,
                 false,

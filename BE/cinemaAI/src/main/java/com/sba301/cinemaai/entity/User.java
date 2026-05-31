@@ -46,6 +46,9 @@ public class User extends BaseEntity {
     @Column(name = "phone_verified", nullable = false)
     private boolean phoneVerified;
 
+    @Column(name = "birth_year")
+    private Integer birthYear;
+
     public User(String email, String passwordHash, String fullName, String phone) {
         this.email = email;
         this.passwordHash = passwordHash;
@@ -67,12 +70,13 @@ public class User extends BaseEntity {
         this.status = UserStatus.DISABLED;
     }
 
-    public void updateProfile(String fullName, String phone) {
+    public void updateProfile(String fullName, String phone, Integer birthYear) {
         this.fullName = fullName;
         if (!Objects.equals(this.phone, phone)) {
             this.phoneVerified = false;
         }
         this.phone = phone;
+        this.birthYear = birthYear;
     }
 
     public void changePassword(String passwordHash) {

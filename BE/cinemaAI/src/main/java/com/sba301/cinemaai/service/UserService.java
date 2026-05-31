@@ -40,7 +40,7 @@ public class UserService {
     @Transactional
     public UserProfileResponse updateProfile(String email, UserProfileUpdateRequest request) {
         User user = getByEmail(email);
-        user.updateProfile(request.fullName(), request.phone());
+        user.updateProfile(request.fullName(), request.phone(), request.birthYear());
         return toProfile(user);
     }
 
