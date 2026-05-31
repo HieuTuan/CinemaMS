@@ -172,7 +172,14 @@ public class DevSeedDataRunner implements CommandLineRunner {
             for (int number = 1; number <= 8; number++) {
                 String rowLabel = Character.toString(row);
                 if (!seatRepository.existsByRoomAndRowLabelAndSeatNumber(room, rowLabel, number)) {
-                    SeatType seatType = row == 'E' ? SeatType.VIP : SeatType.NORMAL;
+                    SeatType seatType;
+                    if (row == 'E') {
+                        seatType = SeatType.COUPLE;
+                    } else if ((row == 'B' || row == 'C' || row == 'D') && number >= 3 && number <= 6) {
+                        seatType = SeatType.VIP;
+                    } else {
+                        seatType = SeatType.NORMAL;
+                    }
                     seatRepository.save(new Seat(room, rowLabel, number, seatType));
                 }
             }
@@ -195,6 +202,11 @@ public class DevSeedDataRunner implements CommandLineRunner {
 
         LocalDateTime endTime = startTime.plusMinutes(movie.getDurationMinutes()).plusMinutes(15);
         Showtime showtime = new Showtime(movie, room, startTime, endTime, BigDecimal.valueOf(90000));
+        showtime.changePrices(
+                BigDecimal.valueOf(90000),  // NORMAL
+                BigDecimal.valueOf(135000), // VIP
+                BigDecimal.valueOf(200000)  // COUPLE
+        );
         showtime.changeStatus(ShowtimeStatus.OPEN);
         showtimeRepository.save(showtime);
     }

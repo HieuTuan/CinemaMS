@@ -11,6 +11,7 @@ import MyTicketsView from './pages/MyTicketsPage';
 import WishlistView from './pages/WishlistPage';
 import AdminDashboard from './pages/AdminPage';
 import PoliciesPage from './pages/PoliciesPage';
+import PaymentCallbackPage from './pages/PaymentCallbackPage';
 import AuthModal from './features/auth/AuthModal';
 import { movies, cinemaLocations } from './services/cinemaData';
 import { authApi, clearAuthSession, getStoredAuth, normalizeUser, saveAuthSession } from './services/authApi';
@@ -26,6 +27,7 @@ export default function App() {
     if (path === '/watchlist') return { tab: 'wishlist', adminSection: 'overview' };
     if (path === '/profile') return { tab: 'profile', adminSection: 'overview' };
     if (path === '/policies') return { tab: 'policies', adminSection: 'overview' };
+    if (path === '/payment-callback') return { tab: 'payment-callback', adminSection: 'overview' };
     return { tab: 'home', adminSection: 'overview' };
   };
 
@@ -215,6 +217,18 @@ export default function App() {
     };
 
     restoreSession();
+  }, []);
+
+  // Khi token hết hạn và không refresh được → tự động về trạng thái chưa đăng nhập
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setIsLoggedIn(false);
+      setCurrentUser(null);
+      setCurrentRole('user');
+      setShowOTP(true);
+    };
+    window.addEventListener('auth:session-expired', handleSessionExpired);
+    return () => window.removeEventListener('auth:session-expired', handleSessionExpired);
   }, []);
 
   const performLogout = async () => {
@@ -648,6 +662,8 @@ export default function App() {
                     isAdmin={currentRole === 'admin'}
                     currentUser={currentUser}
                   />
+                ) : activeTab === 'payment-callback' ? (
+                  <PaymentCallbackPage onGoHome={() => navigateApp('home')} />
                 ) : activeTab === 'policies' ? (
                   <PoliciesPage />
                 ) : (

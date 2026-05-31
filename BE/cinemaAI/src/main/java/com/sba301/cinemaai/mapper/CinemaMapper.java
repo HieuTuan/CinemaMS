@@ -65,20 +65,23 @@ public class CinemaMapper {
                 showtime.getStartTime(),
                 showtime.getEndTime(),
                 showtime.getBasePrice(),
+                showtime.getVipPrice(),
+                showtime.getCouplePrice(),
                 showtime.getStatus(),
                 showtime.getCreatedAt(),
                 showtime.getUpdatedAt()
         );
     }
 
-    public ShowtimeSeatResponse toShowtimeSeatResponse(Seat seat, String runtimeStatus) {
+    public ShowtimeSeatResponse toShowtimeSeatResponse(Seat seat, String runtimeStatus, Showtime showtime) {
         return new ShowtimeSeatResponse(
                 seat.getId(),
                 seat.getRowLabel(),
                 seat.getSeatNumber(),
                 seat.getSeatType(),
                 seat.getStatus(),
-                runtimeStatus
+                runtimeStatus,
+                showtime.getPriceForSeatType(seat.getSeatType())
         );
     }
 }

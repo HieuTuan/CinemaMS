@@ -15,6 +15,8 @@ public record ShowtimeResponse(
         LocalDateTime startTime,
         LocalDateTime endTime,
         BigDecimal basePrice,
+        BigDecimal vipPrice,
+        BigDecimal couplePrice,
         ShowtimeStatus status,
         LocalDateTime createdAt,
         LocalDateTime updatedAt

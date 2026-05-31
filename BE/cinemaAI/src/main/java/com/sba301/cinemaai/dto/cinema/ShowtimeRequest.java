@@ -20,6 +20,12 @@ public record ShowtimeRequest(
         @DecimalMin(value = "0.0", inclusive = false, message = "Base price must be positive")
         BigDecimal basePrice,
 
+        @DecimalMin(value = "0.0", inclusive = false, message = "VIP price must be positive")
+        BigDecimal vipPrice,
+
+        @DecimalMin(value = "0.0", inclusive = false, message = "Couple price must be positive")
+        BigDecimal couplePrice,
+
         ShowtimeStatus status
 ) {
 }

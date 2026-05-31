@@ -73,7 +73,8 @@ public class BookingService {
         for (Long seatId : request.seatIds().stream().distinct().toList()) {
             Seat seat = findSeat(seatId);
             validateSeatForShowtime(showtime, seat);
-            BookingSeat bookingSeat = bookingSeatRepository.save(new BookingSeat(booking, showtime, seat, showtime.getBasePrice()));
+            BigDecimal unitPrice = showtime.getPriceForSeatType(seat.getSeatType());
+            BookingSeat bookingSeat = bookingSeatRepository.save(new BookingSeat(booking, showtime, seat, unitPrice));
             subtotal = subtotal.add(bookingSeat.getUnitPrice());
         }
 
@@ -106,7 +107,8 @@ public class BookingService {
 
         bookingSeatRepository.findByBooking(booking)
                 .forEach(seat -> seat.changeStatus(SeatRuntimeStatus.BOOKED));
-        booking.updateAmounts(subtotal, BigDecimal.ZERO, subtotal);
+        BigDecimal discount = booking.getDiscountAmount();
+        booking.updateAmounts(subtotal, discount, subtotal.subtract(discount));
         booking.markPaid(qrTicketService.generate(booking));
         loyaltyPointService.addPointsFromBooking(user, booking);
         return toResponse(booking);

@@ -118,6 +118,8 @@ class CinemaShowtimeIntegrationTests {
                 roomId,
                 startTime,
                 BigDecimal.valueOf(95000),
+                null,
+                null,
                 ShowtimeStatus.OPEN
         ));
 
@@ -143,6 +145,8 @@ class CinemaShowtimeIntegrationTests {
                                 roomId,
                                 startTime.plusMinutes(30),
                                 BigDecimal.valueOf(95000),
+                                null,
+                                null,
                                 ShowtimeStatus.OPEN
                         ))))
                 .andExpect(status().isConflict());
