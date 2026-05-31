@@ -30,23 +30,24 @@ export default function MyTicketsView({
   const activeTickets = realBookings
     .filter(b => b.status === 'PAID' || b.status === 'USED' || b.status === 'HOLDING')
     .map(b => ({
-      id: b.bookingCode,
-      title: b.movieTitle || 'Phim',
-      time: b.showtimeStart ? new Date(b.showtimeStart).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '',
-      date: b.showtimeStart ? new Date(b.showtimeStart).toLocaleDateString('vi-VN') : '',
-      room: b.roomName || '',
+      id: b.bookingCode || String(b.id),
+      title: b.movieTitle || b.showtime?.movieTitle || 'Phim',
+      englishTitle: b.bookingCode || '',
+      time: b.showtimeStart ? new Date(b.showtimeStart).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '—',
+      date: b.showtimeStart ? new Date(b.showtimeStart).toLocaleDateString('vi-VN') : '—',
+      room: b.roomName || b.showtime?.roomName || '—',
       location: b.cinemaName || 'CinePremier',
-      seats: b.seats?.map(s => `${s.rowLabel}${s.seatNumber}`).join(', ') || '',
-      code: b.bookingCode,
+      seats: b.seats?.map(s => `${s.rowLabel}${s.seatNumber}`).join(', ') || '—',
+      code: b.bookingCode || String(b.id),
       badge: b.status === 'PAID' ? 'ĐÃ THANH TOÁN' : b.status === 'USED' ? 'ĐÃ SỬ DỤNG' : 'ĐANG GIỮ',
       badgeColor: b.status === 'PAID' ? 'bg-emerald-950/20 text-emerald-400 border-emerald-500/20'
         : b.status === 'USED' ? 'bg-neutral-900 text-neutral-400 border-neutral-700'
         : 'bg-amber-950/20 text-amber-400 border-amber-500/20',
-      helperText: b.status === 'PAID' ? 'Sẵn sàng quét / Đưa mã này cho nhân viên soát vé'
+      helperText: b.status === 'PAID' ? 'Sẵn sàng quét / Đưa mã cho nhân viên soát vé'
         : b.status === 'HOLDING' ? `Ghế giữ đến ${b.holdExpiresAt ? new Date(b.holdExpiresAt).toLocaleTimeString('vi-VN') : ''}`
         : 'Đã sử dụng',
       totalAmount: b.totalAmount,
-      poster: null,
+      poster: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=350&auto=format&fit=crop',
       isReal: true
     }));
 
