@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class EmailVerificationService {
 
+    private static final int EMAIL_VERIFICATION_EXPIRES_IN_SECONDS = 90;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final EmailVerificationTokenRepository emailVerificationTokenRepository;
@@ -30,7 +31,7 @@ public class EmailVerificationService {
                         user,
                         generateOtp(),
                         EmailOtpPurpose.EMAIL_VERIFICATION,
-                        LocalDateTime.now().plusMinutes(10)
+                        LocalDateTime.now().plusSeconds(EMAIL_VERIFICATION_EXPIRES_IN_SECONDS)
                 )
         );
         mailService.sendOtp(user.getEmail(), verificationToken.getToken(), "Email verification");

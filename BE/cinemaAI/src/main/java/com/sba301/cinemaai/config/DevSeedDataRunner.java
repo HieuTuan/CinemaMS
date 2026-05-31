@@ -132,7 +132,7 @@ public class DevSeedDataRunner implements CommandLineRunner {
         Movie movie = movieRepository.findByTitle(seed.title())
                 .orElseGet(() -> movieRepository.save(new Movie(seed.title(), seed.durationMinutes(), seed.status())));
         movie.updateDetails(seed.title(), seed.description(), seed.durationMinutes(), seed.releaseDate());
-        movie.updateMetadata(seed.language(), seed.subtitleLanguage(), seed.ageRating(), seed.director(), "Sample cast");
+        movie.updateMetadata(seed.language(), seed.subtitleLanguage(), seed.ageRating(), seed.director(), "Sample lead actors", "Sample cast");
         movie.changeStatus(seed.status());
 
         for (String genreName : seed.genreNames().split(",")) {
@@ -145,16 +145,23 @@ public class DevSeedDataRunner implements CommandLineRunner {
     }
 
     private void seedCinemaSchedule() {
-        Cinema cinema = cinemaRepository.findByName("CineAI Central")
-                .orElseGet(() -> cinemaRepository.save(new Cinema(
+        Cinema cinema = cinemaRepository.findFirstByOrderByIdAsc()
+                .orElseGet(() -> new Cinema(
                         "CineAI Central",
                         "1 Nguyen Hue, District 1",
                         "Ho Chi Minh City",
                         "0900000000"
-                )));
+                ));
+        cinema.updateInfo(
+                "CineAI Central",
+                "1 Nguyen Hue, District 1",
+                "Ho Chi Minh City",
+                "0900000000"
+        );
+        Cinema savedCinema = cinemaRepository.save(cinema);
 
-        Room room = roomRepository.findByCinemaAndName(cinema, "Room A")
-                .orElseGet(() -> roomRepository.save(new Room(cinema, "Room A", RoomType.TWO_D, 5, 8)));
+        Room room = roomRepository.findByCinemaAndName(savedCinema, "Room A")
+                .orElseGet(() -> roomRepository.save(new Room(savedCinema, "Room A", RoomType.TWO_D, 5, 8)));
 
         seedSeats(room);
         seedShowtimes(room);

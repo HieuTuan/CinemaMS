@@ -22,6 +22,7 @@ public record AIAnalysisResponse(
         String providerRawResponse,
         Long approvedByUserId,
         LocalDateTime approvedAt,
+        String decisionReason,
         List<AIEmotionSegmentResponse> emotionSegments,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
