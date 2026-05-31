@@ -327,18 +327,10 @@ export default function App() {
 
   // Handle Confirm Ticket Booking
   const handleConfirmBooking = (booking) => {
-    const randomTicketId = 'CP-' + Math.floor(100000 + Math.random() * 900000);
-    const newTicket = {
-      ...booking,
-      ticketId: randomTicketId,
-      bookingTime: new Date().toLocaleString()
-    };
-
-    setBookedTickets([newTicket, ...bookedTickets]);
     setBookingMovie(null);
     setSelectedMovieId(null);
-    setShowWatchlist(true); // Open tickets panel to show success!
-    showToast(`Xác thực giao dịch thành công!\nMã vé của bạn là: ${randomTicketId}\nHệ thống đã lưu vé của bạn vào mục "Vé & Watchlist".`);
+    navigateApp('my-tickets');
+    showToast(`Đặt vé thành công! Mã booking: ${booking.bookingCode || ''}`.trim());
   };
 
   const handleToggleWatchlist = (movie) => {
@@ -629,7 +621,6 @@ export default function App() {
                 ) : activeTab === 'my-tickets' ? (
                   // Custom Tickets listing and history page
                   <MyTicketsView
-                    bookedTickets={bookedTickets}
                     onSelectMovie={handleSelectMovie}
                     isLoggedIn={isLoggedIn}
                     onOpenOTP={() => setShowOTP(true)}
