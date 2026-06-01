@@ -10,8 +10,6 @@ public interface CinemaRepository extends JpaRepository<Cinema, Long> {
 
     Optional<Cinema> findByName(String name);
 
-    Optional<Cinema> findFirstByOrderByIdAsc();
-
     List<Cinema> findByCity(String city);
 
     List<Cinema> findByStatus(CinemaStatus status);
