@@ -23,6 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -85,6 +86,7 @@ class AIAnalysisIntegrationTests {
                         .content(objectMapper.writeValueAsString(new AIAnalysisDecisionRequest("Looks good"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("APPROVED"))
+                .andExpect(jsonPath("$.data.decisionReason").value("Looks good"))
                 .andExpect(jsonPath("$.data.approvedByUserId").isNumber());
 
         mockMvc.perform(get("/api/v1/movies/{movieId}/analysis", movie.getId()))
@@ -97,9 +99,18 @@ class AIAnalysisIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new AIAnalysisDecisionRequest("Needs changes"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("REJECTED"));
+                .andExpect(jsonPath("$.data.status").value("REJECTED"))
+                .andExpect(jsonPath("$.data.decisionReason").value("Needs changes"));
 
         mockMvc.perform(get("/api/v1/movies/{movieId}/analysis", movie.getId()))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(delete("/api/v1/admin/analyses/{analysisId}", analysisId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/admin/analyses/{analysisId}", analysisId)
+                        .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound());
     }
 
@@ -107,7 +118,7 @@ class AIAnalysisIntegrationTests {
         String title = "Phase 4 Rescue Mission " + System.nanoTime();
         Movie movie = new Movie(title, 118, MovieStatus.NOW_SHOWING);
         movie.updateDetails(title, "A rescue mission crosses a dangerous frontier.", 118, LocalDate.of(2026, 5, 19));
-        movie.updateMetadata("English", "Vietnamese", "13+", "Phase Four Director", "Lead One, Lead Two");
+        movie.updateMetadata("English", "Vietnamese", "13+", "Phase Four Director", "Lead One, Lead Two", "Lead One, Lead Two");
         return movieRepository.save(movie);
     }
 

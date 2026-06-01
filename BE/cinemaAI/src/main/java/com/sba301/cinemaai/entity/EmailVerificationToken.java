@@ -1,7 +1,10 @@
 package com.sba301.cinemaai.entity;
 
+import com.sba301.cinemaai.enums.EmailOtpPurpose;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -31,6 +34,10 @@ public class EmailVerificationToken extends BaseEntity {
     @Column(nullable = false, unique = true, length = 500)
     private String token;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private EmailOtpPurpose purpose = EmailOtpPurpose.EMAIL_VERIFICATION;
+
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
 
@@ -40,6 +47,13 @@ public class EmailVerificationToken extends BaseEntity {
     public EmailVerificationToken(User user, String token, LocalDateTime expiresAt) {
         this.user = user;
         this.token = token;
+        this.expiresAt = expiresAt;
+    }
+
+    public EmailVerificationToken(User user, String token, EmailOtpPurpose purpose, LocalDateTime expiresAt) {
+        this.user = user;
+        this.token = token;
+        this.purpose = purpose;
         this.expiresAt = expiresAt;
     }
 

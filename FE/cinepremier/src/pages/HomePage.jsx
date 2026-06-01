@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Play, Pause, Sparkles, MessageSquare, Check, HelpCircle, Volume2, VolumeX, ChevronLeft, ChevronRight, Film } from 'lucide-react';
 import { movies } from '../services/cinemaData';
 import MovieCard from '../components/movies/MovieCard';
-
+import Snowfall from 'react-snowfall';
 const extractYoutubeId = (url = '') => {
   const trimmed = url.trim();
   if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
@@ -24,15 +24,16 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
   const [loadingAI, setLoadingAI] = useState(false);
 
   // Filter movies for "Now Playing" and "Upcoming"
-  const nowPlaying = moviesList.filter(m => !m.isUpcoming);
-  const upcoming = moviesList.filter(m => m.isUpcoming);
+  const publicMovies = moviesList.filter((m) => m.status !== 'INACTIVE' && !m.isInactive);
+  const nowPlaying = publicMovies.filter((m) => m.status === 'NOW_SHOWING' || (!m.status && !m.isUpcoming));
+  const upcoming = publicMovies.filter((m) => m.status === 'UPCOMING' || m.isUpcoming);
 
   // Hero movie index state to cycle beautifully
   const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
 
-  const heroMovie = nowPlaying[currentHeroIndex] || nowPlaying[0] || moviesList[0];
+  const heroMovie = nowPlaying[currentHeroIndex] || nowPlaying[0] || publicMovies[0];
   const heroYoutubeId = extractYoutubeId(homepageVideoUrl);
   const heroYoutubeSrc = `https://www.youtube.com/embed/${heroYoutubeId}?autoplay=${isPlaying ? 1 : 0}&mute=${isMuted ? 1 : 0}&controls=0&loop=1&playlist=${heroYoutubeId}&playsinline=1&rel=0&modestbranding=1&iv_load_policy=3&disablekb=1`;
 
@@ -54,7 +55,7 @@ export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, movi
   ];
 
   const currentRecommendation = moodTags.find(m => m.tag === selectedMood);
-  const recommendedMovie = moviesList.find(m => m.id === (currentRecommendation?.movieId || 'neon-horizon')) || nowPlaying[0];
+  const recommendedMovie = publicMovies.find(m => m.id === (currentRecommendation?.movieId || 'neon-horizon')) || nowPlaying[0];
 
   // Simple clever local rule-based cinematic AI engine
   const handleAISuggest = (e) => {

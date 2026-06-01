@@ -11,6 +11,7 @@ public record UserProfileResponse(
         String phone,
         UserStatus status,
         boolean emailVerified,
+        boolean phoneVerified,
         List<String> roles,
         LocalDateTime createdAt,
         LocalDateTime updatedAt

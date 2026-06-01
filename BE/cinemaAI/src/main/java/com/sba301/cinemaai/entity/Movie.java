@@ -1,7 +1,10 @@
 package com.sba301.cinemaai.entity;
 
+import com.sba301.cinemaai.enums.AgeRating;
+import com.sba301.cinemaai.enums.AgeRatingConverter;
 import com.sba301.cinemaai.enums.MovieStatus;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -44,6 +47,9 @@ public class Movie extends BaseEntity {
     @Column(name = "poster_url", length = 500)
     private String posterUrl;
 
+    @Column(name = "avatar_url", length = 500)
+    private String avatarUrl;
+
     @Column(name = "duration_minutes", nullable = false)
     private int durationMinutes;
 
@@ -60,10 +66,14 @@ public class Movie extends BaseEntity {
     @Column(nullable = false, length = 30)
     private MovieStatus status = MovieStatus.UPCOMING;
 
+    @Convert(converter = AgeRatingConverter.class)
     @Column(name = "age_rating", length = 20)
-    private String ageRating;
+    private AgeRating ageRating;
 
     private String director;
+
+    @Column(name = "main_actors", length = 1000)
+    private String mainActors;
 
     @Lob
     @Column(name = "cast_list")
@@ -82,9 +92,10 @@ public class Movie extends BaseEntity {
         this.releaseDate = releaseDate;
     }
 
-    public void updateMedia(String trailerUrl, String posterUrl) {
+    public void updateMedia(String trailerUrl, String posterUrl, String avatarUrl) {
         this.trailerUrl = trailerUrl;
         this.posterUrl = posterUrl;
+        this.avatarUrl = avatarUrl;
     }
 
     public void updateMetadata(
@@ -92,12 +103,25 @@ public class Movie extends BaseEntity {
             String subtitleLanguage,
             String ageRating,
             String director,
+            String mainActors,
+            String castList
+    ) {
+        updateMetadata(language, subtitleLanguage, AgeRating.from(ageRating), director, mainActors, castList);
+    }
+
+    public void updateMetadata(
+            String language,
+            String subtitleLanguage,
+            AgeRating ageRating,
+            String director,
+            String mainActors,
             String castList
     ) {
         this.language = language;
         this.subtitleLanguage = subtitleLanguage;
         this.ageRating = ageRating;
         this.director = director;
+        this.mainActors = mainActors;
         this.castList = castList;
     }
 

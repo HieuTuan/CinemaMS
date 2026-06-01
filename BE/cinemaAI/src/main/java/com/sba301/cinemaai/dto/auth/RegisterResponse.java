@@ -4,6 +4,7 @@ import com.sba301.cinemaai.dto.user.UserProfileResponse;
 
 public record RegisterResponse(
         UserProfileResponse user,
-        String emailVerificationToken
+        boolean emailVerificationRequired,
+        long emailVerificationExpiresInSeconds
 ) {
 }

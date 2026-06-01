@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, ChevronRight, ChevronLeft, Film, Filter } from 'lucide-react';
+import { Search, ChevronRight, ChevronLeft, Film, Filter, CalendarDays, X } from 'lucide-react';
 import { movies } from '../services/cinemaData';
 import MovieCard from '../components/movies/MovieCard';
 
@@ -8,19 +8,25 @@ export default function ExploreView({
   onSearchChange,
   onSelectMovie,
   onBookMovie,
-  moviesList = movies
+  moviesList = movies,
+  isLoading = false,
+  pagination = null,
+  onPageChange = () => { },
+  selectedDate = '',
+  onDateChange = () => { }
 }) {
   const [selectedGenre, setSelectedGenre] = useState('Tất cả');
   const [sortBy, setSortBy] = useState('aiOverall'); // aiOverall, newest, duration
-  const [currentPage, setCurrentPage] = useState(1);
+  const [localPage, setLocalPage] = useState(1);
   const itemsPerPage = 8;
+  const currentPage = pagination ? (Number(pagination.page) || 0) + 1 : localPage;
 
   // Pre-configured unique genres list
   const genres = ['Tất cả', 'Sci-Fi', 'Hành Động', 'Tâm Lý', 'Gây Cấn', 'Hoạt Hình', 'Noir'];
 
   // Filter and sort logical step
   const processedMovies = useMemo(() => {
-    let result = [...moviesList];
+    let result = moviesList.filter((movie) => movie.status !== 'INACTIVE' && !movie.isInactive);
 
     // 1. Text Search Filter
     if (searchQuery.trim()) {
@@ -59,15 +65,20 @@ export default function ExploreView({
   }, [searchQuery, selectedGenre, sortBy, moviesList]);
 
   // Pagination logical step
-  const totalPages = Math.max(1, Math.ceil(processedMovies.length / itemsPerPage));
+  const totalPages = pagination?.totalPages || Math.max(1, Math.ceil(processedMovies.length / itemsPerPage));
   const currentMovies = useMemo(() => {
+    if (pagination) return processedMovies;
     const start = (currentPage - 1) * itemsPerPage;
     return processedMovies.slice(start, start + itemsPerPage);
-  }, [processedMovies, currentPage]);
+  }, [processedMovies, currentPage, pagination]);
 
   const handlePageChange = (page) => {
     if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
+      if (pagination) {
+        onPageChange(page);
+      } else {
+        setLocalPage(page);
+      }
     }
   };
 
@@ -100,7 +111,8 @@ export default function ExploreView({
                 key={g}
                 onClick={() => {
                   setSelectedGenre(g);
-                  setCurrentPage(1);
+                  if (pagination) onPageChange(1);
+                  setLocalPage(1);
                 }}
                 className={`px-4 py-2 text-[10px] uppercase font-sans tracking-[0.15em] transition-all duration-300 ${
                   selectedGenre === g
@@ -114,6 +126,28 @@ export default function ExploreView({
           </div>
 
           {/* Sort Selection dropdown */}
+          <div className="flex items-center space-x-3 flex-shrink-0">
+            <CalendarDays className="h-4 w-4 text-neutral-500" />
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => onDateChange(e.target.value)}
+              className="border border-white/10 bg-black px-3 py-2 text-[10px] uppercase font-sans tracking-widest text-white focus:border-white focus:outline-none [color-scheme:dark]"
+              aria-label="Chọn ngày chiếu"
+            />
+            {selectedDate && (
+              <button
+                type="button"
+                onClick={() => onDateChange('')}
+                className="border border-white/10 bg-black p-2 text-neutral-400 transition hover:border-white/40 hover:text-white"
+                title="Xóa lọc ngày"
+                aria-label="Xóa lọc ngày"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
           <div className="flex items-center space-x-3 flex-shrink-0">
             <span className="text-[10px] font-sans uppercase tracking-[0.15em] text-neutral-500">Sắp xếp:</span>
             <select
@@ -142,6 +176,11 @@ export default function ExploreView({
           />
         </div>
 
+        <div className="flex items-center justify-between border-t border-white/5 pt-3 text-[10px] uppercase tracking-[0.16em] text-neutral-500">
+          <span>{isLoading ? 'Đang tải phim từ hệ thống...' : `Tìm thấy ${pagination?.totalElements ?? processedMovies.length} phim`}</span>
+          <span>Trang {currentPage}/{totalPages}</span>
+        </div>
+
       </div>
 
       {/* Grid movies or Blank fallback page */}
@@ -167,6 +206,8 @@ export default function ExploreView({
             onClick={() => {
               setSelectedGenre('Tất cả');
               onSearchChange('');
+              onDateChange('');
+              handlePageChange(1);
             }}
             className="border border-white bg-white text-black px-6 py-2.5 text-[10px] font-sans tracking-widest uppercase hover:bg-black hover:text-white transition"
           >

@@ -4,10 +4,12 @@ import com.sba301.cinemaai.dto.cinema.RoomRequest;
 import com.sba301.cinemaai.dto.cinema.RoomResponse;
 import com.sba301.cinemaai.dto.cinema.SeatGenerationRequest;
 import com.sba301.cinemaai.dto.cinema.SeatResponse;
+import com.sba301.cinemaai.dto.cinema.SeatUpdateRequest;
 import com.sba301.cinemaai.entity.Cinema;
 import com.sba301.cinemaai.entity.Room;
 import com.sba301.cinemaai.entity.Seat;
 import com.sba301.cinemaai.enums.RoomStatus;
+import com.sba301.cinemaai.enums.SeatStatus;
 import com.sba301.cinemaai.exception.BadRequestException;
 import com.sba301.cinemaai.exception.ConflictException;
 import com.sba301.cinemaai.exception.NotFoundException;
@@ -108,9 +110,34 @@ public class RoomService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public SeatResponse getSeat(Long seatId) {
+        return cinemaMapper.toSeatResponse(findSeatById(seatId));
+    }
+
+    @Transactional
+    public SeatResponse updateSeat(Long seatId, SeatUpdateRequest request) {
+        Seat seat = findSeatById(seatId);
+        seat.changeType(request.seatType());
+        seat.changeStatus(request.status());
+        return cinemaMapper.toSeatResponse(seat);
+    }
+
+    @Transactional
+    public SeatResponse deleteSeat(Long seatId) {
+        Seat seat = findSeatById(seatId);
+        seat.changeStatus(SeatStatus.UNAVAILABLE);
+        return cinemaMapper.toSeatResponse(seat);
+    }
+
     public Room findById(Long id) {
         return roomRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Room not found"));
+    }
+
+    private Seat findSeatById(Long id) {
+        return seatRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Seat not found"));
     }
 
     private String rowLabel(int index) {

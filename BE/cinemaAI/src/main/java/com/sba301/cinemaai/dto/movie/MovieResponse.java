@@ -11,6 +11,7 @@ public record MovieResponse(
         String description,
         String trailerUrl,
         String posterUrl,
+        String avatarUrl,
         int durationMinutes,
         LocalDate releaseDate,
         String language,
@@ -18,8 +19,10 @@ public record MovieResponse(
         MovieStatus status,
         String ageRating,
         String director,
+        String mainActors,
         String castList,
         List<GenreResponse> genres,
+        List<ActorResponse> actors,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {

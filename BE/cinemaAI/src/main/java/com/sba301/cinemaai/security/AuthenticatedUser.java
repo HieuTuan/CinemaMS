@@ -11,6 +11,7 @@ public record AuthenticatedUser(
         String password,
         UserStatus status,
         boolean emailVerified,
+        boolean phoneVerified,
         Collection<? extends GrantedAuthority> authorities
 ) implements UserDetails {
 
@@ -31,6 +32,6 @@ public record AuthenticatedUser(
 
     @Override
     public boolean isEnabled() {
-        return status == UserStatus.ACTIVE && emailVerified;
+        return status == UserStatus.ACTIVE && (emailVerified || phoneVerified);
     }
 }

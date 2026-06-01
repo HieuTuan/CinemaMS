@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 
-export default function Footer() {
+export default function Footer({ onTabChange = () => { } }) {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
 
@@ -49,9 +49,42 @@ export default function Footer() {
             <h3 className="mb-5 border-l-2 border-amber-400 pl-3 text-sm font-sans font-black uppercase tracking-[0.22em] text-white">HỖ TRỢ & ĐIỀU CHẾ</h3>
             <ul className="space-y-3 text-xs uppercase tracking-[0.14em] font-sans font-semibold text-neutral-300">
               <li><span className="cursor-pointer border-b border-transparent pb-0.5 transition-colors duration-250 hover:border-amber-300 hover:text-amber-200">Liên hệ phòng vé</span></li>
-              <li><span className="cursor-pointer border-b border-transparent pb-0.5 transition-colors duration-250 hover:border-amber-300 hover:text-amber-200">Chính sách bảo mật</span></li>
-              <li><span className="cursor-pointer border-b border-transparent pb-0.5 transition-colors duration-250 hover:border-amber-300 hover:text-amber-200">Điều hành sử dụng vé</span></li>
-              <li><span className="cursor-pointer border-b border-transparent pb-0.5 transition-colors duration-250 hover:border-amber-300 hover:text-amber-200">Quy chuẩn hoạt động</span></li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => onTabChange('policies')}
+                  className="cursor-pointer border-b border-transparent pb-0.5 text-left transition-colors duration-250 hover:border-amber-300 hover:text-amber-200"
+                >
+                  Chính sách rạp
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => onTabChange('policies')}
+                  className="cursor-pointer border-b border-transparent pb-0.5 text-left transition-colors duration-250 hover:border-amber-300 hover:text-amber-200"
+                >
+                  Chính sách bảo mật
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => onTabChange('policies')}
+                  className="cursor-pointer border-b border-transparent pb-0.5 text-left transition-colors duration-250 hover:border-amber-300 hover:text-amber-200"
+                >
+                  Điều hành sử dụng vé
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => onTabChange('policies')}
+                  className="cursor-pointer border-b border-transparent pb-0.5 text-left transition-colors duration-250 hover:border-amber-300 hover:text-amber-200"
+                >
+                  Quy chuẩn hoạt động
+                </button>
+              </li>
             </ul>
           </div>
 
@@ -88,11 +121,11 @@ export default function Footer() {
 
         {/* Bottom copyright barrier */}
         <div className="mt-16 border-t border-white/5 pt-8 flex flex-col md:flex-row items-center justify-between text-[10px] uppercase tracking-[0.16em] text-neutral-500">
-          <p style={{ color: '#ffff' }}>© 2026 CINEPREMIER STUDIOS. ALL RIGHTS RESERVED.</p>
+          <p>© 2026 CINEPREMIER STUDIOS. ALL RIGHTS RESERVED.</p>
           <div className="mt-4 md:mt-0 flex space-x-4">
-            <span style={{ color: '#ffff' }}>Powered by Smart AI Rating Engine</span>
-            <span style={{ color: '#ffff' }}>•</span>
-            <span style={{ color: '#ffff' }}>Thế Điện Ảnh Tinh Hoa</span>
+            <span>Powered by Smart AI Rating Engine</span>
+            <span>•</span>
+            <span>Thế Điện Ảnh Tinh Hoa</span>
           </div>
         </div>
       </div>

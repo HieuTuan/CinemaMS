@@ -2,6 +2,9 @@ import React from 'react';
 import { Calendar, Flame, Play } from 'lucide-react';
 
 export default function MovieCard({ movie, onSelect, onBook }) {
+  const isBookable = movie.status === 'NOW_SHOWING' || (!movie.status && !movie.isUpcoming);
+  const isUpcoming = movie.status === 'UPCOMING' || movie.isUpcoming;
+
   const getAgeRatingColor = (rating) => {
     switch (rating) {
       case 'T18': return 'border-red-500/50 text-red-400 bg-red-950/20';
@@ -28,7 +31,7 @@ export default function MovieCard({ movie, onSelect, onBook }) {
         <div className="absolute inset-0 bg-neutral-950/30 group-hover:bg-neutral-950/75 transition-all duration-300" />
 
         {/* AI Rating Badge */}
-        {!movie.isUpcoming && (
+        {isBookable && (
           <div className="absolute left-3 top-3 flex items-center space-x-1.5 bg-black border border-white/20 px-2 py-1 text-[10px] font-sans tracking-[0.1em] uppercase text-white">
             <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
             <span>{movie.ratings.aiOverall} AI Rating</span>
@@ -48,7 +51,7 @@ export default function MovieCard({ movie, onSelect, onBook }) {
             <span>Chi Tiết Phim</span>
           </button>
           
-          {!movie.isUpcoming ? (
+          {isBookable ? (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -71,7 +74,7 @@ export default function MovieCard({ movie, onSelect, onBook }) {
         </div>
 
         {/* Upcoming date ribbon */}
-        {movie.isUpcoming && movie.upcomingDate && (
+        {isUpcoming && movie.upcomingDate && (
           <div className="absolute left-3 top-3 flex items-center space-x-1.5 bg-white border border-black/10 px-2 py-1 text-[10px] font-bold text-black uppercase tracking-wider">
             <Calendar className="h-3 w-3" />
             <span>{movie.upcomingDate}</span>
