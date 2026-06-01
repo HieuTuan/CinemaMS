@@ -147,6 +147,28 @@ CREATE TABLE dbo.movie_genres (
     CONSTRAINT uk_movie_genres_movie_genre UNIQUE (movie_id, genre_id)
 );
 
+IF OBJECT_ID('dbo.actors', 'U') IS NULL
+CREATE TABLE dbo.actors (
+    id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    name NVARCHAR(255) NOT NULL UNIQUE,
+    biography NVARCHAR(1000),
+    avatar_url NVARCHAR(500),
+    created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+IF OBJECT_ID('dbo.movie_actors', 'U') IS NULL
+CREATE TABLE dbo.movie_actors (
+    id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    movie_id BIGINT NOT NULL,
+    actor_id BIGINT NOT NULL,
+    created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT fk_movie_actors_movie FOREIGN KEY (movie_id) REFERENCES dbo.movies(id),
+    CONSTRAINT fk_movie_actors_actor FOREIGN KEY (actor_id) REFERENCES dbo.actors(id),
+    CONSTRAINT uk_movie_actors_movie_actor UNIQUE (movie_id, actor_id)
+);
+
 IF OBJECT_ID('dbo.cinemas', 'U') IS NULL
 CREATE TABLE dbo.cinemas (
     id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
@@ -480,6 +502,10 @@ IF COL_LENGTH('dbo.email_verification_tokens', 'purpose') IS NULL
 ALTER TABLE dbo.email_verification_tokens ADD purpose NVARCHAR(30) NOT NULL DEFAULT 'EMAIL_VERIFICATION';
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_movies_release_date' AND object_id = OBJECT_ID('dbo.movies'))
 CREATE INDEX idx_movies_release_date ON dbo.movies(release_date);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_movie_actors_movie' AND object_id = OBJECT_ID('dbo.movie_actors'))
+CREATE INDEX idx_movie_actors_movie ON dbo.movie_actors(movie_id);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_movie_actors_actor' AND object_id = OBJECT_ID('dbo.movie_actors'))
+CREATE INDEX idx_movie_actors_actor ON dbo.movie_actors(actor_id);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_showtimes_movie' AND object_id = OBJECT_ID('dbo.showtimes'))
 CREATE INDEX idx_showtimes_movie ON dbo.showtimes(movie_id);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_showtimes_room' AND object_id = OBJECT_ID('dbo.showtimes'))
