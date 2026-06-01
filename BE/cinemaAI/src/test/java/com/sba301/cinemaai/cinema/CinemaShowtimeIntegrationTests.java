@@ -74,6 +74,17 @@ class CinemaShowtimeIntegrationTests {
         Movie movie = createMovie();
 
         Long cinemaId = createCinema(token);
+        mockMvc.perform(post("/api/v1/admin/cinemas")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CinemaRequest(
+                                "Second Cinema " + System.nanoTime(),
+                                "2 Phase Street",
+                                "Ho Chi Minh City",
+                                "0900555667",
+                                CinemaStatus.ACTIVE
+                        ))))
+                .andExpect(status().isConflict());
         Long roomId = createRoom(token, cinemaId);
 
         String seatResponse = mockMvc.perform(post("/api/v1/admin/rooms/{roomId}/seats/generate", roomId)
