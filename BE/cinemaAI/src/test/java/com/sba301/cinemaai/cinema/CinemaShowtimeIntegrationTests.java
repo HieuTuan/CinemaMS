@@ -74,15 +74,18 @@ class CinemaShowtimeIntegrationTests {
         Movie movie = createMovie();
 
         Long cinemaId = createCinema(token);
-        Long roomId = createRoom(token);
-
-        mockMvc.perform(get("/api/v1/cinema"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id").value(cinemaId));
-
-        mockMvc.perform(get("/api/v1/cinema/rooms"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].cinemaId").value(cinemaId));
+        mockMvc.perform(post("/api/v1/admin/cinemas")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CinemaRequest(
+                                "Second Cinema " + System.nanoTime(),
+                                "2 Phase Street",
+                                "Ho Chi Minh City",
+                                "0900555667",
+                                CinemaStatus.ACTIVE
+                        ))))
+                .andExpect(status().isConflict());
+        Long roomId = createRoom(token, cinemaId);
 
         String seatResponse = mockMvc.perform(post("/api/v1/admin/rooms/{roomId}/seats/generate", roomId)
                         .header("Authorization", "Bearer " + token)
@@ -168,7 +171,7 @@ class CinemaShowtimeIntegrationTests {
     }
 
     private Long createCinema(String token) throws Exception {
-        String response = mockMvc.perform(post("/api/v1/admin/cinema")
+        String response = mockMvc.perform(post("/api/v1/admin/cinemas")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new CinemaRequest(
@@ -185,12 +188,12 @@ class CinemaShowtimeIntegrationTests {
         return objectMapper.readTree(response).at("/data/id").asLong();
     }
 
-    private Long createRoom(String token) throws Exception {
+    private Long createRoom(String token, Long cinemaId) throws Exception {
         String response = mockMvc.perform(post("/api/v1/admin/rooms")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new RoomRequest(
-                                null,
+                                cinemaId,
                                 "Room Phase 5",
                                 RoomType.TWO_D,
                                 3,

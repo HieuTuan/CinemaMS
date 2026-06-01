@@ -11,13 +11,22 @@ CREATE TABLE dbo.users (
     id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
     email NVARCHAR(255) NOT NULL UNIQUE,
     password_hash NVARCHAR(255) NOT NULL,
-    full_name NVARCHAR(255) NOT NULL,
-    phone NVARCHAR(20),
     status NVARCHAR(30) NOT NULL,
     email_verified BIT NOT NULL DEFAULT 0,
-    phone_verified BIT NOT NULL DEFAULT 0,
     created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+IF OBJECT_ID('dbo.user_profiles', 'U') IS NULL
+CREATE TABLE dbo.user_profiles (
+    id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    user_id BIGINT NOT NULL UNIQUE,
+    full_name NVARCHAR(255) NOT NULL,
+    phone NVARCHAR(20),
+    phone_verified BIT NOT NULL DEFAULT 0,
+    created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT fk_user_profiles_user FOREIGN KEY (user_id) REFERENCES dbo.users(id)
 );
 
 IF OBJECT_ID('dbo.user_roles', 'U') IS NULL
@@ -465,8 +474,8 @@ CREATE TABLE dbo.uploaded_files (
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_movies_status' AND object_id = OBJECT_ID('dbo.movies'))
 CREATE INDEX idx_movies_status ON dbo.movies(status);
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'uk_users_phone_not_null' AND object_id = OBJECT_ID('dbo.users'))
-CREATE UNIQUE INDEX uk_users_phone_not_null ON dbo.users(phone) WHERE phone IS NOT NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_user_profiles_phone' AND object_id = OBJECT_ID('dbo.user_profiles'))
+CREATE INDEX idx_user_profiles_phone ON dbo.user_profiles(phone);
 IF COL_LENGTH('dbo.email_verification_tokens', 'purpose') IS NULL
 ALTER TABLE dbo.email_verification_tokens ADD purpose NVARCHAR(30) NOT NULL DEFAULT 'EMAIL_VERIFICATION';
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_movies_release_date' AND object_id = OBJECT_ID('dbo.movies'))

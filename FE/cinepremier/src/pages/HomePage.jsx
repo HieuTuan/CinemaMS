@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Play, Pause, Sparkles, MessageSquare, Check, HelpCircle, Volume2, VolumeX, ChevronLeft, ChevronRight, Film } from 'lucide-react';
 import { movies } from '../services/cinemaData';
 import MovieCard from '../components/movies/MovieCard';
-
+import Snowfall from 'react-snowfall';
 const extractYoutubeId = (url = '') => {
   const trimmed = url.trim();
   if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
