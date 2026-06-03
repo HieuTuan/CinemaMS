@@ -1,4 +1,5 @@
 package com.sba301.cinemaai.dto.promotion;
+
 import com.sba301.cinemaai.entity.Promotion;
 import com.sba301.cinemaai.enums.PromotionStatus;
 import com.sba301.cinemaai.enums.PromotionType;
@@ -23,8 +24,11 @@ public class PromotionResponse {
     private LocalDateTime startsAt;
     private LocalDateTime endsAt;
     private PromotionStatus status;
+    private boolean canCombineWithPoints;
+    private Integer requiredPoints;
+    private String description;
+    private boolean pointBased;
 
-    // Static factory — tránh để mapping logic rải rác trong service
     public static PromotionResponse from(Promotion promotion) {
         return PromotionResponse.builder()
                 .id(promotion.getId())
@@ -39,5 +43,10 @@ public class PromotionResponse {
                 .startsAt(promotion.getStartsAt())
                 .endsAt(promotion.getEndsAt())
                 .status(promotion.getStatus())
+                .canCombineWithPoints(promotion.isCanCombineWithPoints())
+                .requiredPoints(promotion.getRequiredPoints())
+                .description(promotion.getDescription())
+                .pointBased(promotion.isPointBased())
                 .build();
-    }}
+    }
+}

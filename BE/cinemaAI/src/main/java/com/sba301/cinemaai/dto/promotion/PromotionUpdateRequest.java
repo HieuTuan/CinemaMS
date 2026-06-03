@@ -3,6 +3,7 @@ package com.sba301.cinemaai.dto.promotion;
 import com.sba301.cinemaai.enums.PromotionStatus;
 import com.sba301.cinemaai.enums.PromotionType;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.Getter;
@@ -31,4 +32,12 @@ public class PromotionUpdateRequest {
     private LocalDateTime endsAt;
 
     private PromotionStatus status;
+
+    private Boolean canCombineWithPoints;
+
+    @Positive(message = "Required points must be positive")
+    private Integer requiredPoints;
+
+    @Size(max = 1000, message = "Description must not exceed 1000 characters")
+    private String description;
 }

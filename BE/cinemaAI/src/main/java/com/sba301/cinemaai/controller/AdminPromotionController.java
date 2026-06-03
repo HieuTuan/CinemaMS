@@ -2,6 +2,7 @@ package com.sba301.cinemaai.controller;
 
 import com.sba301.cinemaai.dto.promotion.PromotionCreateRequest;
 import com.sba301.cinemaai.dto.promotion.PromotionResponse;
+import com.sba301.cinemaai.dto.promotion.PromotionRulesResponse;
 import com.sba301.cinemaai.dto.promotion.PromotionUpdateRequest;
 import com.sba301.cinemaai.dto.response.ApiResponse;
 import com.sba301.cinemaai.dto.response.PageResponse;
@@ -34,34 +35,66 @@ public class AdminPromotionController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Create promotion", description = "Creates a new promotion code (ADMIN only)")
+    @Operation(summary = "Create promotion",
+               description = "Creates a new code-based or point-based promotion (ADMIN only)")
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Promotion created"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid input or duplicate code")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201",
+                    description = "Promotion created"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
+                    description = "Invalid input or duplicate code")
     })
-    public ApiResponse<PromotionResponse> create(@Valid @RequestBody PromotionCreateRequest request) {
-        return ApiResponse.success(promotionService.create(request), "Promotion created successfully");
+    public ApiResponse<PromotionResponse> create(
+            @Valid @RequestBody PromotionCreateRequest request
+    ) {
+        return ApiResponse.success(promotionService.create(request),
+                "Promotion created successfully");
+    }
+
+    @PostMapping("/point-based")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Create point-redemption promotion",
+               description = "Creates a promotion that requires loyalty points. "
+                       + "requiredPoints must be provided and positive (ADMIN only)")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201",
+                    description = "Point-redemption promotion created"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
+                    description = "requiredPoints is missing or not positive")
+    })
+    public ApiResponse<PromotionResponse> createPointBased(
+            @Valid @RequestBody PromotionCreateRequest request
+    ) {
+        return ApiResponse.success(
+                promotionService.createPointRedemptionPromotion(request),
+                "Point-redemption promotion created successfully");
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Update promotion", description = "Updates an existing promotion by ID (ADMIN only)")
+    @Operation(summary = "Update promotion",
+               description = "Updates an existing promotion by ID (ADMIN only)")
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Promotion updated"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Promotion not found")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
+                    description = "Promotion updated"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
+                    description = "Promotion not found")
     })
     public ApiResponse<PromotionResponse> update(
             @Parameter(description = "Promotion ID") @PathVariable Long id,
             @Valid @RequestBody PromotionUpdateRequest request
     ) {
-        return ApiResponse.success(promotionService.update(id, request), "Promotion updated successfully");
+        return ApiResponse.success(promotionService.update(id, request),
+                "Promotion updated successfully");
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Delete promotion", description = "Deletes a promotion by ID (ADMIN only)")
+    @Operation(summary = "Delete promotion",
+               description = "Deletes a promotion by ID (ADMIN only)")
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "Promotion deleted"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Promotion not found")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204",
+                    description = "Promotion deleted"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
+                    description = "Promotion not found")
     })
     public void delete(
             @Parameter(description = "Promotion ID") @PathVariable Long id
@@ -70,7 +103,8 @@ public class AdminPromotionController {
     }
 
     @GetMapping
-    @Operation(summary = "List all promotions", description = "Returns paginated list of all promotions (ADMIN only)")
+    @Operation(summary = "List all promotions",
+               description = "Returns paginated list of all promotions (ADMIN only)")
     public ApiResponse<PageResponse<PromotionResponse>> listAll(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
@@ -79,15 +113,33 @@ public class AdminPromotionController {
     }
 
     @GetMapping("/{code}")
-    @Operation(summary = "Get promotion by code", description = "Returns promotion detail by code (ADMIN only)")
+    @Operation(summary = "Get promotion by code",
+               description = "Returns promotion detail by code (ADMIN only)")
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Promotion found"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Promotion not found")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
+                    description = "Promotion found"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
+                    description = "Promotion not found")
     })
     public ApiResponse<PromotionResponse> getByCode(
             @Parameter(description = "Promotion code", example = "SUMMER2026")
             @PathVariable String code
     ) {
         return ApiResponse.success(promotionService.getByCode(code));
+    }
+
+    @GetMapping("/{id}/rules")
+    @Operation(summary = "Get promotion rule-set",
+               description = "Returns the full rule configuration of a promotion by ID (ADMIN only)")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
+                    description = "Rules returned"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
+                    description = "Promotion not found")
+    })
+    public ApiResponse<PromotionRulesResponse> getRules(
+            @Parameter(description = "Promotion ID") @PathVariable Long id
+    ) {
+        return ApiResponse.success(promotionService.getPromotionRules(id));
     }
 }

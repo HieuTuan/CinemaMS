@@ -42,4 +42,12 @@ public class PromotionCreateRequest {
     @NotNull(message = "End time is required")
     @Future(message = "End time must be in the future")
     private LocalDateTime endsAt;
+
+    private boolean canCombineWithPoints = true;
+
+    @Positive(message = "Required points must be positive")
+    private Integer requiredPoints;
+
+    @Size(max = 1000, message = "Description must not exceed 1000 characters")
+    private String description;
 }

@@ -61,14 +61,37 @@ public class Promotion extends BaseEntity {
     @Column(nullable = false, length = 30)
     private PromotionStatus status = PromotionStatus.ACTIVE;
 
-    public Promotion(String code, String name, PromotionType type, BigDecimal value, LocalDateTime startsAt, LocalDateTime endsAt) {
+    @Column(name = "can_combine_with_points", nullable = false)
+    private boolean canCombineWithPoints = true;
+
+    @Column(name = "required_points")
+    private Integer requiredPoints;
+
+    @Column(name = "description", length = 1000)
+    private String description;
+
+    public Promotion(String code, String name, PromotionType type, BigDecimal value,
+                     LocalDateTime startsAt, LocalDateTime endsAt) {
         this.code = code;
         this.name = name;
         this.type = type;
         this.value = value;
         this.startsAt = startsAt;
         this.endsAt = endsAt;
+        this.canCombineWithPoints = true;
     }
+
+    // ---- domain queries ----
+
+    public boolean isPointBased() {
+        return requiredPoints != null;
+    }
+
+    public boolean isCodeBased() {
+        return requiredPoints == null;
+    }
+
+    // ---- mutation methods ----
 
     public void increaseUsage() {
         this.usedCount++;
@@ -105,5 +128,17 @@ public class Promotion extends BaseEntity {
     public void updateDates(LocalDateTime startsAt, LocalDateTime endsAt) {
         this.startsAt = startsAt;
         this.endsAt = endsAt;
+    }
+
+    public void updateCanCombineWithPoints(boolean canCombineWithPoints) {
+        this.canCombineWithPoints = canCombineWithPoints;
+    }
+
+    public void updateRequiredPoints(Integer requiredPoints) {
+        this.requiredPoints = requiredPoints;
+    }
+
+    public void updateDescription(String description) {
+        this.description = description;
     }
 }
