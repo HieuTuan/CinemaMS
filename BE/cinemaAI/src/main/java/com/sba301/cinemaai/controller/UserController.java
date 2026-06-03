@@ -1,11 +1,10 @@
 package com.sba301.cinemaai.controller;
 
 import com.sba301.cinemaai.dto.response.ApiResponse;
-import com.sba301.cinemaai.dto.auth.TokenResponse;
+import com.sba301.cinemaai.dto.user.ChangePasswordRequest;
 import com.sba301.cinemaai.dto.user.UserProfileResponse;
 import com.sba301.cinemaai.dto.user.UserProfileUpdateRequest;
 import com.sba301.cinemaai.security.AuthenticatedUser;
-import com.sba301.cinemaai.service.PhoneVerificationService;
 import com.sba301.cinemaai.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +22,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
     private final UserService userService;
-    private final PhoneVerificationService phoneVerificationService;
 
     @GetMapping("/me")
     public ApiResponse<UserProfileResponse> currentUser(@AuthenticationPrincipal AuthenticatedUser user) {
@@ -38,11 +36,12 @@ public class UserController {
         return ApiResponse.success(userService.updateProfile(user.email(), request), "Profile updated successfully");
     }
 
-    @PostMapping("/me/phone-verification/request")
-    public ApiResponse<TokenResponse> requestPhoneVerification(@AuthenticationPrincipal AuthenticatedUser user) {
-        return ApiResponse.success(
-                new TokenResponse(phoneVerificationService.createPhoneVerificationOtp(userService.getByEmail(user.email())).getOtp()),
-                "Phone verification OTP created"
-        );
+    @PostMapping("/me/password")
+    public ApiResponse<Void> changePassword(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @Valid @RequestBody ChangePasswordRequest request
+    ) {
+        userService.changePassword(user.email(), request);
+        return ApiResponse.success(null, "Password changed successfully");
     }
 }

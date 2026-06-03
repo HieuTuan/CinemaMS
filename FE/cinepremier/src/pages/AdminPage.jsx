@@ -1,0 +1,1441 @@
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  Plus, Trash2, Edit3, ShieldAlert, FileText, Database,
+  Calendar, Users, DollarSign, Activity, AlertCircle, CheckCircle2,
+  Search, Sliders, ChevronDown, Check, RefreshCw, Layers, ShoppingBag,
+  BarChart2, Clock, MapPin, Film, Play, Eye, EyeOff, Sparkles, TrendingUp, Info, Globe, Tags
+} from 'lucide-react';
+import { authApi, getStoredAuth } from '../services/authApi';
+import AdminOverviewPanel from './admin/AdminOverviewPanel';
+import AdminMoviesPanel from './admin/AdminMoviesPanel';
+import AdminGenresPanel from './admin/AdminGenresPanel';
+import AdminFoodsPanel from './admin/AdminFoodsPanel';
+import AdminHomepagePanel from './admin/AdminHomepagePanel';
+import AdminShowtimesPanel from './admin/AdminShowtimesPanel';
+import AdminTransactionsPanel from './admin/AdminTransactionsPanel';
+import AdminAiAnalysisPanel from './admin/AdminAiAnalysisPanel';
+import AdminUsersPanel from './admin/AdminUsersPanel';
+
+export default function AdminDashboard({
+  moviesList,
+  setMoviesList,
+  bookedTickets,
+  setBookedTickets,
+  cinemaLocations,
+  onSelectMovie,
+  showToast = () => { },
+  initialSection = 'overview',
+  onSectionChange = () => { },
+  homepageVideoUrl = 'https://www.youtube.com/watch?v=k8m0SaGQ_1c',
+  onHomepageVideoUrlChange = () => { },
+  onFoodCatalogChanged = () => { },
+  isAdmin = false,
+  currentUser = null
+}) {
+  const [activeTab, setActiveTab] = useState(initialSection || 'overview'); // 'overview' | 'movies' | 'genres' | 'foods' | 'homepage' | 'showtimes' | 'transactions' | 'users' | 'ai-analysis'
+  const [selectedAnalysisMovieId, setSelectedAnalysisMovieId] = useState(moviesList[0]?.id || 'neon-horizon');
+  const [isReanalyzing, setIsReanalyzing] = useState(false);
+  const [analysisScrambleOffset, setAnalysisScrambleOffset] = useState({
+    overall: 0,
+    story: 0,
+    acting: 0,
+    visual: 0,
+    audio: 0
+  });
+  const [activeChartPoint, setActiveChartPoint] = useState(6);
+
+  // Create state for movies so the dashboard can add/update them
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filmFilter, setFilmFilter] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'UPCOMING'
+  const [adminMoviePagination, setAdminMoviePagination] = useState({
+    page: 0,
+    size: 10,
+    totalPages: 1,
+    totalElements: moviesList.length
+  });
+
+  const DEFAULT_POSTER_URL = 'https://images.unsplash.com/photo-1485846234645-a62644f84728?q=80&w=600&auto=format&fit=crop';
+  const DEFAULT_BANNER_URL = 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1200&auto=format&fit=crop';
+  const buildDefaultMovieForm = () => ({
+    title: '',
+    englishTitle: '',
+    genre: '',
+    genreIds: [],
+    duration: 120,
+    ageRating: 'T13',
+    director: '',
+    synopsis: '',
+    trailerUrl: '',
+    language: 'Tiếng Việt',
+    subtitleLanguage: 'EN Sub',
+    status: 'NOW_SHOWING',
+    castList: '',
+    posterUrl: DEFAULT_POSTER_URL,
+    bannerUrl: DEFAULT_BANNER_URL,
+    releaseDate: '2026-06-01',
+    isHot: false,
+    isUpcoming: false
+  });
+
+  // Form state for creating/editing movie
+  const [editingMovie, setEditingMovie] = useState(null); // null means adding a new one
+  const [showMovieForm, setShowMovieForm] = useState(false);
+  const [isMovieSaving, setIsMovieSaving] = useState(false);
+  const [formData, setFormData] = useState(buildDefaultMovieForm);
+
+  // State to add a screening schedule
+  const [newShowtime, setNewShowtime] = useState({
+    movieId: moviesList[0]?.id || '',
+    city: cinemaLocations[0] || '',
+    hall: 'Phòng Chiếu Thượng Hạng Gold 01',
+    date: 'Thứ Bảy, 23/05/2026',
+    time: '19:30',
+    price: 120000
+  });
+  const [isAddingShowtime, setIsAddingShowtime] = useState(false);
+  const [showtimeSuccessMessage, setShowtimeSuccessMessage] = useState('');
+  const [genres, setGenres] = useState([]);
+  const [genreSearch, setGenreSearch] = useState('');
+  const [genreForm, setGenreForm] = useState({ name: '', description: '' });
+  const [genreErrors, setGenreErrors] = useState({});
+  const [editingGenreId, setEditingGenreId] = useState(null);
+  const [isGenreLoading, setIsGenreLoading] = useState(false);
+  const [isGenreSaving, setIsGenreSaving] = useState(false);
+  const [homepageForm, setHomepageForm] = useState({ videoUrl: homepageVideoUrl });
+  const [homepageVideoError, setHomepageVideoError] = useState('');
+  const [foodItems, setFoodItems] = useState([]);
+  const [foodCombos, setFoodCombos] = useState([]);
+  const [foodSearch, setFoodSearch] = useState('');
+  const [foodKind, setFoodKind] = useState('item');
+  const [editingFood, setEditingFood] = useState(null);
+  const [foodForm, setFoodForm] = useState({
+    name: '',
+    description: '',
+    price: '',
+    imageUrl: '',
+    status: 'ACTIVE'
+  });
+  const [foodErrors, setFoodErrors] = useState({});
+  const [isFoodLoading, setIsFoodLoading] = useState(false);
+  const [isFoodSaving, setIsFoodSaving] = useState(false);
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [selectedAdminUser, setSelectedAdminUser] = useState(null);
+  const [userSearch, setUserSearch] = useState('');
+  const [isUsersLoading, setIsUsersLoading] = useState(false);
+  const [isUserDetailLoading, setIsUserDetailLoading] = useState(false);
+  const [isUserStatusSaving, setIsUserStatusSaving] = useState(false);
+
+  React.useEffect(() => {
+    if (!isAdmin || activeTab !== 'movies') return undefined;
+
+    const { accessToken } = getStoredAuth();
+    if (!accessToken) return undefined;
+
+    let cancelled = false;
+    const status = filmFilter === 'ACTIVE'
+      ? 'NOW_SHOWING'
+      : filmFilter === 'UPCOMING'
+        ? 'UPCOMING'
+        : '';
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const pageData = await authApi.searchAdminMoviesPage(accessToken, {
+          keyword: searchQuery.trim(),
+          status,
+          page: adminMoviePagination.page,
+          size: adminMoviePagination.size
+        });
+        if (!cancelled) {
+          setMoviesList(pageData.items);
+          setAdminMoviePagination((prev) => ({
+            ...prev,
+            page: pageData.page,
+            size: pageData.size,
+            totalPages: pageData.totalPages,
+            totalElements: pageData.totalElements
+          }));
+        }
+      } catch (error) {
+        if (!cancelled) {
+          showToast(error.message || 'Không thể tải danh sách phim quản trị.');
+        }
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [isAdmin, activeTab, searchQuery, filmFilter, adminMoviePagination.page, adminMoviePagination.size, setMoviesList]);
+
+  const visibleFoods = [
+    ...foodCombos.map((item) => ({ ...item, kind: 'combo' })),
+    ...foodItems.map((item) => ({ ...item, kind: 'item' }))
+  ].filter((item) => item.name?.toLowerCase().includes(foodSearch.toLowerCase()));
+
+  // Predefined lists of halls and times for quick selection
+  const HALL_OPTIONS = [
+    'Phòng Chiếu Thượng Hạng Gold 01',
+    'Khán Phòng IMAX 3D Theatre',
+    'Phòng Standard Suite 03',
+    'Phòng Trải Nghiệm 4DX Extreme'
+  ];
+
+  const TIME_OPTIONS = [
+    '09:00', '11:30', '14:15', '16:45', '19:15', '21:30', '23:45'
+  ];
+
+  // Sounds configuration
+  const playPulseSound = (frequency = 440, type = 'sine', duration = 0.08) => {
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = new AudioContextClass();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(frequency, ctx.currentTime);
+      gain.gain.setValueAtTime(0.04, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+    } catch (e) { }
+  };
+
+  // Log of simulated changes within session
+  const [auditLogs, setAuditLogs] = useState([
+    { id: 1, action: 'Khởi tạo hệ thống', target: 'Cơ sở dữ liệu CinePremier v2.0', time: '03:15:02', user: 'Quản trị viên' },
+    { id: 2, action: 'Đồng bộ API', target: 'Trung tâm phát hành thẻ VIP', time: '03:20:11', user: 'Hệ thống tự động' }
+  ]);
+
+  const addAuditLog = (action, target) => {
+    const now = new Date();
+    const timeStr = now.toTimeString().split(' ')[0];
+    setAuditLogs(prev => [
+      { id: Date.now(), action, target, time: timeStr, user: 'Quản trị viên' },
+      ...prev
+    ]);
+  };
+
+  const getYoutubeId = (url = '') => {
+    const trimmed = url.trim();
+    if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
+
+    const patterns = [
+      /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
+      /youtu\.be\/([a-zA-Z0-9_-]{11})/,
+      /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+      /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/
+    ];
+
+    return patterns.map((pattern) => trimmed.match(pattern)?.[1]).find(Boolean) || '';
+  };
+
+  const handleHomepageVideoSubmit = (e) => {
+    e.preventDefault();
+    const nextUrl = homepageForm.videoUrl.trim();
+    const youtubeId = getYoutubeId(nextUrl);
+
+    if (!nextUrl) {
+      setHomepageVideoError('URL video trang chủ là bắt buộc.');
+      return;
+    }
+
+    if (!youtubeId) {
+      setHomepageVideoError('Chỉ hỗ trợ URL YouTube hợp lệ: watch, youtu.be, embed hoặc shorts.');
+      return;
+    }
+
+    setHomepageVideoError('');
+    onHomepageVideoUrlChange(nextUrl);
+    addAuditLog('Cập nhật video trang chủ', nextUrl);
+  };
+
+  const resetFoodForm = () => {
+    setFoodForm({ name: '', description: '', price: '', imageUrl: '', status: 'ACTIVE' });
+    setFoodErrors({});
+    setEditingFood(null);
+    setFoodKind('item');
+  };
+
+  const validateFoodForm = () => {
+    const errors = {};
+    const name = foodForm.name.trim();
+    const description = foodForm.description.trim();
+    const price = Number(foodForm.price);
+    const imageUrl = foodForm.imageUrl.trim();
+
+    if (!name) errors.name = 'Tên món là bắt buộc.';
+    if (name.length > 255) errors.name = 'Tên món tối đa 255 ký tự.';
+    if (description.length > 500) errors.description = 'Mô tả tối đa 500 ký tự.';
+    if (!foodForm.price) errors.price = 'Giá bán là bắt buộc.';
+    if (!Number.isFinite(price) || price <= 0) errors.price = 'Giá bán phải lớn hơn 0.';
+    if (imageUrl.length > 500) errors.imageUrl = 'URL hình ảnh tối đa 500 ký tự.';
+
+    const allFoods = foodKind === 'item' ? foodItems : foodCombos;
+    const duplicate = allFoods.some((item) => (
+      item.name?.trim().toLowerCase() === name.toLowerCase()
+      && !(editingFood && item.id === editingFood.id)
+    ));
+    if (duplicate) errors.name = 'Tên món đã tồn tại trong nhóm đang chọn.';
+
+    setFoodErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const fetchFoods = async () => {
+    const token = getAdminToken();
+    if (!token) {
+      setFoodItems([]);
+      setFoodCombos([]);
+      return;
+    }
+
+    setIsFoodLoading(true);
+    try {
+      const [items, combos] = await Promise.all([
+        authApi.getAdminFoodItems(token),
+        authApi.getAdminFoodCombos(token)
+      ]);
+      setFoodItems(Array.isArray(items) ? items : []);
+      setFoodCombos(Array.isArray(combos) ? combos : []);
+    } catch (error) {
+      showToast(error.message || 'Không thể tải danh sách bắp nước từ BE.');
+    } finally {
+      setIsFoodLoading(false);
+    }
+  };
+
+  const handleFoodSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateFoodForm()) return;
+
+    const token = getAdminToken();
+    if (!token) return;
+
+    setIsFoodSaving(true);
+    const payload = {
+      name: foodForm.name.trim(),
+      description: foodForm.description.trim(),
+      price: Number(foodForm.price),
+      imageUrl: foodForm.imageUrl.trim(),
+      status: foodForm.status
+    };
+
+    try {
+      const saved = editingFood
+        ? foodKind === 'combo'
+          ? await authApi.updateAdminFoodCombo(token, editingFood.id, payload)
+          : await authApi.updateAdminFoodItem(token, editingFood.id, payload)
+        : foodKind === 'combo'
+          ? await authApi.createAdminFoodCombo(token, payload)
+          : await authApi.createAdminFoodItem(token, payload);
+
+      if (foodKind === 'combo') {
+        setFoodCombos((prev) => editingFood
+          ? prev.map((item) => (item.id === saved.id ? saved : item))
+          : [saved, ...prev]);
+      } else {
+        setFoodItems((prev) => editingFood
+          ? prev.map((item) => (item.id === saved.id ? saved : item))
+          : [saved, ...prev]);
+      }
+
+      addAuditLog(editingFood ? 'Cập nhật bắp nước' : 'Tạo bắp nước', saved.name);
+      showToast(editingFood ? `Đã cập nhật món: ${saved.name}` : `Đã tạo món mới: ${saved.name}`);
+      resetFoodForm();
+      onFoodCatalogChanged();
+    } catch (error) {
+      showToast(error.message || 'Không thể lưu món bắp nước.');
+    } finally {
+      setIsFoodSaving(false);
+    }
+  };
+
+  const handleEditFood = (food, kind) => {
+    setFoodKind(kind);
+    setEditingFood(food);
+    setFoodForm({
+      name: food.name || '',
+      description: food.description || '',
+      price: food.price || '',
+      imageUrl: food.imageUrl || '',
+      status: food.status || 'ACTIVE'
+    });
+    setFoodErrors({});
+  };
+
+  const handleToggleFoodStatus = async (food, kind) => {
+    const nextStatus = food.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    const token = getAdminToken();
+    if (!token) return;
+
+    const payload = {
+      name: food.name,
+      description: food.description || '',
+      price: Number(food.price),
+      imageUrl: food.imageUrl || '',
+      status: nextStatus
+    };
+
+    try {
+      const saved = kind === 'combo'
+        ? await authApi.updateAdminFoodCombo(token, food.id, payload)
+        : await authApi.updateAdminFoodItem(token, food.id, payload);
+
+      if (kind === 'combo') {
+        setFoodCombos((prev) => prev.map((item) => (item.id === food.id ? saved : item)));
+      } else {
+        setFoodItems((prev) => prev.map((item) => (item.id === food.id ? saved : item)));
+      }
+      showToast(`${nextStatus === 'ACTIVE' ? 'Đã bật bán' : 'Đã ẩn'} món: ${food.name}`);
+      onFoodCatalogChanged();
+    } catch (error) {
+      showToast(error.message || 'Không thể đổi trạng thái món.');
+    }
+  };
+
+  const getAdminToken = () => {
+    const { accessToken, user } = getStoredAuth();
+    const storedRoles = (user?.roles || []).map((role) => String(role).toUpperCase());
+    const hasStoredAdminRole = storedRoles.includes('ADMIN') || storedRoles.includes('ROLE_ADMIN') || user?.role === 'admin';
+    const tokenPayload = (() => {
+      try {
+        if (!accessToken || !accessToken.includes('.')) return null;
+        return JSON.parse(atob(accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      } catch (error) {
+        return null;
+      }
+    })();
+    const tokenRoles = [
+      ...(Array.isArray(tokenPayload?.roles) ? tokenPayload.roles : []),
+      ...(Array.isArray(tokenPayload?.authorities) ? tokenPayload.authorities : []),
+      ...(Array.isArray(tokenPayload?.scope) ? tokenPayload.scope : String(tokenPayload?.scope || '').split(' '))
+    ].map((role) => String(role).toUpperCase()).filter(Boolean);
+    const hasTokenAdminRole = tokenRoles.includes('ADMIN') || tokenRoles.includes('ROLE_ADMIN');
+    const isTokenExpired = tokenPayload?.exp ? tokenPayload.exp * 1000 <= Date.now() : false;
+
+    if (!isAdmin || !hasStoredAdminRole || !hasTokenAdminRole || isTokenExpired) {
+      showToast('Tài khoản hiện tại chưa có quyền ADMIN để gọi API quản trị.');
+      return null;
+    }
+    if (!accessToken) {
+      showToast('Phiên quản trị đã hết hạn. Vui lòng đăng nhập lại bằng tài khoản ADMIN.');
+      return null;
+    }
+    return accessToken;
+  };
+
+  const changeAdminSection = (section) => {
+    setActiveTab(section);
+    onSectionChange(section);
+    window.history.replaceState(null, '', `/admin/${section}`);
+  };
+
+  const validateGenreForm = () => {
+    const errors = {};
+    const name = genreForm.name.trim();
+    const description = genreForm.description.trim();
+
+    if (!name) {
+      errors.name = 'Tên thể loại là bắt buộc.';
+    } else if (name.length > 100) {
+      errors.name = 'Tên thể loại tối đa 100 ký tự.';
+    }
+
+    if (!description) {
+      errors.description = 'Nội dung mô tả là bắt buộc.';
+    } else if (description.length < 200) {
+      errors.description = 'Nội dung mô tả cần trên 200 ký tự.';
+    } else if (description.length > 1000) {
+      errors.description = 'Nội dung mô tả phải dưới 1000 ký tự.';
+    }
+
+    const isDuplicate = genres.some((genre) => {
+      const sameName = genre.name?.trim().toLowerCase() === name.toLowerCase();
+      const isSameRecord = editingGenreId && genre.id === editingGenreId;
+      return sameName && !isSameRecord;
+    });
+
+    if (name && isDuplicate) {
+      errors.name = 'Tên thể loại đã tồn tại trong danh sách hiện tại.';
+    }
+
+    setGenreErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const fetchGenres = async () => {
+    const token = getAdminToken();
+    if (!token) return;
+
+    setIsGenreLoading(true);
+    try {
+      const data = await authApi.getAdminGenres(token);
+      setGenres(Array.isArray(data) ? data : []);
+    } catch (error) {
+      showToast(error.message || 'Không thể tải danh sách thể loại phim.');
+    } finally {
+      setIsGenreLoading(false);
+    }
+  };
+
+  const fetchAdminUsers = async () => {
+    const token = getAdminToken();
+    if (!token) return;
+
+    setIsUsersLoading(true);
+    try {
+      const data = await authApi.getAdminUsers(token);
+      const users = Array.isArray(data) ? data : [];
+      setAdminUsers(users);
+      setSelectedAdminUser((prev) => {
+        if (!prev) return users[0] || null;
+        return users.find((user) => String(user.id) === String(prev.id)) || users[0] || null;
+      });
+    } catch (error) {
+      showToast(error.message || 'Không thể tải danh sách người dùng.');
+    } finally {
+      setIsUsersLoading(false);
+    }
+  };
+
+  const handleSelectAdminUser = async (userId) => {
+    const token = getAdminToken();
+    if (!token) return;
+
+    setIsUserDetailLoading(true);
+    try {
+      const user = await authApi.getAdminUserDetail(token, userId);
+      setSelectedAdminUser(user);
+    } catch (error) {
+      showToast(error.message || 'Không thể tải chi tiết người dùng.');
+    } finally {
+      setIsUserDetailLoading(false);
+    }
+  };
+
+  const handleUpdateAdminUserStatus = async (userId, status) => {
+    const isCurrentAdmin =
+      String(currentUser?.id || '') === String(userId || '') ||
+      (selectedAdminUser?.email && currentUser?.email && selectedAdminUser.email === currentUser.email);
+
+    if (isCurrentAdmin) {
+      showToast('Không thể đổi trạng thái của chính tài khoản admin đang đăng nhập.');
+      return;
+    }
+
+    const token = getAdminToken();
+    if (!token) return;
+
+    setIsUserStatusSaving(true);
+    try {
+      const updatedUser = await authApi.updateAdminUserStatus(token, userId, status);
+      setAdminUsers((prev) => prev.map((user) => (
+        String(user.id) === String(userId) ? updatedUser : user
+      )));
+      setSelectedAdminUser(updatedUser);
+      addAuditLog('Cập nhật trạng thái người dùng', `${updatedUser.email} -> ${updatedUser.status}`);
+      showToast(`Đã đổi trạng thái ${updatedUser.email} thành ${updatedUser.status}.`);
+    } catch (error) {
+      showToast(error.message || 'Không thể đổi trạng thái người dùng.');
+    } finally {
+      setIsUserStatusSaving(false);
+    }
+  };
+
+  React.useEffect(() => {
+    setActiveTab(initialSection || 'overview');
+  }, [initialSection]);
+
+  React.useEffect(() => {
+    if (activeTab === 'genres' || activeTab === 'movies') {
+      fetchGenres();
+    }
+    if (activeTab === 'foods') {
+      fetchFoods();
+    }
+    if (activeTab === 'users') {
+      fetchAdminUsers();
+    }
+  }, [activeTab]);
+
+  React.useEffect(() => {
+    setHomepageForm({ videoUrl: homepageVideoUrl });
+  }, [homepageVideoUrl]);
+
+  const resetGenreForm = () => {
+    setGenreForm({ name: '', description: '' });
+    setGenreErrors({});
+    setEditingGenreId(null);
+  };
+
+  const handleGenreSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateGenreForm()) return;
+
+    const token = getAdminToken();
+    if (!token) return;
+
+    setIsGenreSaving(true);
+    const payload = {
+      name: genreForm.name.trim(),
+      description: genreForm.description.trim()
+    };
+
+    try {
+      const savedGenre = editingGenreId
+        ? await authApi.updateAdminGenre(token, editingGenreId, payload)
+        : await authApi.createAdminGenre(token, payload);
+
+      setGenres((prev) => {
+        if (editingGenreId) {
+          return prev.map((genre) => genre.id === editingGenreId ? savedGenre : genre);
+        }
+        return [savedGenre, ...prev];
+      });
+
+      addAuditLog(editingGenreId ? 'Cập nhật thể loại phim' : 'Tạo thể loại phim', savedGenre.name);
+      showToast(editingGenreId ? `Đã cập nhật thể loại: ${savedGenre.name}` : `Đã tạo thể loại mới: ${savedGenre.name}`);
+      resetGenreForm();
+    } catch (error) {
+      showToast(error.message || 'Không thể lưu thể loại phim.');
+    } finally {
+      setIsGenreSaving(false);
+    }
+  };
+
+  const handleEditGenre = (genre) => {
+    setEditingGenreId(genre.id);
+    setGenreForm({
+      name: genre.name || '',
+      description: genre.description || ''
+    });
+    setGenreErrors({});
+  };
+
+  const performDeleteGenre = async (genre) => {
+    const token = getAdminToken();
+    if (!token) return;
+
+    try {
+      await authApi.deleteAdminGenre(token, genre.id);
+      setGenres((prev) => prev.filter((item) => item.id !== genre.id));
+      addAuditLog('Xóa thể loại phim', genre.name);
+      showToast(`Đã xóa thể loại: ${genre.name}`);
+      if (editingGenreId === genre.id) resetGenreForm();
+    } catch (error) {
+      showToast(error.message || 'Không thể xóa thể loại phim.');
+    }
+  };
+
+  const handleDeleteGenre = (genre) => {
+    showToast(`Bạn có chắc muốn xóa thể loại "${genre.name}" khỏi hệ thống?`, 9000, {
+      label: 'Xóa',
+      onClick: () => performDeleteGenre(genre)
+    });
+  };
+
+  // Consolidated simulated metrics
+  const totalBookingsCount = bookedTickets.length + 342; // standard offset
+  const calculatedRevenue = (bookedTickets.reduce((acc, ticket) => acc + ticket.totalAmount, 0) + 42450000);
+  const averageFillRate = 78.4;
+
+  const normalizeDateInput = (value) => {
+    if (!value) return '';
+    const match = String(value).match(/^\d{4}-\d{2}-\d{2}/);
+    return match ? match[0] : String(value);
+  };
+
+  const resolveMovieId = (movie) => movie?.backendId ?? movie?.id ?? movie?.raw?.id ?? movie?.raw?.movieId;
+
+  const resolveGenreIdsForMovie = (movie) => {
+    const raw = movie?.raw || movie || {};
+    const ids = [];
+    const names = [];
+
+    const pushId = (value) => {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) ids.push(parsed);
+    };
+
+    if (Array.isArray(raw.genreIds)) {
+      raw.genreIds.forEach(pushId);
+    }
+
+    if (Array.isArray(raw.genres)) {
+      raw.genres.forEach((item) => {
+        if (typeof item === 'string') {
+          names.push(item);
+        } else if (item && typeof item === 'object') {
+          if (item.id !== undefined || item.genreId !== undefined) {
+            pushId(item.id ?? item.genreId);
+          } else if (item.name) {
+            names.push(item.name);
+          }
+        }
+      });
+    }
+
+    if (!ids.length && Array.isArray(raw.genre)) {
+      raw.genre.forEach((item) => {
+        if (typeof item === 'string') {
+          names.push(item);
+        } else if (item && typeof item === 'object') {
+          if (item.id !== undefined || item.genreId !== undefined) {
+            pushId(item.id ?? item.genreId);
+          } else if (item.name) {
+            names.push(item.name);
+          }
+        }
+      });
+    }
+
+    if (!ids.length && typeof raw.genre === 'string') {
+      names.push(...raw.genre.split(','));
+    }
+
+    if (!ids.length && Array.isArray(movie?.genre)) {
+      names.push(...movie.genre);
+    }
+
+    if (ids.length) {
+      return Array.from(new Set(ids));
+    }
+
+    const nameLookup = new Map(
+      genres
+        .filter((genre) => genre?.name)
+        .map((genre) => [genre.name.trim().toLowerCase(), Number(genre.id)])
+    );
+    const mapped = names
+      .map((name) => String(name || '').trim().toLowerCase())
+      .filter(Boolean)
+      .map((name) => nameLookup.get(name))
+      .filter((value) => Number.isFinite(value));
+
+    return Array.from(new Set(mapped));
+  };
+
+  const resetMovieForm = () => {
+    setFormData(buildDefaultMovieForm());
+    setEditingMovie(null);
+  };
+
+  const handleEditMovie = (movie) => {
+    if (movie?.status === 'INACTIVE' || movie?.isInactive) {
+      showToast('Phim đang ở trạng thái INACTIVE nên không thể cập nhật.');
+      return;
+    }
+
+    const defaultForm = buildDefaultMovieForm();
+    const genreIds = resolveGenreIdsForMovie(movie);
+    const genreNames = genreIds.length
+      ? genres
+        .filter((genre) => genreIds.includes(Number(genre.id)))
+        .map((genre) => genre.name)
+        .join(', ')
+      : Array.isArray(movie?.genre)
+        ? movie.genre.join(', ')
+        : String(movie?.genre || '');
+
+    setEditingMovie(movie);
+    setFormData({
+      ...defaultForm,
+      title: movie?.title || defaultForm.title,
+      englishTitle: movie?.englishTitle || defaultForm.englishTitle,
+      genre: genreNames,
+      genreIds,
+      duration: Number(movie?.duration ?? movie?.durationMinutes ?? defaultForm.duration),
+      ageRating: movie?.ageRating || defaultForm.ageRating,
+      director: movie?.director || defaultForm.director,
+      synopsis: movie?.synopsis || movie?.description || movie?.raw?.description || defaultForm.synopsis,
+      trailerUrl: movie?.trailerUrl || defaultForm.trailerUrl,
+      language: movie?.language || defaultForm.language,
+      subtitleLanguage: movie?.subtitleLanguage || movie?.raw?.subtitleLanguage || defaultForm.subtitleLanguage,
+      status: movie?.status || defaultForm.status,
+      castList: movie?.castList || movie?.raw?.castList || movie?.cast || defaultForm.castList,
+      posterUrl: movie?.posterUrl || defaultForm.posterUrl,
+      bannerUrl: movie?.bannerUrl || defaultForm.bannerUrl,
+      releaseDate: normalizeDateInput(movie?.releaseDate) || defaultForm.releaseDate,
+      isHot: Boolean(movie?.isHot),
+      isUpcoming: Boolean(movie?.isUpcoming)
+    });
+    setShowMovieForm(true);
+  };
+
+  const handleCreateMovieSubmit = async (e) => {
+    e.preventDefault();
+    playPulseSound(587.33, 'sine', 0.2); // D5 success note
+
+    if (!formData.title || !formData.genreIds?.length) {
+      showToast("Vui lòng điền tiêu đề và thể loại phim.");
+      return;
+    }
+
+    const token = getAdminToken();
+    if (!token) return;
+
+    const targetMovieId = editingMovie ? resolveMovieId(editingMovie) : null;
+    if (editingMovie && (editingMovie.status === 'INACTIVE' || editingMovie.isInactive)) {
+      showToast('Phim đang ở trạng thái INACTIVE nên không thể cập nhật.');
+      return;
+    }
+    if (editingMovie && !targetMovieId) {
+      showToast('Không xác định được mã phim để cập nhật.');
+      return;
+    }
+
+    const payload = {
+      title: formData.title.trim(),
+      description: formData.synopsis.trim(),
+      trailerUrl: formData.trailerUrl.trim(),
+      posterUrl: formData.posterUrl,
+      durationMinutes: Number(formData.duration) || 1,
+      releaseDate: formData.releaseDate,
+      language: formData.language.trim(),
+      subtitleLanguage: formData.subtitleLanguage.trim(),
+      status: formData.status,
+      ageRating: formData.ageRating,
+      director: formData.director.trim(),
+      castList: formData.castList.trim(),
+      genreIds: formData.genreIds.map((id) => Number(id))
+    };
+
+    setIsMovieSaving(true);
+    try {
+      const savedMovie = editingMovie
+        ? await authApi.updateAdminMovie(token, targetMovieId, payload)
+        : await authApi.createAdminMovie(token, payload);
+      setMoviesList((prev) => editingMovie
+        ? prev.map((item) => {
+          const itemId = resolveMovieId(item);
+          return String(itemId) === String(targetMovieId) ? savedMovie : item;
+        })
+        : [savedMovie, ...prev]);
+      if (!editingMovie) {
+        setAdminMoviePagination((prev) => ({ ...prev, totalElements: prev.totalElements + 1 }));
+      }
+      addAuditLog(editingMovie ? 'Cập nhật phim' : 'Thêm phim mới', savedMovie.title);
+      resetMovieForm();
+      setShowMovieForm(false);
+      showToast(editingMovie
+        ? `Đã cập nhật phim: ${savedMovie.title}`
+        : `Đã tạo phim mới: ${savedMovie.title}`);
+    } catch (error) {
+      showToast(error.message || (editingMovie ? 'Không thể cập nhật phim.' : 'Không thể tạo phim mới.'));
+    } finally {
+      setIsMovieSaving(false);
+    }
+    return;
+
+    const generatedId = formData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const newMovieObj = {
+      id: generatedId,
+      title: formData.title.toUpperCase(),
+      englishTitle: formData.englishTitle || formData.title,
+      genre: formData.genre.split(',').map(g => g.trim()),
+      synopsis: formData.synopsis || 'Chưa cung cấp mô tả chi tiết phim.',
+      duration: Number(formData.duration) || 120,
+      ageRating: formData.ageRating,
+      posterUrl: formData.posterUrl,
+      bannerUrl: formData.bannerUrl,
+      releaseDate: formData.releaseDate,
+      director: formData.director || 'Chưa rõ',
+      ratings: {
+        aiOverall: 9.0,
+        aiStory: 9.0,
+        aiActing: 9.0,
+        aiVisual: 9.0,
+        aiAudio: 9.0
+      },
+      aiAnalysisTags: ['Được_Đề_Xuất', 'Phát_Hành_Mới'],
+      isHot: formData.isHot,
+      isUpcoming: formData.isUpcoming,
+      emotionalWaveform: [30, 45, 60, 40, 80, 90, 50, 70, 85, 95]
+    };
+
+    setMoviesList([newMovieObj, ...moviesList]);
+    addAuditLog('Thêm phim mới', newMovieObj.title);
+
+    // Reset form
+    setFormData({
+      title: '',
+      englishTitle: '',
+      genre: '',
+      duration: 120,
+      ageRating: 'T13',
+      director: '',
+      synopsis: '',
+      posterUrl: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?q=80&w=600&auto=format&fit=crop',
+      bannerUrl: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1200&auto=format&fit=crop',
+      releaseDate: '2026-06-01',
+      isHot: false,
+      isUpcoming: false
+    });
+
+    setShowMovieForm(false);
+    showToast(`Đã biên tập thành công và thêm bản ghi phim: ${newMovieObj.title}`);
+  };
+
+  const handleDeleteMovie = (movie) => {
+    const movieId = resolveMovieId(movie);
+    const title = movie?.title || movie?.name || 'phim này';
+
+    showToast(`Ngừng phát hành bản ghi phim "${title}"? Hành động này sẽ rút toàn bộ cổng suất chiếu liên quan.`, 9000, {
+      label: 'Đình chỉ',
+      onClick: async () => {
+        playPulseSound(220, 'sawtooth', 0.25);
+
+        const token = getAdminToken();
+        if (!token) return;
+        if (!movieId) {
+          showToast('Không xác định được mã phim để xóa.');
+          return;
+        }
+
+        try {
+          await authApi.deleteAdminMovie(token, movieId);
+          setMoviesList((prev) => prev.map((item) => (
+            String(resolveMovieId(item)) === String(movieId)
+              ? { ...item, status: 'INACTIVE', isInactive: true, isUpcoming: false, isNowShowing: false }
+              : item
+          )));
+          if (editingMovie && String(resolveMovieId(editingMovie)) === String(movieId)) {
+            resetMovieForm();
+            setShowMovieForm(false);
+          }
+          addAuditLog('Xóa phim khỏi luồng', title);
+          showToast(`Đã đình chỉ phát hành bản ghi phim: ${title}`);
+        } catch (error) {
+          showToast(error.message || 'Không thể xóa phim.');
+        }
+      }
+    });
+  };
+
+  const handleAddShowtimeSubmit = (e) => {
+    e.preventDefault();
+    playPulseSound(659.25, 'sine', 0.15); // E5 note
+
+    const targetMovie = moviesList.find(m => m.id === newShowtime.movieId);
+    if (!targetMovie) {
+      showToast("Suất chiếu cần tham chiếu một mã phim cụ thể.");
+      return;
+    }
+
+    setShowtimeSuccessMessage(`Kích hoạt thành công suất chiếu mới của tác phẩm: ${targetMovie.title}`);
+    addAuditLog('Phát phối suất chiếu mới', `${targetMovie.title} tại ${newShowtime.city}`);
+
+    setTimeout(() => {
+      setShowtimeSuccessMessage('');
+      setIsAddingShowtime(false);
+    }, 2800);
+  };
+
+  const handleRefundTicket = (ticketId, customerName) => {
+    showToast(`Xác nhận bồi hoàn vé [${ticketId}] của khách hàng [${customerName}]? Ghế đã chọn sẽ được hoàn trả lại rạp chiếu.`, 9000, {
+      label: 'Hoàn tiền',
+      onClick: () => {
+        playPulseSound(293.66, 'sine', 0.3);
+        setBookedTickets(prev => prev.filter(t => t.ticketId !== ticketId));
+        addAuditLog('Hoàn tiền giao dịch', `Mã vé ${ticketId}`);
+        showToast(`Đã hoàn thành thủ tục hủy vé và hoàn trả tiền cho khách hàng ${customerName}.`);
+      }
+    });
+  };
+
+  // Filter movies
+  const filteredMovies = moviesList.filter(mv => {
+    const status = String(mv.status || '').toUpperCase();
+    const matchesSearch =
+      mv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      mv.englishTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      mv.director.toLowerCase().includes(searchQuery.toLowerCase());
+
+    if (filmFilter === 'ALL') return matchesSearch;
+    if (filmFilter === 'ACTIVE') return matchesSearch && status === 'NOW_SHOWING';
+    if (filmFilter === 'UPCOMING') return matchesSearch && status === 'UPCOMING';
+    return matchesSearch;
+  });
+
+  const filteredGenres = genres.filter((genre) => {
+    const query = genreSearch.trim().toLowerCase();
+    if (!query) return true;
+    return (
+      genre.name?.toLowerCase().includes(query) ||
+      genre.description?.toLowerCase().includes(query)
+    );
+  });
+
+  const adminCtx = {
+    activeTab,
+    setActiveTab,
+    selectedAnalysisMovieId,
+    setSelectedAnalysisMovieId,
+    isReanalyzing,
+    setIsReanalyzing,
+    analysisScrambleOffset,
+    setAnalysisScrambleOffset,
+    activeChartPoint,
+    setActiveChartPoint,
+    searchQuery,
+    setSearchQuery,
+    filmFilter,
+    setFilmFilter,
+    adminMoviePagination,
+    setAdminMoviePagination,
+    editingMovie,
+    setEditingMovie,
+    showMovieForm,
+    setShowMovieForm,
+    isMovieSaving,
+    formData,
+    setFormData,
+    newShowtime,
+    setNewShowtime,
+    isAddingShowtime,
+    setIsAddingShowtime,
+    showtimeSuccessMessage,
+    setShowtimeSuccessMessage,
+    genres,
+    setGenres,
+    genreSearch,
+    setGenreSearch,
+    genreForm,
+    setGenreForm,
+    genreErrors,
+    setGenreErrors,
+    editingGenreId,
+    setEditingGenreId,
+    isGenreLoading,
+    setIsGenreLoading,
+    isGenreSaving,
+    setIsGenreSaving,
+    homepageForm,
+    setHomepageForm,
+    homepageVideoError,
+    setHomepageVideoError,
+    foodItems,
+    setFoodItems,
+    foodCombos,
+    setFoodCombos,
+    foodSearch,
+    setFoodSearch,
+    foodKind,
+    setFoodKind,
+    editingFood,
+    setEditingFood,
+    foodForm,
+    setFoodForm,
+    foodErrors,
+    setFoodErrors,
+    isFoodLoading,
+    setIsFoodLoading,
+    isFoodSaving,
+    setIsFoodSaving,
+    adminUsers,
+    setAdminUsers,
+    selectedAdminUser,
+    setSelectedAdminUser,
+    userSearch,
+    setUserSearch,
+    isUsersLoading,
+    setIsUsersLoading,
+    isUserDetailLoading,
+    setIsUserDetailLoading,
+    isUserStatusSaving,
+    setIsUserStatusSaving,
+    visibleFoods,
+    HALL_OPTIONS,
+    TIME_OPTIONS,
+    playPulseSound,
+    auditLogs,
+    setAuditLogs,
+    addAuditLog,
+    getYoutubeId,
+    handleHomepageVideoSubmit,
+    resetFoodForm,
+    validateFoodForm,
+    fetchFoods,
+    handleFoodSubmit,
+    handleEditFood,
+    handleToggleFoodStatus,
+    getAdminToken,
+    changeAdminSection,
+    validateGenreForm,
+    fetchGenres,
+    resetGenreForm,
+    handleGenreSubmit,
+    handleEditGenre,
+    performDeleteGenre,
+    handleDeleteGenre,
+    fetchAdminUsers,
+    handleSelectAdminUser,
+    handleUpdateAdminUserStatus,
+    totalBookingsCount,
+    calculatedRevenue,
+    averageFillRate,
+    resetMovieForm,
+    handleEditMovie,
+    handleCreateMovieSubmit,
+    handleDeleteMovie,
+    handleAddShowtimeSubmit,
+    handleRefundTicket,
+    filteredMovies,
+    filteredGenres,
+    moviesList,
+    setMoviesList,
+    bookedTickets,
+    setBookedTickets,
+    cinemaLocations,
+    onSelectMovie,
+    showToast,
+    initialSection,
+    onSectionChange,
+    homepageVideoUrl,
+    onHomepageVideoUrlChange,
+    onFoodCatalogChanged,
+    isAdmin,
+    currentUser
+  };
+
+  const adminPanels = {
+    overview: AdminOverviewPanel,
+    movies: AdminMoviesPanel,
+    genres: AdminGenresPanel,
+    foods: AdminFoodsPanel,
+    homepage: AdminHomepagePanel,
+    showtimes: AdminShowtimesPanel,
+    transactions: AdminTransactionsPanel,
+    users: AdminUsersPanel,
+    'ai-analysis': AdminAiAnalysisPanel
+  };
+
+  const ActiveAdminPanel = adminPanels[activeTab] || AdminOverviewPanel;
+
+  return (
+    <div className="w-full max-w-[1600px] mx-auto px-3 sm:px-5 xl:px-8 2xl:px-10 py-8 text-white select-none">
+
+      {/* 1. TOP STATS ENGINE HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-neutral-950 to-neutral-900 border border-neutral-850 p-6 shadow-xl relative mb-6" id="admin-top-banner">
+        <div className="absolute top-0 left-0 w-2 h-full bg-amber-500"></div>
+        <div>
+          <div className="flex items-center space-x-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="text-[9px] font-mono tracking-widest text-[#B5C2CA]">HỆ THỐNG TRUNG TÂM PHÒNG CHIẾU CINEPREMIER</span>
+          </div>
+          <h1 className="text-xl sm:text-2xl font-serif font-black tracking-normal uppercase mt-1">
+            BẢNG ĐIỀU KHIỂN QUẢN TRỊ VIÊN
+          </h1>
+          <p className="text-xs text-neutral-400 font-sans mt-0.5 max-w-2xl">
+            Cơ sở kiểm kê hạ tầng rạp chiếu toàn quốc, điều phối kế hoạch chiếu, kiểm toán giao dịch bán vé và cập nhật thư viện phim độc quyền một cách chuyên nghiệp.
+          </p>
+        </div>
+
+        {/* Quick status counters */}
+        <div className="flex gap-4.5 bg-black/60 border border-neutral-850 p-3 items-center">
+          <div className="text-center">
+            <span className="text-[10px] text-neutral-500 block font-mono">SERVER HEALTH</span>
+            <span className="text-xs font-bold text-emerald-400 font-mono tracking-wider">99.8% ONLINE</span>
+          </div>
+          <div className="h-6 w-[1px] bg-neutral-800"></div>
+          <div className="text-center">
+            <span className="text-[10px] text-neutral-500 block font-mono">HẠNG MỤC</span>
+            <span className="text-xs font-bold text-amber-500 font-mono">ADMIN</span>
+          </div>
+        </div>
+      </div>
+
+      {/* CORE GRID: RESPONSIVE SIDEBAR + ACTIVE VIEW */}
+      <div className="grid grid-cols-1 lg:grid-cols-[250px_minmax(0,1fr)] gap-5 items-start">
+
+        {/* LEFT COMPONENT: THE DASHBOARD SELECTOR BAR (Cols 3) */}
+        <div className="space-y-4 lg:sticky lg:top-8" id="admin-sidebar-bar">
+
+          {/* Active Admin Profile */}
+          <div className="bg-gradient-to-b from-[#0a0a0a] to-[#040404] border border-neutral-850 p-3 space-y-2.5">
+            <div className="flex items-center space-x-2.5">
+              <div className="h-8 w-8 overflow-hidden rounded-sm border border-amber-500 bg-neutral-900 flex items-center justify-center text-amber-400 font-serif italic text-base font-black">
+                A
+              </div>
+              <div className="min-w-0">
+                <h4 className="truncate text-[11px] font-black uppercase text-white tracking-wide">QUẢN TRỊ VIÊN</h4>
+                <p className="text-[9px] text-[#88959C] font-mono">ID: CP-99210-ADMIN</p>
+              </div>
+            </div>
+            <div className="h-[1px] bg-neutral-850"></div>
+            <div className="flex items-center justify-between text-[10px] font-sans">
+              <span className="text-neutral-500">Môi trường</span>
+              <span className="text-emerald-400 font-mono font-bold flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span> PRODUCTION
+              </span>
+            </div>
+          </div>
+
+          {/* Navigation Sidebar List (like image layout) */}
+          <div className="bg-[#070707] border border-neutral-850 p-3 space-y-1.5 [&_button]:px-2.5 [&_button]:py-2.5 [&_button]:text-[9.5px] [&_svg]:h-3.5 [&_svg]:w-3.5" id="nav-sidebar-items">
+            <span className="text-[7.5px] font-mono uppercase tracking-[0.18em] text-neutral-500 block px-2 pb-1.5 font-black">
+              CÔNG CỤ PHÂN PHỐI
+            </span>
+
+            <button
+              onClick={() => { playPulseSound(440, 'sine', 0.05); changeAdminSection('overview'); }}
+              className={`w-full flex items-center justify-between px-3 py-3 text-[10.5px] font-sans uppercase font-black tracking-widest transition-all duration-300 border ${activeTab === 'overview'
+                ? 'border-amber-500/35 bg-amber-500/10 text-amber-400 font-black'
+                : 'border-white/5 bg-black/40 text-neutral-400 hover:text-white hover:border-neutral-850'
+                }`}
+            >
+              <span className="flex items-center space-x-2.5">
+                <Activity className="h-4 w-4 shrink-0 text-amber-500" />
+                <span>TỔNG QUAN HỆ THỐNG</span>
+              </span>
+              {activeTab === 'overview' && <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>}
+            </button>
+
+            <button
+              onClick={() => { playPulseSound(460, 'sine', 0.05); changeAdminSection('movies'); }}
+              className={`w-full flex items-center justify-between px-3 py-3 text-[10.5px] font-sans uppercase font-black tracking-widest transition-all duration-300 border ${activeTab === 'movies'
+                ? 'border-amber-500/35 bg-amber-500/10 text-amber-400 font-black'
+                : 'border-white/5 bg-black/40 text-neutral-400 hover:text-white hover:border-neutral-850'
+                }`}
+            >
+              <span className="flex items-center space-x-2.5">
+                <Film className="h-4 w-4 shrink-0 text-amber-500" />
+                <span>THƯ VIỆN PHIM</span>
+              </span>
+              {activeTab === 'movies' && <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>}
+            </button>
+
+            <button
+              onClick={() => { playPulseSound(470, 'sine', 0.05); changeAdminSection('genres'); }}
+              className={`w-full flex items-center justify-between px-3 py-3 text-[10.5px] font-sans uppercase font-black tracking-widest transition-all duration-300 border ${activeTab === 'genres'
+                ? 'border-amber-500/35 bg-amber-500/10 text-amber-400 font-black'
+                : 'border-white/5 bg-black/40 text-neutral-400 hover:text-white hover:border-neutral-850'
+                }`}
+            >
+              <span className="flex items-center space-x-2.5">
+                <Tags className="h-4 w-4 shrink-0 text-amber-500" />
+                <span>THỂ LOẠI PHIM</span>
+              </span>
+              {activeTab === 'genres' && <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>}
+            </button>
+
+            <button
+              onClick={() => { playPulseSound(475, 'sine', 0.05); changeAdminSection('homepage'); }}
+              className={`w-full flex items-center justify-between px-3 py-3 text-[10.5px] font-sans uppercase font-black tracking-widest transition-all duration-300 border ${activeTab === 'homepage'
+                ? 'border-amber-500/35 bg-amber-500/10 text-amber-400 font-black'
+                : 'border-white/5 bg-black/40 text-neutral-400 hover:text-white hover:border-neutral-850'
+                }`}
+            >
+              <span className="flex items-center space-x-2.5">
+                <Globe className="h-4 w-4 shrink-0 text-amber-500" />
+                <span>VIDEO TRANG CHỦ</span>
+              </span>
+              {activeTab === 'homepage' && <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>}
+            </button>
+
+            <button
+              onClick={() => { playPulseSound(478, 'sine', 0.05); changeAdminSection('foods'); }}
+              className={`w-full flex items-center justify-between px-3 py-3 text-[10.5px] font-sans uppercase font-black tracking-widest transition-all duration-300 border ${activeTab === 'foods'
+                ? 'border-amber-500/35 bg-amber-500/10 text-amber-400 font-black'
+                : 'border-white/5 bg-black/40 text-neutral-400 hover:text-white hover:border-neutral-850'
+                }`}
+            >
+              <span className="flex items-center space-x-2.5">
+                <ShoppingBag className="h-4 w-4 shrink-0 text-amber-500" />
+                <span>QUẢN LÝ BẮP NƯỚC</span>
+              </span>
+              {activeTab === 'foods' && <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>}
+            </button>
+
+            <button
+              onClick={() => { playPulseSound(480, 'sine', 0.05); changeAdminSection('showtimes'); }}
+              className={`w-full flex items-center justify-between px-3 py-3 text-[10.5px] font-sans uppercase font-black tracking-widest transition-all duration-300 border ${activeTab === 'showtimes'
+                ? 'border-amber-500/35 bg-amber-500/10 text-amber-400 font-black'
+                : 'border-white/5 bg-black/40 text-neutral-400 hover:text-white hover:border-neutral-850'
+                }`}
+            >
+              <span className="flex items-center space-x-2.5">
+                <Calendar className="h-4 w-4 shrink-0 text-amber-500" />
+                <span>ĐIỀU PHỐI LỊCH CHIẾU</span>
+              </span>
+              {activeTab === 'showtimes' && <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>}
+            </button>
+
+            <button
+              onClick={() => { playPulseSound(500, 'sine', 0.05); changeAdminSection('transactions'); }}
+              className={`w-full flex items-center justify-between px-3 py-3 text-[10.5px] font-sans uppercase font-black tracking-widest transition-all duration-300 border ${activeTab === 'transactions'
+                ? 'border-amber-500/35 bg-amber-500/10 text-amber-400 font-black'
+                : 'border-white/5 bg-black/40 text-neutral-400 hover:text-white hover:border-neutral-850'
+                }`}
+            >
+              <span className="flex items-center space-x-2.5">
+                <FileText className="h-4 w-4 shrink-0 text-amber-500" />
+                <span>SỔ CÁI KIỂM TOÁN VÉ</span>
+              </span>
+              {activeTab === 'transactions' && <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>}
+            </button>
+
+            <button
+              onClick={() => { playPulseSound(510, 'sine', 0.05); changeAdminSection('users'); }}
+              className={`w-full flex items-center justify-between px-3 py-3 text-[10.5px] font-sans uppercase font-black tracking-widest transition-all duration-300 border ${activeTab === 'users'
+                ? 'border-amber-500/35 bg-amber-500/10 text-amber-400 font-black'
+                : 'border-white/5 bg-black/40 text-neutral-400 hover:text-white hover:border-neutral-850'
+                }`}
+            >
+              <span className="flex items-center space-x-2.5">
+                <Users className="h-4 w-4 shrink-0 text-amber-500" />
+                <span>QUẢN LÝ NGƯỜI DÙNG</span>
+              </span>
+              {activeTab === 'users' && <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>}
+            </button>
+
+            <button
+              onClick={() => { playPulseSound(520, 'sine', 0.07); changeAdminSection('ai-analysis'); }}
+              className={`w-full flex items-center justify-between px-3 py-3 text-[10.5px] font-sans uppercase font-black tracking-widest transition-all duration-300 border ${activeTab === 'ai-analysis'
+                ? 'border-purple-500/35 bg-purple-500/10 text-purple-400 font-black'
+                : 'border-white/5 bg-black/40 text-neutral-400 hover:text-white hover:border-neutral-850'
+                }`}
+            >
+              <span className="flex items-center space-x-2.5">
+                <Sparkles className="h-4 w-4 shrink-0 text-purple-400" />
+                <span>PHÂN TÍCH AI PHIM</span>
+              </span>
+              {activeTab === 'ai-analysis' && <span className="h-1.5 w-1.5 rounded-full bg-purple-500 animate-pulse"></span>}
+            </button>
+
+            <div className="h-[1px] bg-neutral-900 my-3"></div>
+
+            {/* Quick action: Exit / Back */}
+            <button
+              onClick={() => {
+                playPulseSound(300, 'sine', 0.15);
+                showToast("Hệ thống: Rời khỏi phiên làm việc Quản trị viên.");
+                setTimeout(() => window.location.reload(), 900);
+              }}
+              className="w-full flex items-center space-x-2.5 px-3 py-2.5 text-[10.5px] font-sans uppercase font-bold tracking-widest text-[#E57373] hover:text-white hover:bg-rose-950/20 border border-transparent hover:border-rose-500/20 transition-all duration-200"
+            >
+              <RefreshCw className="h-3.5 w-3.5 text-rose-500 animate-spin-slow" />
+              <span>ĐỒNG BỘ TRANG CHỦ</span>
+            </button>
+          </div>
+
+          {/* Infrastructure Metrics indicators */}
+          <div className="bg-[#0b0b0b] border border-neutral-850 p-3 space-y-2" id="sidebar-telemetry">
+            <span className="text-[7.5px] font-mono tracking-widest text-neutral-500 uppercase block font-black">ĐỒNG BỘ MÁY CHỦ</span>
+            <div className="space-y-1.5 text-[10px] font-mono">
+              <div className="flex justify-between items-center text-zinc-400">
+                <span>Database Sync</span>
+                <span className="text-emerald-400 font-bold">OK</span>
+              </div>
+              <div className="flex justify-between items-center text-zinc-400">
+                <span>Cloud Run Cores</span>
+                <span className="text-zinc-300">04 Active</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT COMPONENT: MAIN VIEW DETAILS (Cols 9) */}
+        <div className="min-w-0 space-y-6">
+
+          {/* 2. CORPORATE CORE BENTO METRICS */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" id="corporate-bento-metrics">
+
+            {/* Metric Card 1 */}
+            <div className="bg-gradient-to-b from-[#0c0c0c] to-[#040404] border border-neutral-850 p-5 space-y-2.5 relative overflow-hidden shadow-md">
+              <div className="flex justify-between items-start">
+                <span className="text-[9px] tracking-wider font-extrabold text-[#7E8B93] uppercase font-sans">Tổng doanh thu liên kết</span>
+                <div className="p-1 bg-amber-500/10 text-amber-500"><DollarSign className="h-4 w-4" /></div>
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-mono font-black text-white">{calculatedRevenue.toLocaleString()}đ</h2>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[10px] text-emerald-400 font-mono">▲ +12.4%</span>
+                  <span className="text-[9px] text-[#556268]">so với tuần trước</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Metric Card 2 */}
+            <div className="bg-gradient-to-b from-[#0c0c0c] to-[#040404] border border-neutral-850 p-5 space-y-2.5 relative overflow-hidden shadow-md">
+              <div className="flex justify-between items-start">
+                <span className="text-[9px] tracking-wider font-extrabold text-[#7E8B93] uppercase font-sans">Sản lượng vé xuất xưởng</span>
+                <div className="p-1 bg-emerald-500/10 text-emerald-400"><FileText className="h-4 w-4" /></div>
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-mono font-black text-white">{totalBookingsCount} vé</h2>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[10px] text-emerald-400 font-mono">▲ +48 vé mới</span>
+                  <span className="text-[9px] text-[#556268]">qua giao dịch cổng VIP</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Metric Card 3 */}
+            <div className="bg-gradient-to-b from-[#0c0c0c] to-[#040404] border border-neutral-850 p-5 space-y-2.5 relative overflow-hidden shadow-md">
+              <div className="flex justify-between items-start">
+                <span className="text-[9px] tracking-wider font-extrabold text-[#7E8B93] uppercase font-sans">Hệ số lấp đầy rạp</span>
+                <div className="p-1 bg-blue-500/10 text-blue-400"><Activity className="h-4 w-4" /></div>
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-mono font-black text-white">{averageFillRate}%</h2>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[10px] text-[#7E8B93] font-mono">Tối ưu hóa:</span>
+                  <span className="text-[9px] text-orange-400 font-bold">KHUNG GIỜ VÀNG QUÁ TẢI</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Metric Card 4 */}
+            <div className="bg-gradient-to-b from-[#0c0c0c] to-[#040404] border border-neutral-850 p-5 space-y-2.5 relative overflow-hidden shadow-md">
+              <div className="flex justify-between items-start">
+                <span className="text-[9px] tracking-wider font-extrabold text-[#7E8B93] uppercase font-sans">Thư viện phát hành</span>
+                <div className="p-1 bg-purple-500/10 text-purple-400"><Film className="h-4 w-4" /></div>
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-mono font-black text-white">{moviesList.length} tác phẩm</h2>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[10px] text-neutral-400 font-sans">Phân loại:</span>
+                  <span className="text-[9px] text-amber-400 font-mono font-bold">{moviesList.filter(m => m.status === 'UPCOMING').length} sắp chiếu / {moviesList.filter(m => m.status === 'NOW_SHOWING').length} đang chiếu / {moviesList.filter(m => m.status === 'INACTIVE').length} ngừng hiển thị</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* 3. SECONDARY CONTROLS OR AUDIT LOG MINI STRIP */}
+          <div className="flex flex-col sm:flex-row justify-between items-center bg-[#070707] border border-neutral-850 p-3 px-4.5 gap-3.5" id="audit-log-strip">
+            <div className="flex items-center gap-2.5 w-full sm:w-auto overflow-hidden">
+              <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 text-[8.5px] font-mono font-bold border border-amber-500/20 uppercase">Nhật Ký Ghi Nhận</span>
+              <p className="text-[10.5px] text-neutral-400 font-sans truncate">
+                {auditLogs[0] ? `[${auditLogs[0].time}] ${auditLogs[0].action}: ${auditLogs[0].target} - thực hiện bởi ${auditLogs[0].user}` : 'Không có hoạt động mới ghi nhận'}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                playPulseSound(700, 'sine', 0.1);
+                addAuditLog('Làm mới chỉ số rạp chiếu', 'Cập nhật doanh thu tổng');
+              }}
+              className="shrink-0 flex items-center gap-1.5 text-[9px] font-mono hover:text-white uppercase text-[#88959C] border border-neutral-800 bg-black/40 px-3 py-1 transition"
+            >
+              <RefreshCw className="h-3 w-3 animate-spin-slow" /> HỒI PHỤC ĐỒNG BỘ
+            </button>
+          </div>
+
+          {/* TAB SCREENS EXECUTOR */}
+          <div>
+            <AnimatePresence mode="wait">
+              <ActiveAdminPanel key={activeTab} ctx={adminCtx} />
+            </AnimatePresence>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

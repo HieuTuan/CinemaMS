@@ -1,0 +1,52 @@
+package com.sba301.cinemaai.controller;
+
+import com.sba301.cinemaai.dto.booking.BookingResponse;
+import com.sba301.cinemaai.dto.booking.CheckInRequest;
+import com.sba301.cinemaai.dto.response.ApiResponse;
+import com.sba301.cinemaai.enums.BookingStatus;
+import com.sba301.cinemaai.service.BookingService;
+import jakarta.validation.Valid;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/v1/admin/bookings")
+@RequiredArgsConstructor
+public class AdminBookingController {
+
+    private final BookingService bookingService;
+
+    @GetMapping
+    public ApiResponse<List<BookingResponse>> getBookings(
+            @RequestParam(required = false) BookingStatus status
+    ) {
+        return ApiResponse.success(bookingService.getAdminBookings(status));
+    }
+
+    @GetMapping("/{bookingId}")
+    public ApiResponse<BookingResponse> getBooking(@PathVariable Long bookingId) {
+        return ApiResponse.success(bookingService.getAdminBooking(bookingId));
+    }
+
+    @DeleteMapping("/{bookingId}")
+    public ApiResponse<BookingResponse> cancel(@PathVariable Long bookingId) {
+        return ApiResponse.success(bookingService.cancelAdmin(bookingId), "Booking cancelled successfully");
+    }
+
+    @PostMapping("/{bookingId}/check-in")
+    public ApiResponse<BookingResponse> checkIn(
+            @PathVariable Long bookingId,
+            @Valid @RequestBody(required = false) CheckInRequest request
+    ) {
+        String qrCode = request == null ? null : request.qrCode();
+        return ApiResponse.success(bookingService.checkInAdmin(bookingId, qrCode), "Booking checked in successfully");
+    }
+}

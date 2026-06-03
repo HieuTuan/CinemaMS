@@ -6,6 +6,7 @@ import com.sba301.cinemaai.dto.auth.LoginRequest;
 import com.sba301.cinemaai.dto.cinema.CinemaRequest;
 import com.sba301.cinemaai.dto.cinema.RoomRequest;
 import com.sba301.cinemaai.dto.cinema.SeatGenerationRequest;
+import com.sba301.cinemaai.dto.cinema.SeatUpdateRequest;
 import com.sba301.cinemaai.dto.cinema.ShowtimeRequest;
 import com.sba301.cinemaai.entity.Movie;
 import com.sba301.cinemaai.entity.Role;
@@ -16,6 +17,7 @@ import com.sba301.cinemaai.enums.MovieStatus;
 import com.sba301.cinemaai.enums.RoleName;
 import com.sba301.cinemaai.enums.RoomStatus;
 import com.sba301.cinemaai.enums.RoomType;
+import com.sba301.cinemaai.enums.SeatStatus;
 import com.sba301.cinemaai.enums.SeatType;
 import com.sba301.cinemaai.enums.ShowtimeStatus;
 import com.sba301.cinemaai.repository.MovieRepository;
@@ -33,9 +35,11 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -70,15 +74,43 @@ class CinemaShowtimeIntegrationTests {
         Movie movie = createMovie();
 
         Long cinemaId = createCinema(token);
-        Long roomId = createRoom(token, cinemaId);
+        Long roomId = createRoom(token);
 
-        mockMvc.perform(post("/api/v1/admin/rooms/{roomId}/seats/generate", roomId)
+        mockMvc.perform(get("/api/v1/cinema"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(cinemaId));
+
+        mockMvc.perform(get("/api/v1/cinema/rooms"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].cinemaId").value(cinemaId));
+
+        String seatResponse = mockMvc.perform(post("/api/v1/admin/rooms/{roomId}/seats/generate", roomId)
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new SeatGenerationRequest(SeatType.NORMAL, false))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(12))
-                .andExpect(jsonPath("$.data[0].rowLabel").value("A"));
+                .andExpect(jsonPath("$.data[0].rowLabel").value("A"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        Long seatId = objectMapper.readTree(seatResponse).at("/data/0/id").asLong();
+        mockMvc.perform(put("/api/v1/admin/rooms/seats/{seatId}", seatId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new SeatUpdateRequest(
+                                SeatType.VIP,
+                                SeatStatus.MAINTENANCE
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.seatType").value("VIP"))
+                .andExpect(jsonPath("$.data.status").value("MAINTENANCE"));
+
+        mockMvc.perform(delete("/api/v1/admin/rooms/seats/{seatId}", seatId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("UNAVAILABLE"));
 
         LocalDateTime startTime = LocalDateTime.of(2026, 5, 20, 18, 0);
         String showtimeBody = objectMapper.writeValueAsString(new ShowtimeRequest(
@@ -126,7 +158,7 @@ class CinemaShowtimeIntegrationTests {
                 .andExpect(jsonPath("$.data.rowCount").value(3))
                 .andExpect(jsonPath("$.data.columnCount").value(4))
                 .andExpect(jsonPath("$.data.seats.length()").value(12))
-                .andExpect(jsonPath("$.data.seats[0].runtimeStatus").value("AVAILABLE"));
+                .andExpect(jsonPath("$.data.seats[0].runtimeStatus").value("UNAVAILABLE"));
 
         mockMvc.perform(patch("/api/v1/admin/showtimes/{showtimeId}/status", showtimeId)
                         .header("Authorization", "Bearer " + token)
@@ -136,7 +168,7 @@ class CinemaShowtimeIntegrationTests {
     }
 
     private Long createCinema(String token) throws Exception {
-        String response = mockMvc.perform(post("/api/v1/admin/cinemas")
+        String response = mockMvc.perform(post("/api/v1/admin/cinema")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new CinemaRequest(
@@ -153,12 +185,12 @@ class CinemaShowtimeIntegrationTests {
         return objectMapper.readTree(response).at("/data/id").asLong();
     }
 
-    private Long createRoom(String token, Long cinemaId) throws Exception {
+    private Long createRoom(String token) throws Exception {
         String response = mockMvc.perform(post("/api/v1/admin/rooms")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new RoomRequest(
-                                cinemaId,
+                                null,
                                 "Room Phase 5",
                                 RoomType.TWO_D,
                                 3,
@@ -176,7 +208,7 @@ class CinemaShowtimeIntegrationTests {
         String title = "Phase 5 Movie " + System.nanoTime();
         Movie movie = new Movie(title, 110, MovieStatus.NOW_SHOWING);
         movie.updateDetails(title, "Scheduling test movie.", 110, LocalDate.of(2026, 5, 19));
-        movie.updateMetadata("English", "Vietnamese", "13+", "Phase Five Director", "Cast");
+        movie.updateMetadata("English", "Vietnamese", "13+", "Phase Five Director", "Phase Five Lead", "Cast");
         return movieRepository.save(movie);
     }
 

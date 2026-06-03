@@ -8,6 +8,8 @@ import com.sba301.cinemaai.dto.booking.CheckInRequest;
 import com.sba301.cinemaai.dto.booking.CreateBookingRequest;
 import com.sba301.cinemaai.dto.booking.HoldSeatsRequest;
 import com.sba301.cinemaai.dto.food.FoodItemRequest;
+import com.sba301.cinemaai.entity.Booking;
+import com.sba301.cinemaai.entity.BookingSeat;
 import com.sba301.cinemaai.entity.Cinema;
 import com.sba301.cinemaai.entity.Movie;
 import com.sba301.cinemaai.entity.Role;
@@ -16,12 +18,16 @@ import com.sba301.cinemaai.entity.Seat;
 import com.sba301.cinemaai.entity.Showtime;
 import com.sba301.cinemaai.entity.User;
 import com.sba301.cinemaai.entity.UserRole;
+import com.sba301.cinemaai.enums.BookingStatus;
 import com.sba301.cinemaai.enums.FoodItemStatus;
 import com.sba301.cinemaai.enums.MovieStatus;
 import com.sba301.cinemaai.enums.RoleName;
 import com.sba301.cinemaai.enums.RoomType;
+import com.sba301.cinemaai.enums.SeatRuntimeStatus;
 import com.sba301.cinemaai.enums.SeatType;
 import com.sba301.cinemaai.enums.ShowtimeStatus;
+import com.sba301.cinemaai.repository.BookingRepository;
+import com.sba301.cinemaai.repository.BookingSeatRepository;
 import com.sba301.cinemaai.repository.CinemaRepository;
 import com.sba301.cinemaai.repository.MovieRepository;
 import com.sba301.cinemaai.repository.RoleRepository;
@@ -30,6 +36,7 @@ import com.sba301.cinemaai.repository.SeatRepository;
 import com.sba301.cinemaai.repository.ShowtimeRepository;
 import com.sba301.cinemaai.repository.UserRepository;
 import com.sba301.cinemaai.repository.UserRoleRepository;
+import com.sba301.cinemaai.service.BookingService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -42,6 +49,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -73,6 +82,12 @@ class BookingIntegrationTests {
     private ShowtimeRepository showtimeRepository;
 
     @Autowired
+    private BookingRepository bookingRepository;
+
+    @Autowired
+    private BookingSeatRepository bookingSeatRepository;
+
+    @Autowired
     private UserRepository userRepository;
 
     @Autowired
@@ -83,6 +98,9 @@ class BookingIntegrationTests {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private BookingService bookingService;
 
     @Test
     void shouldHoldBookPreventDuplicateSeatAndCheckInByQr() throws Exception {
@@ -135,7 +153,19 @@ class BookingIntegrationTests {
                 .getContentAsString();
 
         JsonNode bookingJson = objectMapper.readTree(bookingResponse);
+        Long bookingId = bookingJson.at("/data/id").asLong();
         String qrCode = bookingJson.at("/data/qrCode").asText();
+
+        mockMvc.perform(get("/api/v1/admin/bookings/{bookingId}", bookingId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PAID"));
+
+        mockMvc.perform(get("/api/v1/admin/bookings")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .param("status", "PAID"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("PAID"));
 
         mockMvc.perform(get("/api/v1/showtimes/{showtimeId}/seat-map", showtime.getId()))
                 .andExpect(status().isOk())
@@ -152,6 +182,38 @@ class BookingIntegrationTests {
         mockMvc.perform(get("/api/v1/foods/items"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].status").value("ACTIVE"));
+
+        mockMvc.perform(delete("/api/v1/admin/foods/items/{itemId}", foodItemId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("INACTIVE"));
+    }
+
+    @Test
+    void shouldReleaseExpiredSeatHolds() {
+        User customer = createUser("phase6.expired.", RoleName.CUSTOMER);
+        Showtime showtime = createShowtimeFixture();
+        Seat firstSeat = seatRepository.findByRoom(showtime.getRoom()).get(0);
+        Booking expiredHold = bookingRepository.save(new Booking(
+                "BKEXPIRED" + System.nanoTime(),
+                customer,
+                showtime,
+                LocalDateTime.now().minusMinutes(1)
+        ));
+        BookingSeat heldSeat = bookingSeatRepository.save(new BookingSeat(
+                expiredHold,
+                showtime,
+                firstSeat,
+                showtime.getBasePrice()
+        ));
+
+        int releasedCount = bookingService.releaseExpiredHolds();
+
+        Booking updatedBooking = bookingRepository.findById(expiredHold.getId()).orElseThrow();
+        BookingSeat updatedSeat = bookingSeatRepository.findById(heldSeat.getId()).orElseThrow();
+        assertThat(releasedCount).isGreaterThanOrEqualTo(1);
+        assertThat(updatedBooking.getStatus()).isEqualTo(BookingStatus.EXPIRED);
+        assertThat(updatedSeat.getStatus()).isEqualTo(SeatRuntimeStatus.RELEASED);
     }
 
     private Long createFoodItem(String adminToken) throws Exception {
@@ -176,7 +238,7 @@ class BookingIntegrationTests {
         String suffix = Long.toString(System.nanoTime());
         Movie movie = new Movie("Phase 6 Movie " + suffix, 110, MovieStatus.NOW_SHOWING);
         movie.updateDetails(movie.getTitle(), "Booking flow movie.", 110, LocalDate.of(2026, 5, 19));
-        movie.updateMetadata("English", "Vietnamese", "13+", "Phase Six Director", "Cast");
+        movie.updateMetadata("English", "Vietnamese", "13+", "Phase Six Director", "Phase Six Lead", "Cast");
         Movie savedMovie = movieRepository.save(movie);
 
         Cinema cinema = cinemaRepository.save(new Cinema("Phase 6 Cinema " + suffix, "1 Booking Street", "HCMC", "0900666777"));
@@ -198,6 +260,24 @@ class BookingIntegrationTests {
     private String loginAs(String prefix, RoleName roleName) throws Exception {
         String email = prefix + System.nanoTime() + "@example.com";
         String password = "Password123";
+        User savedUser = createUser(email, password, roleName);
+
+        String response = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest(savedUser.getEmail(), password))))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        return objectMapper.readTree(response).at("/data/accessToken").asText();
+    }
+
+    private User createUser(String prefix, RoleName roleName) {
+        return createUser(prefix + System.nanoTime() + "@example.com", "Password123", roleName);
+    }
+
+    private User createUser(String email, String password, RoleName roleName) {
         Role role = roleRepository.findByName(roleName)
                 .orElseGet(() -> roleRepository.save(new Role(roleName)));
 
@@ -205,15 +285,6 @@ class BookingIntegrationTests {
         user.activateEmail();
         User savedUser = userRepository.save(user);
         userRoleRepository.save(new UserRole(savedUser, role));
-
-        String response = mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new LoginRequest(email, password))))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-
-        return objectMapper.readTree(response).at("/data/accessToken").asText();
+        return savedUser;
     }
 }

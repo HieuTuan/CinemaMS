@@ -4,10 +4,12 @@ import com.sba301.cinemaai.dto.cinema.RoomRequest;
 import com.sba301.cinemaai.dto.cinema.RoomResponse;
 import com.sba301.cinemaai.dto.cinema.SeatGenerationRequest;
 import com.sba301.cinemaai.dto.cinema.SeatResponse;
+import com.sba301.cinemaai.dto.cinema.SeatUpdateRequest;
 import com.sba301.cinemaai.entity.Cinema;
 import com.sba301.cinemaai.entity.Room;
 import com.sba301.cinemaai.entity.Seat;
 import com.sba301.cinemaai.enums.RoomStatus;
+import com.sba301.cinemaai.enums.SeatStatus;
 import com.sba301.cinemaai.exception.BadRequestException;
 import com.sba301.cinemaai.exception.ConflictException;
 import com.sba301.cinemaai.exception.NotFoundException;
@@ -30,8 +32,17 @@ public class RoomService {
     private final CinemaMapper cinemaMapper;
 
     @Transactional(readOnly = true)
+    public List<RoomResponse> getRooms() {
+        Cinema cinema = cinemaService.findSingleton();
+        return roomRepository.findByCinema(cinema)
+                .stream()
+                .map(cinemaMapper::toRoomResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<RoomResponse> getRoomsByCinema(Long cinemaId) {
-        Cinema cinema = cinemaService.findById(cinemaId);
+        Cinema cinema = cinemaService.findSingletonById(cinemaId);
         return roomRepository.findByCinema(cinema)
                 .stream()
                 .map(cinemaMapper::toRoomResponse)
@@ -45,7 +56,7 @@ public class RoomService {
 
     @Transactional
     public RoomResponse create(RoomRequest request) {
-        Cinema cinema = cinemaService.findById(request.cinemaId());
+        Cinema cinema = resolveCinema(request.cinemaId());
         roomRepository.findByCinemaAndName(cinema, request.name()).ifPresent(room -> {
             throw new ConflictException("Room name already exists in this cinema");
         });
@@ -57,7 +68,7 @@ public class RoomService {
     @Transactional
     public RoomResponse update(Long id, RoomRequest request) {
         Room room = findById(id);
-        Cinema cinema = cinemaService.findById(request.cinemaId());
+        Cinema cinema = resolveCinema(request.cinemaId());
         if (!room.getCinema().getId().equals(cinema.getId())) {
             throw new BadRequestException("Cannot move room to another cinema");
         }
@@ -108,9 +119,34 @@ public class RoomService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public SeatResponse getSeat(Long seatId) {
+        return cinemaMapper.toSeatResponse(findSeatById(seatId));
+    }
+
+    @Transactional
+    public SeatResponse updateSeat(Long seatId, SeatUpdateRequest request) {
+        Seat seat = findSeatById(seatId);
+        seat.changeType(request.seatType());
+        seat.changeStatus(request.status());
+        return cinemaMapper.toSeatResponse(seat);
+    }
+
+    @Transactional
+    public SeatResponse deleteSeat(Long seatId) {
+        Seat seat = findSeatById(seatId);
+        seat.changeStatus(SeatStatus.UNAVAILABLE);
+        return cinemaMapper.toSeatResponse(seat);
+    }
+
     public Room findById(Long id) {
         return roomRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Room not found"));
+    }
+
+    private Seat findSeatById(Long id) {
+        return seatRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Seat not found"));
     }
 
     private String rowLabel(int index) {
@@ -121,5 +157,9 @@ public class RoomService {
             value = value / 26 - 1;
         } while (value >= 0);
         return label.toString();
+    }
+
+    private Cinema resolveCinema(Long cinemaId) {
+        return cinemaId == null ? cinemaService.findSingleton() : cinemaService.findSingletonById(cinemaId);
     }
 }

@@ -82,6 +82,20 @@ public class FoodService {
         return foodMapper.toFoodComboResponse(foodCombo);
     }
 
+    @Transactional
+    public FoodItemResponse deleteItem(Long id) {
+        FoodItem foodItem = findItem(id);
+        foodItem.changeStatus(FoodItemStatus.INACTIVE);
+        return foodMapper.toFoodItemResponse(foodItem);
+    }
+
+    @Transactional
+    public FoodComboResponse deleteCombo(Long id) {
+        FoodCombo foodCombo = findCombo(id);
+        foodCombo.changeStatus(FoodItemStatus.INACTIVE);
+        return foodMapper.toFoodComboResponse(foodCombo);
+    }
+
     public FoodItem findItem(Long id) {
         return foodItemRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Food item not found"));

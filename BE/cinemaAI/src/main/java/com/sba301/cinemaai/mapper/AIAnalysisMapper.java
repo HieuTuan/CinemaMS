@@ -27,6 +27,7 @@ public class AIAnalysisMapper {
                 analysis.getProviderRawResponse(),
                 approvedByUserId,
                 analysis.getApprovedAt(),
+                analysis.getDecisionReason(),
                 segments.stream().map(this::toSegmentResponse).toList(),
                 analysis.getCreatedAt(),
                 analysis.getUpdatedAt()
