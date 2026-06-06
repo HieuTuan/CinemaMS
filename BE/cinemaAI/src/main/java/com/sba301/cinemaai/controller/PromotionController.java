@@ -1,11 +1,11 @@
 package com.sba301.cinemaai.controller;
 
-import com.sba301.cinemaai.dto.promotion.ApplyPromotionResponse;
-import com.sba301.cinemaai.dto.promotion.PromotionCombinationCheckRequest;
-import com.sba301.cinemaai.dto.promotion.PromotionCombinationCheckResponse;
-import com.sba301.cinemaai.dto.promotion.PromotionResponse;
-import com.sba301.cinemaai.dto.promotion.ValidatePromotionRequest;
 import com.sba301.cinemaai.dto.response.ApiResponse;
+import com.sba301.cinemaai.dto.response.promotion.ApplyPromotionResponse;
+import com.sba301.cinemaai.dto.response.promotion.PromotionCombinationCheckResponse;
+import com.sba301.cinemaai.dto.response.promotion.PromotionResponse;
+import com.sba301.cinemaai.dto.request.promotion.PromotionCombinationCheckRequest;
+import com.sba301.cinemaai.dto.request.promotion.ValidatePromotionRequest;
 import com.sba301.cinemaai.service.PromotionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

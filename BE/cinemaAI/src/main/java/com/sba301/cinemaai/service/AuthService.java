@@ -1,12 +1,12 @@
 package com.sba301.cinemaai.service;
 
-import com.sba301.cinemaai.dto.auth.AuthResponse;
-import com.sba301.cinemaai.dto.auth.GoogleLoginRequest;
-import com.sba301.cinemaai.dto.auth.GoogleOtpVerifyRequest;
-import com.sba301.cinemaai.dto.auth.LoginRequest;
-import com.sba301.cinemaai.dto.auth.RegisterRequest;
-import com.sba301.cinemaai.dto.auth.RegisterResponse;
-import com.sba301.cinemaai.dto.user.UserProfileResponse;
+import com.sba301.cinemaai.dto.response.auth.AuthResponse;
+import com.sba301.cinemaai.dto.request.auth.GoogleLoginRequest;
+import com.sba301.cinemaai.dto.request.auth.GoogleOtpVerifyRequest;
+import com.sba301.cinemaai.dto.request.auth.LoginRequest;
+import com.sba301.cinemaai.dto.request.auth.RegisterRequest;
+import com.sba301.cinemaai.dto.response.auth.RegisterResponse;
+import com.sba301.cinemaai.dto.response.user.UserProfileResponse;
 import com.sba301.cinemaai.entity.PendingRegistration;
 import com.sba301.cinemaai.entity.RefreshToken;
 import com.sba301.cinemaai.entity.User;
@@ -16,6 +16,7 @@ import com.sba301.cinemaai.exception.BadRequestException;
 import com.sba301.cinemaai.exception.ConflictException;
 import com.sba301.cinemaai.exception.UnauthorizedException;
 import com.sba301.cinemaai.repository.PendingRegistrationRepository;
+import com.sba301.cinemaai.repository.UserProfileRepository;
 import com.sba301.cinemaai.repository.UserRepository;
 import com.sba301.cinemaai.security.JwtProperties;
 import com.sba301.cinemaai.security.JwtService;
@@ -39,6 +40,7 @@ public class AuthService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
+    private final UserProfileRepository userProfileRepository;
     private final PendingRegistrationRepository pendingRegistrationRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
@@ -57,7 +59,7 @@ public class AuthService {
             throw new ConflictException("Email already exists");
         }
         if (request.phone() != null && !request.phone().isBlank()) {
-            if (userRepository.existsByPhone(request.phone())) {
+            if (userProfileRepository.existsByPhone(request.phone())) {
                 throw new ConflictException("Phone already exists");
             }
             pendingRegistrationRepository.findByPhone(request.phone())
@@ -75,6 +77,7 @@ public class AuthService {
                             passwordEncoder.encode(request.password()),
                             request.fullName(),
                             request.phone(),
+                            request.birthYear(),
                             otp,
                             expiresAt
                     );
@@ -85,6 +88,7 @@ public class AuthService {
                         passwordEncoder.encode(request.password()),
                         request.fullName(),
                         request.phone(),
+                        request.birthYear(),
                         otp,
                         expiresAt
                 )));
@@ -108,6 +112,7 @@ public class AuthService {
                 pendingRegistration.getPasswordHash(),
                 pendingRegistration.getFullName(),
                 pendingRegistration.getPhone(),
+                pendingRegistration.getBirthYear(),
                 generateOtp(),
                 LocalDateTime.now().plusSeconds(EMAIL_VERIFICATION_EXPIRES_IN_SECONDS)
         );
@@ -129,7 +134,7 @@ public class AuthService {
             throw new ConflictException("Email already exists");
         }
         if (pendingRegistration.getPhone() != null && !pendingRegistration.getPhone().isBlank()
-                && userRepository.existsByPhone(pendingRegistration.getPhone())) {
+                && userProfileRepository.existsByPhone(pendingRegistration.getPhone())) {
             pendingRegistrationRepository.delete(pendingRegistration);
             throw new ConflictException("Phone already exists");
         }
