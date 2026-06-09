@@ -119,7 +119,7 @@ class BookingIntegrationTests {
 
         Long foodItemId = createFoodItem(adminToken);
         Showtime showtime = createShowtimeFixture();
-        Seat firstSeat = seatRepository.findByRoom(showtime.getRoom()).get(0);
+        Seat firstSeat = seatRepository.findBySeatRow_Room(showtime.getRoom()).get(0);
 
         String holdResponse = mockMvc.perform(post("/api/v1/bookings/hold")
                         .header("Authorization", "Bearer " + customerToken)
@@ -202,7 +202,7 @@ class BookingIntegrationTests {
     void shouldReleaseExpiredSeatHolds() {
         User customer = createUser("phase6.expired.", RoleName.CUSTOMER);
         Showtime showtime = createShowtimeFixture();
-        Seat firstSeat = seatRepository.findByRoom(showtime.getRoom()).get(0);
+        Seat firstSeat = seatRepository.findBySeatRow_Room(showtime.getRoom()).get(0);
         Booking expiredHold = bookingRepository.save(new Booking(
                 "BKEXPIRED" + System.nanoTime(),
                 customer,
@@ -231,7 +231,7 @@ class BookingIntegrationTests {
         String customerToken = loginAs("phase6.ticket.customer.", RoleName.CUSTOMER);
         Showtime showtime = createShowtimeFixture();
         createAdultTicketRule(adminToken);
-        Seat firstSeat = seatRepository.findByRoom(showtime.getRoom()).get(0);
+        Seat firstSeat = seatRepository.findBySeatRow_Room(showtime.getRoom()).get(0);
 
         String holdResponse = mockMvc.perform(post("/api/v1/bookings/hold")
                         .header("Authorization", "Bearer " + customerToken)
@@ -324,8 +324,8 @@ class BookingIntegrationTests {
         Cinema cinema = cinemaRepository.save(new Cinema("Phase 6 Cinema " + suffix, "1 Booking Street", "HCMC", "0900666777"));
         Room room = roomRepository.save(new Room(cinema, "Room 6", RoomType.TWO_D, 1, 2));
         SeatRow seatRow = seatRowRepository.save(new SeatRow(room, "A", 1, 1, SeatType.NORMAL));
-        seatRepository.save(new Seat(room, seatRow, 1, 1, SeatType.NORMAL));
-        seatRepository.save(new Seat(room, seatRow, 2, 2, SeatType.NORMAL));
+        seatRepository.save(new Seat(seatRow, 1, 1, SeatType.NORMAL));
+        seatRepository.save(new Seat(seatRow, 2, 2, SeatType.NORMAL));
 
         Showtime showtime = new Showtime(
                 savedMovie,

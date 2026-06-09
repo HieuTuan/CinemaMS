@@ -413,7 +413,41 @@ Authorization: Bearer {{adminToken}}
 ## 10. Validate tuổi, loại vé và tổng tiền
 
 ### Tên mô tả API
-Kiểm tra vé có hợp lệ với tuổi người xem và giới hạn tuổi của phim hay không, sau đó tính tổng tiền theo rule hoặc combo.
+Kiểm tra vé có hợp lệ với tuổi người xem và giới hạn tuổi của phim hay không, sau đó tính tổng tiền từ giá gốc và discount theo loại vé.
+Giá gốc lấy từ rule vé `ADULT` theo loại phòng/ngày; nếu không có rule thì dùng `showtime.basePrice`.
+
+Discount mặc định theo loại vé:
+
+- `ADULT`: 0%
+- `CHILD`: 50%
+- `SENIOR`: 30%
+- `STUDENT`: 20%
+
+### API lấy option loại vé
+```http
+GET /api/v1/ticket-pricing/options
+```
+
+### Post-response option
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "ticketType": "ADULT",
+      "minimumAge": 18,
+      "maximumAge": 59,
+      "discountPercent": 0
+    },
+    {
+      "ticketType": "STUDENT",
+      "minimumAge": 13,
+      "maximumAge": 25,
+      "discountPercent": 20
+    }
+  ]
+}
+```
 
 ### API
 ```http
@@ -452,7 +486,7 @@ Authorization: Bearer {{accessToken}}
     "movieTitle": "Action Movie A",
     "ageRating": "13+",
     "eligible": false,
-    "ticketSubtotal": 285000,
+    "ticketSubtotal": 237500,
     "comboPrice": 250000,
     "finalAmount": 250000,
     "tickets": [
@@ -460,6 +494,9 @@ Authorization: Bearer {{accessToken}}
         "ticketType": "ADULT",
         "viewerAge": 30,
         "quantity": 2,
+        "baseUnitPrice": 95000,
+        "discountPercent": 0,
+        "discountAmount": 0,
         "unitPrice": 95000,
         "lineTotal": 190000,
         "eligible": true,
@@ -469,8 +506,11 @@ Authorization: Bearer {{accessToken}}
         "ticketType": "CHILD",
         "viewerAge": 10,
         "quantity": 1,
-        "unitPrice": 95000,
-        "lineTotal": 95000,
+        "baseUnitPrice": 95000,
+        "discountPercent": 50,
+        "discountAmount": 47500,
+        "unitPrice": 47500,
+        "lineTotal": 47500,
         "eligible": false,
         "message": "Viewer age does not meet movie age rating 13+"
       }

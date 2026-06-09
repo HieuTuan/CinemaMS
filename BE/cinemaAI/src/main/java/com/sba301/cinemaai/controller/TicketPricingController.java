@@ -2,6 +2,7 @@ package com.sba301.cinemaai.controller;
 
 import com.sba301.cinemaai.dto.response.ApiResponse;
 import com.sba301.cinemaai.dto.response.ticket.TicketComboResponse;
+import com.sba301.cinemaai.dto.response.ticket.TicketOptionResponse;
 import com.sba301.cinemaai.dto.request.ticket.TicketPriceValidationRequest;
 import com.sba301.cinemaai.dto.response.ticket.TicketPriceValidationResponse;
 import com.sba301.cinemaai.service.TicketPricingService;
@@ -24,6 +25,11 @@ public class TicketPricingController {
     @GetMapping("/combos")
     public ApiResponse<List<TicketComboResponse>> getActiveCombos() {
         return ApiResponse.success(ticketPricingService.getCombos(true));
+    }
+
+    @GetMapping("/options")
+    public ApiResponse<List<TicketOptionResponse>> getTicketOptions() {
+        return ApiResponse.success(ticketPricingService.getTicketOptions());
     }
 
     @PostMapping("/validate")

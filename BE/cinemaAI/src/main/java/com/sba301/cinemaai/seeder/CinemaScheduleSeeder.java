@@ -66,8 +66,8 @@ public class CinemaScheduleSeeder implements Seeder {
                             rowType
                     )));
             for (int number = 1; number <= 8; number++) {
-                if (!seatRepository.existsByRoomAndRowLabelAndSeatNumber(room, rowLabel, number)) {
-                    seatRepository.save(new Seat(room, seatRow, number, number, rowType));
+                if (!seatRepository.existsBySeatRow_RoomAndRowLabelAndSeatNumber(room, rowLabel, number)) {
+                    seatRepository.save(new Seat(seatRow, number, number, rowType));
                 }
             }
         }

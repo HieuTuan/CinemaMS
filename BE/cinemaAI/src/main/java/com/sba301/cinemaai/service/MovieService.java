@@ -90,9 +90,7 @@ public class MovieService {
 
     @Transactional
     public MovieResponse create(MovieCreateRequest request) {
-        if (movieRepository.existsByTitle(request.title())) {
-            throw new ConflictException("Movie title already exists");
-        }
+        ensureUniqueTitle(request.title(), null);
 
         Movie movie = new Movie(request.title(), request.durationMinutes(), request.status());
         List<Actor> actors = resolveActors(request.actorIds());
@@ -112,11 +110,7 @@ public class MovieService {
         if (movie.getStatus() != MovieStatus.UPCOMING) {
             throw new BadRequestException("Only UPCOMING movies can be updated");
         }
-        movieRepository.findByTitle(request.title())
-                .filter(existing -> !existing.getId().equals(id))
-                .ifPresent(existing -> {
-                    throw new ConflictException("Movie title already exists");
-                });
+        ensureUniqueTitle(request.title(), id);
         List<Actor> actors = resolveActors(request.actorIds());
         applyMovieFields(movie, request.description(), request.releaseDate(), request.trailerUrl(), request.posterUrl(),
                 request.avatarUrl(), request.language(), request.subtitleLanguage(), request.ageRating(),
@@ -131,12 +125,7 @@ public class MovieService {
     @Transactional
     public MovieResponse assignActors(Long id, MovieActorAssignmentRequest request) {
         Movie movie = findById(id);
-        movieActorRepository.deleteByMovie(movie);
-        request.actorIds().stream()
-                .distinct()
-                .map(this::findActorById)
-                .map(actor -> new MovieActor(movie, actor))
-                .forEach(movieActorRepository::save);
+        replaceActors(movie, resolveActors(request.actorIds()));
         return toResponse(movie);
     }
 
@@ -200,6 +189,14 @@ public class MovieService {
         movie.changeStatus(status);
     }
 
+    private void ensureUniqueTitle(String title, Long currentMovieId) {
+        movieRepository.findByTitle(title)
+                .filter(existing -> currentMovieId == null || !existing.getId().equals(currentMovieId))
+                .ifPresent(existing -> {
+                    throw new ConflictException("Movie title already exists");
+                });
+    }
+
     private void replaceActors(Movie movie, List<Actor> actors) {
         movieActorRepository.deleteByMovie(movie);
         movieActorRepository.flush();
@@ -217,15 +214,15 @@ public class MovieService {
     }
 
     private String mainActorsText(String requestedMainActors, List<Actor> actors) {
-        return requestedMainActors != null && !requestedMainActors.isBlank()
-                ? requestedMainActors.trim()
-                : actorNamesText(actors);
+        return metadataText(requestedMainActors, actors);
     }
 
     private String castListText(String requestedCastList, List<Actor> actors) {
-        return requestedCastList != null && !requestedCastList.isBlank()
-                ? requestedCastList.trim()
-                : actorNamesText(actors);
+        return metadataText(requestedCastList, actors);
+    }
+
+    private String metadataText(String requestedValue, List<Actor> actors) {
+        return StringUtils.hasText(requestedValue) ? requestedValue.trim() : actorNamesText(actors);
     }
 
     private String actorNamesText(List<Actor> actors) {

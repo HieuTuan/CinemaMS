@@ -45,7 +45,7 @@ public class CinemaMapper {
     public SeatResponse toSeatResponse(Seat seat) {
         return new SeatResponse(
                 seat.getId(),
-                seat.getRoom().getId(),
+                seat.getSeatRow().getRoom().getId(),
                 seat.getSeatRow().getId(),
                 seat.getRowLabel(),
                 seat.getSeatRow().getDisplayOrder(),

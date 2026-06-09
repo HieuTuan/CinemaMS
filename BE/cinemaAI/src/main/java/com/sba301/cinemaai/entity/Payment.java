@@ -51,7 +51,8 @@ public class Payment extends BaseEntity {
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
 
-    @Column(name = "callback_payload", columnDefinition = "MEDIUMTEXT")
+    @Lob
+    @Column(name = "callback_payload", columnDefinition = "TEXT")
     private String callbackPayload;
 
     public Payment(Booking booking, PaymentProvider provider, BigDecimal amount) {

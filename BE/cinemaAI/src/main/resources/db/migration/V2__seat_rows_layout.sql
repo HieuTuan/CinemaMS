@@ -22,31 +22,34 @@ UPDATE dbo.seats
 SET display_column = seat_number
 WHERE display_column IS NULL;
 
-INSERT INTO dbo.seat_rows (room_id, row_label, display_order, start_column, row_type)
-SELECT
-    grouped.room_id,
-    grouped.row_label,
-    ROW_NUMBER() OVER (PARTITION BY grouped.room_id ORDER BY grouped.row_label),
-    1,
-    'STANDARD'
-FROM (
-    SELECT DISTINCT room_id, row_label
-    FROM dbo.seats
-) grouped
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM dbo.seat_rows existing
-    WHERE existing.room_id = grouped.room_id
-      AND existing.row_label = grouped.row_label
-);
+IF COL_LENGTH('dbo.seats', 'room_id') IS NOT NULL
+BEGIN
+    INSERT INTO dbo.seat_rows (room_id, row_label, display_order, start_column, row_type)
+    SELECT
+        grouped.room_id,
+        grouped.row_label,
+        ROW_NUMBER() OVER (PARTITION BY grouped.room_id ORDER BY grouped.row_label),
+        1,
+        'STANDARD'
+    FROM (
+        SELECT DISTINCT room_id, row_label
+        FROM dbo.seats
+    ) grouped
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM dbo.seat_rows existing
+        WHERE existing.room_id = grouped.room_id
+          AND existing.row_label = grouped.row_label
+    );
 
-UPDATE seat
-SET seat_row_id = seat_row.id
-FROM dbo.seats seat
-JOIN dbo.seat_rows seat_row
-  ON seat_row.room_id = seat.room_id
- AND seat_row.row_label = seat.row_label
-WHERE seat.seat_row_id IS NULL;
+    UPDATE seat
+    SET seat_row_id = seat_row.id
+    FROM dbo.seats seat
+    JOIN dbo.seat_rows seat_row
+      ON seat_row.room_id = seat.room_id
+     AND seat_row.row_label = seat.row_label
+    WHERE seat.seat_row_id IS NULL;
+END;
 
 ALTER TABLE dbo.seats ALTER COLUMN display_column INT NOT NULL;
 ALTER TABLE dbo.seats ALTER COLUMN seat_row_id BIGINT NOT NULL;

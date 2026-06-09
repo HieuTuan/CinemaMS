@@ -105,7 +105,7 @@ public class ShowtimeService {
     @Transactional(readOnly = true)
     public ShowtimeSeatMapResponse getSeatMap(Long showtimeId) {
         Showtime showtime = findById(showtimeId);
-        List<Seat> seats = seatRepository.findByRoom(showtime.getRoom())
+        List<Seat> seats = seatRepository.findBySeatRow_Room(showtime.getRoom())
                 .stream()
                 .sorted(Comparator.comparing(Seat::getRowLabel).thenComparingInt(Seat::getSeatNumber))
                 .toList();

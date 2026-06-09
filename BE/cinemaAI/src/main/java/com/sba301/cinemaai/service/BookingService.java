@@ -301,7 +301,7 @@ public class BookingService {
     }
 
     private void validateSeatForShowtime(Showtime showtime, Seat seat) {
-        if (!seat.getRoom().getId().equals(showtime.getRoom().getId())) {
+        if (!seat.getSeatRow().getRoom().getId().equals(showtime.getRoom().getId())) {
             throw new BadRequestException("Seat does not belong to showtime room");
         }
         if (seat.getStatus() != SeatStatus.AVAILABLE) {

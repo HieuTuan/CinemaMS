@@ -50,7 +50,8 @@ public class SecurityConfig {
                                 "/api/v1/cinemas/**",
                                 "/api/v1/showtimes/**",
                                 "/api/v1/foods/**",
-                                "/api/v1/ticket-pricing/combos"
+                                "/api/v1/ticket-pricing/combos",
+                                "/api/v1/ticket-pricing/options"
                         ).permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/payments/vnpay/return", "/api/v1/payments/vnpay/ipn").permitAll()

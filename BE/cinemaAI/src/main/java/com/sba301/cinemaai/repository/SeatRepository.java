@@ -11,13 +11,13 @@ import org.springframework.data.repository.query.Param;
 
 public interface SeatRepository extends JpaRepository<Seat, Long> {
 
-    List<Seat> findByRoom(Room room);
+    List<Seat> findBySeatRow_Room(Room room);
 
-    Optional<Seat> findByRoomAndRowLabelAndSeatNumber(Room room, String rowLabel, int seatNumber);
+    Optional<Seat> findBySeatRow_RoomAndRowLabelAndSeatNumber(Room room, String rowLabel, int seatNumber);
 
-    boolean existsByRoomAndRowLabelAndSeatNumber(Room room, String rowLabel, int seatNumber);
+    boolean existsBySeatRow_RoomAndRowLabelAndSeatNumber(Room room, String rowLabel, int seatNumber);
 
     @Modifying
-    @Query("delete from Seat seat where seat.room = :room")
+    @Query("delete from Seat seat where seat.seatRow.room = :room")
     void deleteByRoom(@Param("room") Room room);
 }

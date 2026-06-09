@@ -251,7 +251,6 @@ CREATE TABLE dbo.seat_rows (
 IF OBJECT_ID('dbo.seats', 'U') IS NULL
 CREATE TABLE dbo.seats (
     id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    room_id BIGINT NOT NULL,
     seat_row_id BIGINT NOT NULL,
     row_label NVARCHAR(10) NOT NULL,
     seat_number INT NOT NULL,
@@ -260,9 +259,8 @@ CREATE TABLE dbo.seats (
     status NVARCHAR(30) NOT NULL,
     created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    CONSTRAINT fk_seats_room FOREIGN KEY (room_id) REFERENCES dbo.rooms(id),
     CONSTRAINT fk_seats_seat_row FOREIGN KEY (seat_row_id) REFERENCES dbo.seat_rows(id),
-    CONSTRAINT uk_seats_room_position UNIQUE (room_id, row_label, seat_number)
+    CONSTRAINT uk_seats_row_position UNIQUE (seat_row_id, seat_number)
 );
 
 IF OBJECT_ID('dbo.showtimes', 'U') IS NULL

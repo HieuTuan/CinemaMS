@@ -2,6 +2,7 @@ package com.sba301.cinemaai.service;
 
 import com.sba301.cinemaai.dto.request.ticket.TicketComboRequest;
 import com.sba301.cinemaai.dto.response.ticket.TicketComboResponse;
+import com.sba301.cinemaai.dto.response.ticket.TicketOptionResponse;
 import com.sba301.cinemaai.dto.response.ticket.TicketLinePriceResponse;
 import com.sba301.cinemaai.dto.request.ticket.TicketPriceValidationRequest;
 import com.sba301.cinemaai.dto.response.ticket.TicketPriceValidationResponse;
@@ -91,6 +92,18 @@ public class TicketPricingService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<TicketOptionResponse> getTicketOptions() {
+        return List.of(TicketType.values()).stream()
+                .map(ticketType -> new TicketOptionResponse(
+                        ticketType,
+                        ticketType.getMinimumAge(),
+                        ticketType.getMaximumAge(),
+                        ticketType.getDiscountPercent()
+                ))
+                .toList();
+    }
+
     @Transactional
     public TicketComboResponse createCombo(TicketComboRequest request) {
         validateComboCounts(request);
@@ -156,9 +169,11 @@ public class TicketPricingService {
         List<String> warnings = new ArrayList<>();
         BigDecimal subtotal = BigDecimal.ZERO;
         boolean eligible = true;
+        BigDecimal baseUnitPrice = resolveBasePrice(showtime, weekend, request.holiday(), warnings);
 
         for (TicketSelectionRequest ticket : request.tickets()) {
-            BigDecimal unitPrice = resolvePrice(showtime, ticket.ticketType(), weekend, request.holiday(), warnings);
+            BigDecimal discountAmount = ticket.ticketType().calculateDiscount(baseUnitPrice);
+            BigDecimal unitPrice = ticket.ticketType().calculateUnitPrice(baseUnitPrice);
             boolean ageAllowedByTicketType = ticket.ticketType().allowsAge(ticket.viewerAge());
             boolean ageAllowedByMovie = movie.getAgeRating() == null || movie.getAgeRating().allowsAge(ticket.viewerAge());
             boolean lineEligible = ageAllowedByTicketType && ageAllowedByMovie;
@@ -170,6 +185,9 @@ public class TicketPricingService {
                     ticket.ticketType(),
                     ticket.viewerAge(),
                     ticket.quantity(),
+                    baseUnitPrice,
+                    ticket.ticketType().getDiscountPercent(),
+                    discountAmount,
                     unitPrice,
                     lineTotal,
                     lineEligible,
@@ -205,23 +223,22 @@ public class TicketPricingService {
         );
     }
 
-    private BigDecimal resolvePrice(
+    private BigDecimal resolveBasePrice(
             Showtime showtime,
-            TicketType ticketType,
             boolean weekend,
             boolean holiday,
             List<String> warnings
     ) {
         return ticketPricingRuleRepository
                 .findFirstByTicketTypeAndRoomTypeAndWeekendAndHolidayAndActiveTrueOrderByUpdatedAtDesc(
-                        ticketType,
+                        TicketType.ADULT,
                         showtime.getRoom().getRoomType(),
                         weekend,
                         holiday
                 )
                 .map(TicketPricingRule::getPrice)
                 .orElseGet(() -> {
-                    warnings.add("No ticket pricing rule found for " + ticketType + "; using showtime base price");
+                    warnings.add("No adult ticket pricing rule found; using showtime base price");
                     return showtime.getBasePrice();
                 });
     }

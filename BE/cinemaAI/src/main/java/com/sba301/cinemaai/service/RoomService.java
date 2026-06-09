@@ -99,7 +99,7 @@ public class RoomService {
     @Transactional
     public List<SeatResponse> generateSeats(Long roomId, SeatGenerationRequest request) {
         Room room = findById(roomId);
-        List<Seat> existingSeats = seatRepository.findByRoom(room);
+        List<Seat> existingSeats = seatRepository.findBySeatRow_Room(room);
         if (!existingSeats.isEmpty() && !request.overwriteExisting()) {
             throw new ConflictException("Room already has seats");
         }
@@ -119,7 +119,7 @@ public class RoomService {
     @Transactional(readOnly = true)
     public List<SeatResponse> getSeats(Long roomId) {
         Room room = findById(roomId);
-        return seatRepository.findByRoom(room)
+        return seatRepository.findBySeatRow_Room(room)
                 .stream()
                 .sorted(Comparator.comparing((Seat seat) -> seat.getSeatRow().getDisplayOrder())
                         .thenComparingInt(Seat::getDisplayColumn))
@@ -162,7 +162,7 @@ public class RoomService {
             String rowLabel = rowLabel(row);
             SeatRow seatRow = seatRowRepository.save(new SeatRow(room, rowLabel, row + 1, 1, defaultSeatType));
             for (int column = 1; column <= room.getColumnCount(); column++) {
-                seatRepository.save(new Seat(room, seatRow, column, column, defaultSeatType));
+                seatRepository.save(new Seat(seatRow, column, column, defaultSeatType));
             }
         }
     }
@@ -196,7 +196,7 @@ public class RoomService {
                 if (displayColumn > room.getColumnCount()) {
                     throw new BadRequestException("Seat layout exceeds room column count in row " + rowLabel);
                 }
-                seatRepository.save(new Seat(room, seatRow, seatNumber, displayColumn, rowSeatType));
+                seatRepository.save(new Seat(seatRow, seatNumber, displayColumn, rowSeatType));
             }
         }
     }
