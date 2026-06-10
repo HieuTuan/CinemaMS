@@ -1,52 +1,102 @@
 import React from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
-
-import { UIProvider } from './contexts/UIContext';
-import { AuthProvider } from './contexts/AuthContext';
-import { MoviesProvider } from './contexts/MoviesContext';
+import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import Layout from './layout/Layout';
-import ProtectedRoute from './components/ProtectedRoute';
-import AdminRoute from './components/AdminRoute';
-
-import HomePage from './pages/HomePage';
-import ExplorePage from './pages/ExplorePage';
-import MovieDetailPage from './pages/MovieDetailPage';
-import BookingPage from './pages/BookingPage';
-import ProfilePage from './pages/ProfilePage';
-import MyTicketsPage from './pages/MyTicketsPage';
-import WishlistPage from './pages/WishlistPage';
-import AdminPage from './pages/AdminPage';
+import HomeView from './pages/HomePage';
+import ExploreView from './pages/ExplorePage';
+import DetailView from './pages/MovieDetailPage';
+import BookingView from './pages/BookingPage';
+import ProfileView from './pages/ProfilePage';
+import MyTicketsView from './pages/MyTicketsPage';
+import WishlistView from './pages/WishlistPage';
+import AdminDashboard from './pages/AdminPage';
 import PoliciesPage from './pages/PoliciesPage';
 import PaymentCallbackPage from './pages/PaymentCallbackPage';
+import AdminRoute from './components/AdminRoute';
+import ProtectedRoute from './components/ProtectedRoute';
+import { UIProvider, useUI } from './contexts/UIContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { MoviesProvider, useMovies } from './contexts/MoviesContext';
 
-function AnimatedRoutes() {
-  const location = useLocation();
+function AppShell({ children }) {
+  return <Layout>{children}</Layout>;
+}
+
+function HomeRoute() {
+  const navigate = useNavigate();
+  const { moviesList, homepageVideoUrl } = useMovies();
+
+  const goToTab = (tab) => {
+    const paths = { home: '/', explore: '/movies', 'my-tickets': '/tickets', wishlist: '/watchlist', profile: '/profile', policies: '/policies' };
+    navigate(paths[tab] || '/');
+  };
+
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={location.pathname}
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -16 }}
-        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-      >
-        <Routes location={location}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/movies" element={<ExplorePage />} />
-          <Route path="/movies/:id" element={<MovieDetailPage />} />
-          <Route path="/movies/:id/book" element={<BookingPage />} />
-          <Route path="/watchlist" element={<WishlistPage />} />
-          <Route path="/policies" element={<PoliciesPage />} />
-          <Route path="/payment-callback" element={<PaymentCallbackPage />} />
-          <Route path="/tickets" element={<ProtectedRoute><MyTicketsPage /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-          <Route path="/admin" element={<Navigate to="/admin/overview" replace />} />
-          <Route path="/admin/:section" element={<AdminRoute><AdminPage /></AdminRoute>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </motion.div>
-    </AnimatePresence>
+    <HomeView
+      moviesList={moviesList}
+      homepageVideoUrl={homepageVideoUrl}
+      onSelectMovie={(id) => navigate(`/movies/${id}`)}
+      onBookMovie={(movie) => navigate(`/movies/${movie.id}/book`)}
+      onTabChange={goToTab}
+    />
+  );
+}
+
+function AdminRouteView() {
+  const navigate = useNavigate();
+  const { section = 'overview' } = useParams();
+  const { showToast } = useUI();
+  const { currentRole, currentUser } = useAuth();
+  const {
+    moviesList,
+    setMoviesList,
+    bookedTickets,
+    setBookedTickets,
+    homepageVideoUrl,
+    handleHomepageVideoUrlChange,
+    fetchPublicFoodCatalog,
+    cinemaLocations,
+    fetchPublicCinema,
+  } = useMovies();
+
+  return (
+    <AdminRoute>
+      <AdminDashboard
+        moviesList={moviesList}
+        setMoviesList={setMoviesList}
+        bookedTickets={bookedTickets}
+        setBookedTickets={setBookedTickets}
+        cinemaLocations={cinemaLocations}
+        onCinemaChanged={fetchPublicCinema}
+        onSelectMovie={(id) => navigate(`/movies/${id}`)}
+        showToast={showToast}
+        initialSection={section}
+        onSectionChange={(nextSection) => navigate(`/admin/${nextSection}`)}
+        homepageVideoUrl={homepageVideoUrl}
+        onHomepageVideoUrlChange={handleHomepageVideoUrlChange}
+        onFoodCatalogChanged={fetchPublicFoodCatalog}
+        isAdmin={currentRole === 'admin'}
+        currentUser={currentUser}
+      />
+    </AdminRoute>
+  );
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/payment-callback" element={<PaymentCallbackPage />} />
+      <Route path="/" element={<AppShell><HomeRoute /></AppShell>} />
+      <Route path="/movies" element={<AppShell><ExploreView /></AppShell>} />
+      <Route path="/movies/:id" element={<AppShell><DetailView /></AppShell>} />
+      <Route path="/movies/:id/book" element={<AppShell><ProtectedRoute><BookingView /></ProtectedRoute></AppShell>} />
+      <Route path="/tickets" element={<AppShell><ProtectedRoute><MyTicketsView /></ProtectedRoute></AppShell>} />
+      <Route path="/watchlist" element={<AppShell><ProtectedRoute><WishlistView /></ProtectedRoute></AppShell>} />
+      <Route path="/profile" element={<AppShell><ProtectedRoute><ProfileView /></ProtectedRoute></AppShell>} />
+      <Route path="/policies" element={<AppShell><PoliciesPage /></AppShell>} />
+      <Route path="/admin" element={<Navigate to="/admin/overview" replace />} />
+      <Route path="/admin/:section" element={<AppShell><AdminRouteView /></AppShell>} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
 
@@ -55,9 +105,7 @@ export default function App() {
     <UIProvider>
       <AuthProvider>
         <MoviesProvider>
-          <Layout>
-            <AnimatedRoutes />
-          </Layout>
+          <AppRoutes />
         </MoviesProvider>
       </AuthProvider>
     </UIProvider>

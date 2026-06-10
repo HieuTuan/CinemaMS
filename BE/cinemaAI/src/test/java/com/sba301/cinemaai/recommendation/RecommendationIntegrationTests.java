@@ -60,8 +60,22 @@ class RecommendationIntegrationTests {
 
         Long actionGenreId = createGenre(adminToken, "Phase 4 Action");
         Long favoriteActorId = createActor(adminToken, "Favorite Star");
-        Long sourceMovieId = createMovie(adminToken, "Phase 4 Action Source", actionGenreId, "Action Director", "Favorite Star", favoriteActorId);
-        Long recommendedMovieId = createMovie(adminToken, "Phase 4 Action New Release", actionGenreId, "Action Director", "Favorite Star", favoriteActorId);
+
+        Long sourceMovieId = createMovie(
+                adminToken,
+                "Phase 4 Action Source",
+                actionGenreId,
+                "Action Director",
+                favoriteActorId
+        );
+
+        Long recommendedMovieId = createMovie(
+                adminToken,
+                "Phase 4 Action New Release",
+                actionGenreId,
+                "Action Director",
+                favoriteActorId
+        );
 
         mockMvc.perform(post("/api/v1/recommendations/trailer-interactions")
                         .header("Authorization", "Bearer " + customerToken)
@@ -100,6 +114,7 @@ class RecommendationIntegrationTests {
         String description = "Recommendation integration test genre description with enough detail for validation. " +
                 "This text intentionally explains the phase four preference scenario, where trailer completion, " +
                 "favorite actors, directors and catalog metadata are aggregated into a stable user profile.";
+
         String response = mockMvc.perform(post("/api/v1/admin/genres")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -108,10 +123,17 @@ class RecommendationIntegrationTests {
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
+
         return objectMapper.readTree(response).at("/data/id").asLong();
     }
 
-    private Long createMovie(String token, String title, Long genreId, String director, String actors, Long actorId) throws Exception {
+    private Long createMovie(
+            String token,
+            String title,
+            Long genreId,
+            String director,
+            Long actorId
+    ) throws Exception {
         String response = mockMvc.perform(post("/api/v1/admin/movies")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -128,15 +150,15 @@ class RecommendationIntegrationTests {
                                 MovieStatus.NOW_SHOWING,
                                 "13+",
                                 director,
-                                actors,
-                                actors,
                                 List.of(genreId),
+                                List.of(actorId),
                                 List.of(actorId)
                         ))))
                 .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
+
         return objectMapper.readTree(response).at("/data/id").asLong();
     }
 
@@ -153,17 +175,20 @@ class RecommendationIntegrationTests {
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
+
         return objectMapper.readTree(response).at("/data/id").asLong();
     }
 
     private String loginWithRole(RoleName roleName, String emailPrefix) throws Exception {
         String email = emailPrefix + System.nanoTime() + "@example.com";
         String password = "Password123";
+
         Role role = roleRepository.findByName(roleName)
                 .orElseGet(() -> roleRepository.save(new Role(roleName)));
 
         User user = new User(email, passwordEncoder.encode(password), "Phase Four User", "0900555666");
         user.activateEmail();
+
         User savedUser = userRepository.save(user);
         userRoleRepository.save(new UserRole(savedUser, role));
 

@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AdminAccountSeeder implements Seeder {
 
-    private static final String ADMIN_EMAIL = "admin@cinemaai.com";
+    private static final String ADMIN_EMAIL = "admin11@cinemaai.com";
     private static final String ADMIN_PASSWORD = "Admin123";
 
     private final UserRepository userRepository;

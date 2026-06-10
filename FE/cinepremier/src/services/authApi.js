@@ -7,9 +7,35 @@ const STORAGE_KEYS = {
   roles: 'cinepremier_auth_roles'
 };
 
+const ADMIN_ACCESS_OVERRIDE = false;
+
+export const parseJwtPayload = (accessToken) => {
+  try {
+    if (!accessToken || !accessToken.includes('.')) return null;
+    return JSON.parse(atob(accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+  } catch (error) {
+    return null;
+  }
+};
+
+export const hasBackendAdminAccess = (accessToken, user = null) => {
+  const tokenPayload = parseJwtPayload(accessToken);
+  const isTokenExpired = tokenPayload?.exp ? tokenPayload.exp * 1000 <= Date.now() : false;
+  if (!accessToken || isTokenExpired) return false;
+
+  const roleValues = [
+    ...(Array.isArray(user?.roles) ? user.roles : []),
+    ...(Array.isArray(tokenPayload?.roles) ? tokenPayload.roles : []),
+    ...(Array.isArray(tokenPayload?.authorities) ? tokenPayload.authorities : []),
+    ...(Array.isArray(tokenPayload?.scope) ? tokenPayload.scope : String(tokenPayload?.scope || '').split(' '))
+  ].map((role) => String(role).toUpperCase()).filter(Boolean);
+
+  return roleValues.includes('ADMIN') || roleValues.includes('ROLE_ADMIN');
+};
+
 const resolveRole = (roles = []) => {
   const normalized = roles.map((role) => String(role).toUpperCase());
-  if (normalized.includes('ADMIN') || normalized.includes('ROLE_ADMIN')) return 'admin';
+  if (ADMIN_ACCESS_OVERRIDE || normalized.includes('ADMIN') || normalized.includes('ROLE_ADMIN')) return 'admin';
   if (normalized.includes('STAFF') || normalized.includes('ROLE_STAFF')) return 'staff';
   return 'user';
 };
@@ -66,24 +92,27 @@ const tryRefreshToken = async () => {
 };
 
 const request = async (path, { method = 'GET', body, token } = {}) => {
-  const headers = { 'Content-Type': 'application/json' };
+  const isFormData = body instanceof FormData;
+  const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined
+    body: body ? (isFormData ? body : JSON.stringify(body)) : undefined
   });
 
   // Token hết hạn → tự refresh và thử lại 1 lần
   if ((response.status === 401 || response.status === 403) && token) {
     const newToken = await tryRefreshToken();
     if (newToken) {
-      const retryHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${newToken}` };
+      const retryHeaders = isFormData
+        ? { Authorization: `Bearer ${newToken}` }
+        : { 'Content-Type': 'application/json', Authorization: `Bearer ${newToken}` };
       const retryResponse = await fetch(`${API_BASE_URL}${path}`, {
         method,
         headers: retryHeaders,
-        body: body ? JSON.stringify(body) : undefined
+        body: body ? (isFormData ? body : JSON.stringify(body)) : undefined
       });
       return parseResponse(retryResponse);
     }
@@ -162,10 +191,17 @@ export const normalizeMovie = (movie = {}, fallback = {}) => {
     duration: Number(movie.duration ?? movie.durationMinutes ?? movie.runningTime ?? fallback.duration ?? 100),
     ageRating: movie.ageRating || movie.ratingLabel || movie.ageLimit || fallback.ageRating || 'P',
     posterUrl: movie.posterUrl || movie.poster || movie.posterImageUrl || movie.imageUrl || movie.thumbnailUrl || fallback.posterUrl || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=600&auto=format&fit=crop',
-    bannerUrl: movie.bannerUrl || movie.backdropUrl || movie.coverUrl || movie.bannerImageUrl || fallback.bannerUrl || movie.posterUrl || fallback.posterUrl || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1200&auto=format&fit=crop',
+    bannerUrl: movie.bannerUrl || movie.avatarUrl || movie.backdropUrl || movie.coverUrl || movie.bannerImageUrl || fallback.bannerUrl || movie.posterUrl || fallback.posterUrl || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1200&auto=format&fit=crop',
     releaseDate: movie.releaseDate || movie.premiereDate || movie.startDate || fallback.releaseDate || 'Đang cập nhật',
     trailerUrl: movie.trailerUrl || movie.trailer || fallback.trailerUrl || '',
     director: movie.director || movie.directorName || fallback.director || 'Đang cập nhật',
+    mainActors: movie.mainActors || fallback.mainActors || movie.castList || fallback.castList || '',
+    castList: movie.castList || fallback.castList || movie.mainActors || fallback.mainActors || '',
+    actorIds: Array.isArray(movie.actors)
+      ? movie.actors.map((actor) => actor.id ?? actor.actorId).filter((id) => id !== undefined && id !== null)
+      : (movie.actorIds || fallback.actorIds || []),
+    mainActorIds: movie.mainActorIds || fallback.mainActorIds || [],
+    actors: movie.actors || fallback.actors || [],
     language: movie.language || fallback.language || 'Đang cập nhật',
     status: effectiveStatus,
     isUpcoming: Boolean(isUpcoming),
@@ -190,6 +226,19 @@ export const normalizeMovie = (movie = {}, fallback = {}) => {
 };
 
 const normalizeMovieListResponse = (payload) => unwrapListPayload(payload).map((movie) => normalizeMovie(movie));
+
+const normalizeWishlistResponse = (payload) => unwrapListPayload(payload).map((item) => normalizeMovie({
+  id: item.movieId,
+  movieId: item.movieId,
+  title: item.movieTitle,
+  posterUrl: item.posterUrl,
+  createdAt: item.createdAt
+}, {
+  id: item.movieId,
+  backendId: item.movieId,
+  englishTitle: item.movieTitle || 'CinePremier Feature',
+  posterUrl: item.posterUrl
+}));
 
 const firstNumber = (...values) => {
   const value = values.find((item) => item !== undefined && item !== null && item !== '');
@@ -299,7 +348,41 @@ export const authApi = {
     token,
     body: payload
   }).then((movie) => normalizeMovie(movie)),
+  updateAdminMovieStatus: (token, movieId, status) => request(`/api/v1/admin/movies/${encodeURIComponent(movieId)}/status`, {
+    method: 'PATCH',
+    token,
+    body: { status }
+  }).then((movie) => normalizeMovie(movie)),
   deleteAdminMovie: (token, movieId) => request(`/api/v1/admin/movies/${encodeURIComponent(movieId)}`, {
+    method: 'DELETE',
+    token
+  }),
+  getActors: () => request('/api/v1/actors'),
+  getActorDetail: (actorId) => request(`/api/v1/actors/${encodeURIComponent(actorId)}`),
+  getMoviesByActor: (actorId) => request(`/api/v1/actors/${encodeURIComponent(actorId)}/movies`)
+    .then(normalizeMovieListResponse),
+  getAdminActors: (token, params = {}) => request(`/api/v1/admin/actors${buildQueryString(params)}`, { token }),
+  uploadAdminImage: (token, file, folder = 'images') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folder', folder);
+    return request('/api/v1/admin/uploads/images', {
+      method: 'POST',
+      token,
+      body: formData
+    });
+  },
+  createAdminActor: (token, payload) => request('/api/v1/admin/actors', {
+    method: 'POST',
+    token,
+    body: payload
+  }),
+  updateAdminActor: (token, actorId, payload) => request(`/api/v1/admin/actors/${encodeURIComponent(actorId)}`, {
+    method: 'PUT',
+    token,
+    body: payload
+  }),
+  deleteAdminActor: (token, actorId) => request(`/api/v1/admin/actors/${encodeURIComponent(actorId)}`, {
     method: 'DELETE',
     token
   }),
@@ -327,15 +410,95 @@ export const authApi = {
   }),
   getFoodItems: () => request('/api/v1/foods/items'),
   getFoodCombos: () => request('/api/v1/foods/combos'),
-  // Showtimes
+  getPublicCinema: () => request('/api/v1/admin/cinema'),
+  getAdminCinema: (token) => request('/api/v1/admin/cinema', { token }),
+  createAdminCinema: (token, payload) => request('/api/v1/admin/cinema', {
+    method: 'POST',
+    token,
+    body: payload
+  }),
+  updateAdminCinema: (token, payload) => request('/api/v1/admin/cinema', {
+    method: 'PUT',
+    token,
+    body: payload
+  }),
+  updateAdminCinemaStatus: (token, status) => request(`/api/v1/admin/cinema/status?status=${encodeURIComponent(status)}`, {
+    method: 'PATCH',
+    token
+  }),
+  deactivateAdminCinema: (token) => request('/api/v1/admin/cinema', {
+    method: 'DELETE',
+    token
+  }),
+  getAdminRooms: (token) => request('/api/v1/admin/rooms', { token }),
+  getAdminRoom: (token, roomId) => request(`/api/v1/admin/rooms/${encodeURIComponent(roomId)}`, { token }),
+  createAdminRoom: (token, payload) => request('/api/v1/admin/rooms', {
+    method: 'POST',
+    token,
+    body: payload
+  }),
+  updateAdminRoom: (token, roomId, payload) => request(`/api/v1/admin/rooms/${encodeURIComponent(roomId)}`, {
+    method: 'PUT',
+    token,
+    body: payload
+  }),
+  updateAdminRoomStatus: (token, roomId, status) => request(`/api/v1/admin/rooms/${encodeURIComponent(roomId)}/status?status=${encodeURIComponent(status)}`, {
+    method: 'PATCH',
+    token
+  }),
+  getAdminRoomSeats: (token, roomId) => request(`/api/v1/admin/rooms/${encodeURIComponent(roomId)}/seats`, { token }),
+  createAdminRoomSeats: (token, roomId, payload) => request(`/api/v1/admin/rooms/${encodeURIComponent(roomId)}/seats/generate`, {
+    method: 'POST',
+    token,
+    body: payload
+  }),
+  replaceAdminRoomSeats: (token, roomId, payload) => request(`/api/v1/admin/rooms/${encodeURIComponent(roomId)}/seats`, {
+    method: 'PUT',
+    token,
+    body: payload
+  }),
+  updateAdminSeat: (token, seatId, payload) => request(`/api/v1/admin/rooms/seats/${encodeURIComponent(seatId)}`, {
+    method: 'PUT',
+    token,
+    body: payload
+  }),
+  deactivateAdminSeat: (token, seatId) => request(`/api/v1/admin/rooms/seats/${encodeURIComponent(seatId)}`, {
+    method: 'DELETE',
+    token
+  }),
+  // Showtimes (public)
   getShowtimes: (params = {}) => request(`/api/v1/showtimes${buildQueryString(params)}`),
   getSeatMap: (showtimeId) => request(`/api/v1/showtimes/${showtimeId}/seat-map`),
+  getShowtimeDetail: (showtimeId) => request(`/api/v1/showtimes/${showtimeId}`),
+
+  // Showtimes (admin)
+  getAdminShowtimes: (token, params = {}) => request(`/api/v1/admin/showtimes${buildQueryString(params)}`, { token }),
+  getAdminShowtime: (token, showtimeId) => request(`/api/v1/admin/showtimes/${showtimeId}`, { token }),
+  getAdminShowtimeSeatMap: (token, showtimeId) => request(`/api/v1/admin/showtimes/${showtimeId}/seat-map`, { token }),
+  createAdminShowtime: (token, payload) => request('/api/v1/admin/showtimes', { method: 'POST', token, body: payload }),
+  createAdminShowtimesBulk: (token, payload) => request('/api/v1/admin/showtimes/bulk', { method: 'POST', token, body: payload }),
+  updateAdminShowtime: (token, showtimeId, payload) => request(`/api/v1/admin/showtimes/${showtimeId}`, { method: 'PUT', token, body: payload }),
+  updateAdminShowtimeStatus: (token, showtimeId, status) => request(`/api/v1/admin/showtimes/${showtimeId}/status?status=${encodeURIComponent(status)}`, { method: 'PATCH', token }),
+  deleteAdminShowtime: (token, showtimeId) => request(`/api/v1/admin/showtimes/${showtimeId}`, { method: 'DELETE', token }),
 
   // Bookings
   holdSeats: (token, body) => request('/api/v1/bookings/hold', { method: 'POST', token, body }),
   createBooking: (token, body) => request('/api/v1/bookings', { method: 'POST', token, body }),
   getMyBookings: (token) => request('/api/v1/bookings', { token }),
+  getMyBooking: (token, bookingId) => request(`/api/v1/bookings/${bookingId}`, { token }),
   cancelBooking: (token, bookingId) => request(`/api/v1/bookings/${bookingId}`, { method: 'DELETE', token }),
+
+  // Wishlist
+  getWishlist: (token) => request('/api/v1/wishlist', { token }).then(normalizeWishlistResponse),
+  addWishlist: (token, movieId) => request('/api/v1/wishlist', {
+    method: 'POST',
+    token,
+    body: { movieId: Number(movieId) }
+  }),
+  removeWishlist: (token, movieId) => request(`/api/v1/wishlist/${encodeURIComponent(movieId)}`, {
+    method: 'DELETE',
+    token
+  }),
 
   // Promotions
   validatePromotion: (body) => request('/api/v1/promotions/validate', { method: 'POST', body }),

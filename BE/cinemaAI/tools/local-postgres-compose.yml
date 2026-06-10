@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: cinema_ai_local_postgres
+    environment:
+      POSTGRES_DB: cinema_ai_local
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - cinema_ai_local_pgdata:/var/lib/postgresql/data
+
+volumes:
+  cinema_ai_local_pgdata:

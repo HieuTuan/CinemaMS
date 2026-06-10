@@ -5,15 +5,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sba301.cinemaai.dto.request.auth.LoginRequest;
 import com.sba301.cinemaai.dto.request.cinema.CinemaRequest;
 import com.sba301.cinemaai.dto.request.cinema.RoomRequest;
-import com.sba301.cinemaai.dto.request.cinema.SeatGenerationRequest;
+import com.sba301.cinemaai.dto.request.cinema.SeatLayoutRequest;
 import com.sba301.cinemaai.dto.request.cinema.SeatUpdateRequest;
 import com.sba301.cinemaai.dto.request.cinema.ShowtimeRequest;
 import com.sba301.cinemaai.dto.request.ticket.TicketComboRequest;
 import com.sba301.cinemaai.dto.request.ticket.TicketPriceValidationRequest;
 import com.sba301.cinemaai.dto.request.ticket.TicketPricingRuleRequest;
 import com.sba301.cinemaai.dto.request.ticket.TicketSelectionRequest;
+import com.sba301.cinemaai.entity.Booking;
 import com.sba301.cinemaai.entity.Movie;
 import com.sba301.cinemaai.entity.Role;
+import com.sba301.cinemaai.entity.Room;
+import com.sba301.cinemaai.entity.Showtime;
 import com.sba301.cinemaai.entity.User;
 import com.sba301.cinemaai.entity.UserRole;
 import com.sba301.cinemaai.enums.CinemaStatus;
@@ -25,8 +28,11 @@ import com.sba301.cinemaai.enums.SeatStatus;
 import com.sba301.cinemaai.enums.SeatType;
 import com.sba301.cinemaai.enums.ShowtimeStatus;
 import com.sba301.cinemaai.enums.TicketType;
+import com.sba301.cinemaai.repository.BookingRepository;
 import com.sba301.cinemaai.repository.MovieRepository;
 import com.sba301.cinemaai.repository.RoleRepository;
+import com.sba301.cinemaai.repository.RoomRepository;
+import com.sba301.cinemaai.repository.ShowtimeRepository;
 import com.sba301.cinemaai.repository.UserRepository;
 import com.sba301.cinemaai.repository.UserRoleRepository;
 import java.math.BigDecimal;
@@ -66,6 +72,15 @@ class CinemaShowtimeIntegrationTests {
     private MovieRepository movieRepository;
 
     @Autowired
+    private BookingRepository bookingRepository;
+
+    @Autowired
+    private RoomRepository roomRepository;
+
+    @Autowired
+    private ShowtimeRepository showtimeRepository;
+
+    @Autowired
     private UserRepository userRepository;
 
     @Autowired
@@ -83,7 +98,21 @@ class CinemaShowtimeIntegrationTests {
         Movie movie = createMovie();
 
         Long cinemaId = createCinema(token);
-        mockMvc.perform(post("/api/v1/admin/cinemas")
+        mockMvc.perform(get("/api/v1/admin/cinema"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(cinemaId))
+                .andExpect(jsonPath("$.data.address").isNotEmpty());
+        mockMvc.perform(put("/api/v1/admin/cinema")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CinemaRequest(
+                                "Unauthorized Cinema Update",
+                                "Unauthorized Address",
+                                "Ho Chi Minh City",
+                                "0900555668",
+                                CinemaStatus.ACTIVE
+                        ))))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/admin/cinema")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new CinemaRequest(
@@ -94,20 +123,84 @@ class CinemaShowtimeIntegrationTests {
                                 CinemaStatus.ACTIVE
                         ))))
                 .andExpect(status().isConflict());
-        Long roomId = createRoom(token, cinemaId);
+        Long roomId = createRoom(token);
+        mockMvc.perform(post("/api/v1/admin/rooms")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RoomRequest(
+                                "  room phase 5  ",
+                                RoomType.TWO_D,
+                                3,
+                                4,
+                                RoomStatus.ACTIVE
+                        ))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Room name already exists in this cinema"));
 
         String seatResponse = mockMvc.perform(post("/api/v1/admin/rooms/{roomId}/seats/generate", roomId)
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new SeatGenerationRequest(SeatType.NORMAL, false))))
-                .andExpect(status().isOk())
+                        .content(objectMapper.writeValueAsString(new SeatLayoutRequest(SeatType.NORMAL))))
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.length()").value(12))
                 .andExpect(jsonPath("$.data[0].rowLabel").value("A"))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
 
+        mockMvc.perform(post("/api/v1/admin/rooms/{roomId}/seats/generate", roomId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new SeatLayoutRequest(SeatType.NORMAL))))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(put("/api/v1/admin/rooms/{roomId}/seats", roomId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "defaultSeatType", "STANDARD",
+                                "rows", List.of(
+                                        customSeatRow("A", 1),
+                                        customSeatRow("B", 2),
+                                        customSeatRow("C", 3),
+                                        customSeatRow("D", 4)
+                                )
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Seat layout has 4 rows, but room allows at most 3 rows"));
+
         Long seatId = objectMapper.readTree(seatResponse).at("/data/0/id").asLong();
+        mockMvc.perform(put("/api/v1/admin/rooms/{roomId}/seats", roomId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "defaultSeatType", "NORMAL",
+                                "rows", List.of(Map.of(
+                                        "rowLabel", "A",
+                                        "displayOrder", 1,
+                                        "startColumn", 1,
+                                        "seatType", "COUPLE",
+                                        "seatNumbers", List.of(1, 2, 3)
+                                ))
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Couple seat row A must have an even number of seats"));
+
+        mockMvc.perform(put("/api/v1/admin/rooms/seats/{seatId}", seatId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new SeatUpdateRequest(
+                                SeatType.COUPLE,
+                                SeatStatus.AVAILABLE
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.seatType").value("COUPLE"));
+        mockMvc.perform(get("/api/v1/admin/rooms/{roomId}/seats", roomId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].seatType").value("COUPLE"))
+                .andExpect(jsonPath("$.data[1].seatType").value("COUPLE"));
+
         mockMvc.perform(put("/api/v1/admin/rooms/seats/{seatId}", seatId)
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -124,7 +217,7 @@ class CinemaShowtimeIntegrationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("UNAVAILABLE"));
 
-        LocalDateTime startTime = LocalDateTime.of(2026, 5, 20, 18, 0);
+        LocalDateTime startTime = LocalDate.now().plusDays(14).atTime(18, 0);
         String showtimeBody = objectMapper.writeValueAsString(new ShowtimeRequest(
                 movie.getId(),
                 roomId,
@@ -148,6 +241,65 @@ class CinemaShowtimeIntegrationTests {
                 .getContentAsString();
 
         Long showtimeId = objectMapper.readTree(showtimeResponse).at("/data/id").asLong();
+
+        mockMvc.perform(post("/api/v1/admin/showtimes")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ShowtimeRequest(
+                                movie.getId(),
+                                roomId,
+                                LocalDateTime.now().minusDays(1),
+                                BigDecimal.valueOf(95000),
+                                null,
+                                null,
+                                ShowtimeStatus.OPEN
+                ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.errors[0].field").value("startTime"))
+                .andExpect(jsonPath("$.errors[0].message").value("Start time must be in the future"));
+
+        mockMvc.perform(post("/api/v1/admin/showtimes")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ShowtimeRequest(
+                                movie.getId(),
+                                roomId,
+                                startTime.plusDays(2),
+                                BigDecimal.valueOf(95000),
+                                null,
+                                null,
+                                ShowtimeStatus.COMPLETED
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("New showtime status must be SCHEDULED or OPEN"));
+
+        Long inactiveRoomId = createCustomRoom(token);
+        Room inactiveRoom = roomRepository.findById(inactiveRoomId).orElseThrow();
+        inactiveRoom.changeStatus(RoomStatus.INACTIVE);
+        roomRepository.save(inactiveRoom);
+
+        mockMvc.perform(post("/api/v1/admin/showtimes")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ShowtimeRequest(
+                                movie.getId(),
+                                inactiveRoomId,
+                                startTime.plusDays(3),
+                                BigDecimal.valueOf(95000),
+                                null,
+                                null,
+                                ShowtimeStatus.OPEN
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Cannot schedule showtime in a room that is not active"));
+
+        mockMvc.perform(patch("/api/v1/admin/showtimes/{showtimeId}/status", showtimeId)
+                        .header("Authorization", "Bearer " + token)
+                        .param("status", "COMPLETED"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Cannot complete a showtime before it has ended"));
+
         Long comboId = createTicketPricing(token);
 
         mockMvc.perform(post("/api/v1/ticket-pricing/validate")
@@ -192,7 +344,7 @@ class CinemaShowtimeIntegrationTests {
 
         mockMvc.perform(get("/api/v1/showtimes")
                         .param("movieId", movie.getId().toString())
-                        .param("date", "2026-05-20"))
+                        .param("date", startTime.toLocalDate().toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].id").value(showtimeId));
 
@@ -203,13 +355,43 @@ class CinemaShowtimeIntegrationTests {
                 .andExpect(jsonPath("$.data.seats.length()").value(12))
                 .andExpect(jsonPath("$.data.seats[0].runtimeStatus").value("UNAVAILABLE"));
 
-        Long customRoomId = createCustomRoom(token, cinemaId);
+        Booking activeBooking = createActiveBooking(showtimeId);
+        mockMvc.perform(put("/api/v1/admin/showtimes/{showtimeId}", showtimeId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ShowtimeRequest(
+                                movie.getId(),
+                                roomId,
+                                startTime.plusHours(4),
+                                BigDecimal.valueOf(99000),
+                                null,
+                                null,
+                                ShowtimeStatus.OPEN
+                        ))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Cannot update showtime because it has active bookings"));
+
+        mockMvc.perform(patch("/api/v1/admin/showtimes/{showtimeId}/status", showtimeId)
+                        .header("Authorization", "Bearer " + token)
+                        .param("status", "CANCELLED"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Cannot cancel showtime because it has active bookings"));
+
+        activeBooking.cancel();
+        bookingRepository.save(activeBooking);
+
+        Long customRoomId = createCustomRoom(token);
         mockMvc.perform(post("/api/v1/admin/rooms/{roomId}/seats/generate", customRoomId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new SeatLayoutRequest(SeatType.STANDARD))))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(put("/api/v1/admin/rooms/{roomId}/seats", customRoomId)
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "defaultSeatType", "STANDARD",
-                                "overwriteExisting", true,
                                 "rows", List.of(
                                         Map.of(
                                                 "rowLabel", "A",
@@ -250,6 +432,12 @@ class CinemaShowtimeIntegrationTests {
                         .param("status", "CANCELLED"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("CANCELLED"));
+
+        mockMvc.perform(patch("/api/v1/admin/showtimes/{showtimeId}/status", showtimeId)
+                        .header("Authorization", "Bearer " + token)
+                        .param("status", "OPEN"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Cannot change status of a cancelled showtime"));
     }
 
     private Long createCinema(String token) throws Exception {
@@ -264,41 +452,49 @@ class CinemaShowtimeIntegrationTests {
                                 CinemaStatus.ACTIVE
                         ))))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.id").isNumber())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
         return objectMapper.readTree(response).at("/data/id").asLong();
     }
 
-    private Long createRoom(String token) throws Exception {
-        return createRoom(token, null);
+    private Map<String, Object> customSeatRow(String rowLabel, int displayOrder) {
+        return Map.of(
+                "rowLabel", rowLabel,
+                "displayOrder", displayOrder,
+                "startColumn", 1,
+                "seatType", "STANDARD",
+                "seatNumbers", List.of(1)
+        );
     }
 
-    private Long createRoom(String token, Long cinemaId) throws Exception {
+    private Long createRoom(String token) throws Exception {
         String response = mockMvc.perform(post("/api/v1/admin/rooms")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new RoomRequest(
-                                cinemaId,
-                                "Room Phase 5",
+                                "  Room Phase 5  ",
                                 RoomType.TWO_D,
                                 3,
                                 4,
                                 RoomStatus.ACTIVE
                         ))))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.id").isNumber())
+                .andExpect(jsonPath("$.data.cinemaId").isNumber())
+                .andExpect(jsonPath("$.data.name").value("Room Phase 5"))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
         return objectMapper.readTree(response).at("/data/id").asLong();
     }
 
-    private Long createCustomRoom(String token, Long cinemaId) throws Exception {
+    private Long createCustomRoom(String token) throws Exception {
         String response = mockMvc.perform(post("/api/v1/admin/rooms")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new RoomRequest(
-                                cinemaId,
                                 "Room Custom Layout " + System.nanoTime(),
                                 RoomType.TWO_D,
                                 14,
@@ -306,6 +502,8 @@ class CinemaShowtimeIntegrationTests {
                                 RoomStatus.ACTIVE
                         ))))
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.id").isNumber())
+                .andExpect(jsonPath("$.data.cinemaId").isNumber())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
@@ -346,6 +544,27 @@ class CinemaShowtimeIntegrationTests {
                 .getResponse()
                 .getContentAsString();
         return objectMapper.readTree(comboResponse).at("/data/id").asLong();
+    }
+
+    private Booking createActiveBooking(Long showtimeId) {
+        Showtime showtime = showtimeRepository.findById(showtimeId).orElseThrow();
+        User customer = new User(
+                "showtime.customer." + System.nanoTime() + "@example.com",
+                passwordEncoder.encode("Password123"),
+                "Showtime Customer",
+                "0900555888"
+        );
+        customer.activateEmail();
+        User savedCustomer = userRepository.save(customer);
+
+        Booking booking = new Booking(
+                "SHOWTIME-" + System.nanoTime(),
+                savedCustomer,
+                showtime,
+                LocalDateTime.now().plusMinutes(15)
+        );
+        booking.markPendingPayment();
+        return bookingRepository.save(booking);
     }
 
     private Movie createMovie() {

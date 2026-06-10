@@ -109,6 +109,83 @@ Authorization: Bearer {{adminToken}}
 ```
 
 ## 4. Tạo phim
+## 2. Tạo diễn viên
+
+### Tên mô tả API
+Admin phải tạo diễn viên trước khi gán vào phim. Khi test bằng Postman, lưu id diễn viên vào `actorId`.
+
+### API
+```http
+POST /api/v1/admin/actors
+Authorization: Bearer {{adminToken}}
+```
+
+### JSON
+```json
+{
+  "name": "Bao Khanh",
+  "biography": "Diễn viên dùng để test phase 3.",
+  "avatarUrl": "https://example.com/bao-khanh.jpg"
+}
+```
+
+### Post-response
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "name": "Bao Khanh",
+    "movieCount": 0
+  },
+  "message": "Actor created successfully"
+}
+```
+
+## 3. Load/Search diễn viên cho dropdown
+
+### Tên mô tả API
+Khi admin mở ô thêm diễn viên trong form tạo phim, FE gọi API này để lấy danh sách actor đã tạo.
+Nếu chưa nhập gì thì gọi không có `keyword` để xổ danh sách ban đầu. Khi admin nhập tên gần giống, ví dụ `B` hoặc `Bao`, FE gọi lại với `keyword` để lọc danh sách.
+Khi admin click một diễn viên trong dropdown, FE lấy `id` của actor đó và đưa vào `actorIds` khi tạo phim.
+
+### API - Load toàn bộ list ban đầu
+```http
+GET /api/v1/admin/actors?limit=20
+Authorization: Bearer {{adminToken}}
+```
+
+### API - Search theo tên
+```http
+GET /api/v1/admin/actors?keyword=Bao&limit=20
+Authorization: Bearer {{adminToken}}
+```
+
+### JSON
+```json
+{}
+```
+
+### Post-response
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "Bao Khanh",
+      "movieCount": 0
+    },
+    {
+      "id": 2,
+      "name": "Bao Chi",
+      "movieCount": 0
+    }
+  ]
+}
+```
+
+## 4. Tạo phim
 
 ### Tên mô tả API
 Admin tạo phim, gán thể loại qua `genreIds` và gán diễn viên đã tồn tại qua `actorIds`.
@@ -156,11 +233,13 @@ Authorization: Bearer {{adminToken}}
     "ageRating": "13+",
     "genres": [{"id": 1, "name": "Action"}],
     "actors": [{"id": 1, "name": "Bao Khanh", "movieCount": 1}]
+    "actors": [{"id": 1, "name": "Bao Khanh", "movieCount": 1}]
   },
   "message": "Movie created successfully"
 }
 ```
 
+## 5. Tìm phim public
 ## 5. Tìm phim public
 
 ### Tên mô tả API
@@ -185,6 +264,7 @@ GET /api/v1/movies?keyword=Action&genreId={{genreId}}&page=0&size=20
       {
         "id": 1,
         "title": "Action Movie A",
+        "status": "UPCOMING"
         "status": "UPCOMING"
       }
     ],
@@ -249,6 +329,7 @@ GET /api/v1/actors/{{actorId}}/movies
     {
       "id": 1,
       "title": "Action Movie A",
+      "actors": [{"id": 1, "name": "Bao Khanh"}]
       "actors": [{"id": 1, "name": "Bao Khanh"}]
     }
   ]

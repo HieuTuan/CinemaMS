@@ -3,6 +3,8 @@ package com.sba301.cinemaai.service;
 import com.sba301.cinemaai.dto.request.movie.ActorRequest;
 import com.sba301.cinemaai.dto.response.movie.ActorResponse;
 import com.sba301.cinemaai.entity.Actor;
+import com.sba301.cinemaai.entity.Movie;
+import com.sba301.cinemaai.entity.MovieActor;
 import com.sba301.cinemaai.exception.ConflictException;
 import com.sba301.cinemaai.exception.NotFoundException;
 import com.sba301.cinemaai.mapper.MovieMapper;
@@ -10,6 +12,7 @@ import com.sba301.cinemaai.repository.ActorRepository;
 import com.sba301.cinemaai.repository.MovieActorRepository;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -35,22 +38,7 @@ public class ActorService {
 
     @Transactional(readOnly = true)
     public List<ActorResponse> searchActors(String keyword, int limit) {
-        int safeLimit = Math.max(1, Math.min(limit, 50));
-        if (!StringUtils.hasText(keyword)) {
-            return actorRepository.findAll()
-                    .stream()
-                    .sorted(Comparator.comparing(Actor::getName, String.CASE_INSENSITIVE_ORDER))
-                    .limit(safeLimit)
-                    .map(this::toResponse)
-                    .toList();
-        }
-        return actorRepository.findByNameContainingIgnoreCaseOrderByNameAsc(
-                        keyword.trim(),
-                        PageRequest.of(0, safeLimit)
-                )
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        return searchAdminActors(keyword, limit);
     }
 
     @Transactional(readOnly = true)
@@ -58,34 +46,79 @@ public class ActorService {
         return toResponse(findById(id));
     }
 
+    @Transactional(readOnly = true)
+    public List<ActorResponse> searchAdminActors(String keyword, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 50));
+        PageRequest pageRequest = PageRequest.of(0, safeLimit);
+        var results = StringUtils.hasText(keyword)
+                ? actorRepository.searchAdminWithMovieCount(keyword.trim(), pageRequest)
+                : actorRepository.findAdminWithMovieCount(pageRequest);
+
+        return results.stream()
+                .map(result -> movieMapper.toActorResponse(result.getActor(), result.getMovieCount()))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ActorResponse> searchPublicActors(String keyword, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 50));
+        PageRequest pageRequest = PageRequest.of(0, safeLimit);
+        var results = StringUtils.hasText(keyword)
+                ? actorRepository.searchPublicWithMovieCount(keyword.trim(), pageRequest)
+                : actorRepository.findPublicWithMovieCount(pageRequest);
+
+        return results.stream()
+                .map(result -> movieMapper.toActorResponse(result.getActor(), result.getMovieCount()))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ActorResponse getPublicActor(Long id) {
+        return actorRepository.findPublicWithMovieCountById(id)
+                .map(result -> movieMapper.toActorResponse(result.getActor(), result.getMovieCount()))
+                .orElseThrow(() -> new NotFoundException("Actor not found"));
+    }
+
     @Transactional
     public ActorResponse create(ActorRequest request) {
         String name = request.name().trim();
+
         if (actorRepository.existsByNameIgnoreCase(name)) {
             throw new ConflictException("Actor name already exists");
         }
-        return toResponse(actorRepository.save(new Actor(name, request.biography(), request.avatarUrl())));
+
+        Actor actor = actorRepository.save(
+                new Actor(name, request.biography(), request.avatarUrl())
+        );
+
+        return toResponse(actor);
     }
 
     @Transactional
     public ActorResponse update(Long id, ActorRequest request) {
         Actor actor = findById(id);
         String name = request.name().trim();
+
         actorRepository.findByNameIgnoreCase(name)
                 .filter(existing -> !existing.getId().equals(id))
                 .ifPresent(existing -> {
                     throw new ConflictException("Actor name already exists");
                 });
+
         actor.update(name, request.biography(), request.avatarUrl());
+        refreshMovieActorMetadata(actor);
+
         return toResponse(actor);
     }
 
     @Transactional
     public void delete(Long id) {
         Actor actor = findById(id);
+
         if (movieActorRepository.countByActor(actor) > 0) {
             throw new ConflictException("Actor is used by movies");
         }
+
         actorRepository.delete(actor);
     }
 
@@ -95,6 +128,44 @@ public class ActorService {
     }
 
     private ActorResponse toResponse(Actor actor) {
-        return movieMapper.toActorResponse(actor, movieActorRepository.countByActor(actor));
+        return actorRepository.findWithMovieCountByIdIn(List.of(actor.getId()))
+                .stream()
+                .findFirst()
+                .map(result -> movieMapper.toActorResponse(result.getActor(), result.getMovieCount()))
+                .orElseThrow(() -> new NotFoundException("Actor not found"));
+    }
+
+    private void refreshMovieActorMetadata(Actor actor) {
+        movieActorRepository.findByActor(actor)
+                .stream()
+                .map(MovieActor::getMovie)
+                .distinct()
+                .forEach(this::refreshActorMetadata);
+    }
+
+    private void refreshActorMetadata(Movie movie) {
+        List<MovieActor> actorLinks = movieActorRepository.findByMovie(movie);
+
+        String castList = joinActorNames(actorLinks);
+        String mainActors = joinActorNames(
+                actorLinks.stream()
+                        .filter(MovieActor::isMainActor)
+                        .toList()
+        );
+
+        movie.updateMetadata(
+                movie.getLanguage(),
+                movie.getSubtitleLanguage(),
+                movie.getAgeRating(),
+                movie.getDirector(),
+                mainActors,
+                castList
+        );
+    }
+
+    private String joinActorNames(List<MovieActor> actorLinks) {
+        return actorLinks.stream()
+                .map(link -> link.getActor().getName())
+                .collect(Collectors.joining(", "));
     }
 }

@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Play, Pause, Sparkles, MessageSquare, Check, HelpCircle, Volume2, VolumeX, ChevronLeft, ChevronRight, Film } from 'lucide-react';
 import { movies } from '../services/cinemaData';
 import MovieCard from '../components/movies/MovieCard';
-import { useMovies } from '../contexts/MoviesContext';
-
+import Snowfall from 'react-snowfall';
 const extractYoutubeId = (url = '') => {
   const trimmed = url.trim();
   if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
@@ -19,19 +17,15 @@ const extractYoutubeId = (url = '') => {
   return patterns.map((pattern) => trimmed.match(pattern)?.[1]).find(Boolean) || 'k8m0SaGQ_1c';
 };
 
-export default function HomeView() {
-  const navigate = useNavigate();
-  const { moviesList = movies, homepageVideoUrl = 'https://www.youtube.com/watch?v=k8m0SaGQ_1c' } = useMovies();
-  const onSelectMovie = (id) => navigate(`/movies/${id}`);
-  const onBookMovie = (movie) => navigate(`/movies/${movie.id}/book`);
-  const onTabChange = (tab) => { if (tab === 'explore') navigate('/movies'); };
+export default function HomeView({ onSelectMovie, onBookMovie, onTabChange, moviesList = movies, homepageVideoUrl = 'https://www.youtube.com/watch?v=k8m0SaGQ_1c' }) {
   const [selectedMood, setSelectedMood] = useState('#Đỉnh_Cao_Thị_Giác');
   const [userPrompt, setUserPrompt] = useState('');
   const [aiResponse, setAiResponse] = useState(null);
   const [loadingAI, setLoadingAI] = useState(false);
 
   // Filter movies for "Now Playing" and "Upcoming"
-  const publicMovies = moviesList.filter((m) => m.status !== 'INACTIVE' && !m.isInactive);
+  const sourceMovies = moviesList?.length ? moviesList : movies;
+  const publicMovies = sourceMovies.filter((m) => m.status !== 'INACTIVE' && !m.isInactive);
   const nowPlaying = publicMovies.filter((m) => m.status === 'NOW_SHOWING' || (!m.status && !m.isUpcoming));
   const upcoming = publicMovies.filter((m) => m.status === 'UPCOMING' || m.isUpcoming);
 
@@ -40,16 +34,19 @@ export default function HomeView() {
   const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
 
-  const heroMovie = nowPlaying[currentHeroIndex] || nowPlaying[0] || publicMovies[0];
+  const heroMovies = nowPlaying.length ? nowPlaying : publicMovies.length ? publicMovies : movies;
+  const heroMovie = heroMovies[currentHeroIndex] || heroMovies[0];
   const heroYoutubeId = extractYoutubeId(homepageVideoUrl);
   const heroYoutubeSrc = `https://www.youtube.com/embed/${heroYoutubeId}?autoplay=${isPlaying ? 1 : 0}&mute=${isMuted ? 1 : 0}&controls=0&loop=1&playlist=${heroYoutubeId}&playsinline=1&rel=0&modestbranding=1&iv_load_policy=3&disablekb=1`;
 
   const handlePrevHero = () => {
-    setCurrentHeroIndex((prev) => (prev === 0 ? nowPlaying.length - 1 : prev - 1));
+    if (!heroMovies.length) return;
+    setCurrentHeroIndex((prev) => (prev === 0 ? heroMovies.length - 1 : prev - 1));
   };
 
   const handleNextHero = () => {
-    setCurrentHeroIndex((prev) => (prev === nowPlaying.length - 1 ? 0 : prev + 1));
+    if (!heroMovies.length) return;
+    setCurrentHeroIndex((prev) => (prev === heroMovies.length - 1 ? 0 : prev + 1));
   };
 
   // AI Mood analysis tags
@@ -233,7 +230,7 @@ export default function HomeView() {
                     <ChevronLeft className="h-4 w-4" />
                   </button>
                   <span className="text-[9px] font-mono text-neutral-400 px-1 font-bold">
-                    {currentHeroIndex + 1}/{nowPlaying.length}
+                    {currentHeroIndex + 1}/{heroMovies.length}
                   </span>
                   <button
                     onClick={handleNextHero}
