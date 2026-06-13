@@ -1,20 +1,33 @@
 package com.sba301.cinemaai.repository;
 
+import com.sba301.cinemaai.entity.Booking;
 import com.sba301.cinemaai.entity.Movie;
 import com.sba301.cinemaai.entity.Review;
 import com.sba301.cinemaai.entity.User;
 import com.sba301.cinemaai.enums.ReviewStatus;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     List<Review> findByMovieAndStatus(Movie movie, ReviewStatus status);
 
+    Page<Review> findByMovieAndStatus(Movie movie, ReviewStatus status, Pageable pageable);
+
     List<Review> findByUser(User user);
+
+    Page<Review> findByUserAndStatusNot(User user, ReviewStatus status, Pageable pageable);
+
+    Page<Review> findByStatus(ReviewStatus status, Pageable pageable);
 
     Optional<Review> findByUserAndMovie(User user, Movie movie);
 
+    Optional<Review> findByBooking(Booking booking);
+
     boolean existsByUserAndMovie(User user, Movie movie);
+
+    long countByMovieAndStatus(Movie movie, ReviewStatus status);
 }
