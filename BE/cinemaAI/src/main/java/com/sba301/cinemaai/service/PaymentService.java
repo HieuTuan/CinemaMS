@@ -39,8 +39,8 @@ public class PaymentService {
         Booking booking = findBooking(bookingId);
         validateBookingOwner(booking, email);
 
-        if (booking.getStatus() != BookingStatus.HOLDING) {
-            throw new BadRequestException("Only HOLDING bookings can be paid");
+        if (booking.getStatus() != BookingStatus.HOLDING && booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
+            throw new BadRequestException("Only HOLDING or PENDING_PAYMENT bookings can be paid");
         }
 
         boolean alreadyPending = paymentRepository.findByBooking(booking)
@@ -51,6 +51,9 @@ public class PaymentService {
         }
 
         Payment payment = paymentRepository.save(new Payment(booking, PaymentProvider.VNPAY, booking.getTotalAmount()));
+        if (booking.getStatus() == BookingStatus.HOLDING) {
+            booking.markPendingPayment();
+        }
 
         String txnRef = payment.getId() + "-" + booking.getBookingCode();
         String orderInfo = "Thanh toan ve xem phim " + booking.getBookingCode();
@@ -121,8 +124,11 @@ public class PaymentService {
     public PaymentResponse mockPayment(String email, Long bookingId) {
         Booking booking = findBooking(bookingId);
         validateBookingOwner(booking, email);
-        if (booking.getStatus() != BookingStatus.HOLDING) {
-            throw new BadRequestException("Only HOLDING bookings can be paid");
+        if (booking.getStatus() != BookingStatus.HOLDING && booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
+            throw new BadRequestException("Only HOLDING or PENDING_PAYMENT bookings can be paid");
+        }
+        if (booking.getStatus() == BookingStatus.HOLDING) {
+            booking.markPendingPayment();
         }
         Payment payment = paymentRepository.save(new Payment(booking, PaymentProvider.MOCK, booking.getTotalAmount()));
         confirmPayment(payment, "MOCK-" + System.currentTimeMillis(), Map.of("provider", "MOCK"));

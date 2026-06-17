@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { movies } from '../services/cinemaData';
 import { authApi, getStoredAuth } from '../services/authApi';
 import { useUI } from './UIContext';
 import { useAuth } from './AuthContext';
@@ -8,15 +7,17 @@ import { useAuth } from './AuthContext';
 const MoviesContext = createContext(null);
 
 export function MoviesProvider({ children }) {
-  const [moviesList, setMoviesList] = useState(movies);
+  const [moviesList, setMoviesList] = useState([]);
   const [moviePagination, setMoviePagination] = useState({
     page: 0, size: 8,
-    totalPages: Math.max(1, Math.ceil(movies.length / 8)),
-    totalElements: movies.length,
+    totalPages: 1,
+    totalElements: 0,
   });
   const [isMoviesLoading, setIsMoviesLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [movieDateFilter, setMovieDateFilter] = useState('');
+  const [genres, setGenres] = useState([]);
+  const [selectedGenreId, setSelectedGenreId] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [publicCinema, setPublicCinema] = useState(null);
   const [watchlist, setWatchlist] = useState([]);
@@ -54,11 +55,28 @@ export function MoviesProvider({ children }) {
 
   useEffect(() => {
     let cancelled = false;
+
+    const fetchGenres = async () => {
+      try {
+        const data = await authApi.getGenres();
+        if (!cancelled) setGenres(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setGenres([]);
+      }
+    };
+
+    fetchGenres();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
     const timeoutId = setTimeout(async () => {
       setIsMoviesLoading(true);
       try {
         const pageData = await authApi.searchMoviesPage({
           keyword: isExplorePage ? searchQuery.trim() : '',
+          genreId: isExplorePage ? selectedGenreId : '',
           fromDate: isExplorePage ? movieDateFilter : '',
           toDate: isExplorePage ? movieDateFilter : '',
           page: moviePagination.page,
@@ -82,7 +100,7 @@ export function MoviesProvider({ children }) {
       }
     }, 350);
     return () => { cancelled = true; clearTimeout(timeoutId); };
-  }, [isExplorePage, searchQuery, movieDateFilter, moviePagination.page, moviePagination.size]);
+  }, [isExplorePage, searchQuery, selectedGenreId, movieDateFilter, moviePagination.page, moviePagination.size]);
 
   const normalizeWishlistMovies = (items = []) => items.map((item) => {
     const match = moviesList.find((movie) => String(movie.backendId || movie.id) === String(item.backendId || item.id));
@@ -172,6 +190,7 @@ export function MoviesProvider({ children }) {
       isMoviesLoading,
       searchQuery, setSearchQuery,
       movieDateFilter, setMovieDateFilter,
+      genres, selectedGenreId, setSelectedGenreId,
       selectedCity, setSelectedCity,
       publicCinema,
       cinemaLocations: liveCinemaLocations,

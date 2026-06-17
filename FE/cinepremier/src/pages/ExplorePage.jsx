@@ -1,14 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, ChevronRight, ChevronLeft, Film, Filter, CalendarDays, X } from 'lucide-react';
-import { movies } from '../services/cinemaData';
 import MovieCard from '../components/movies/MovieCard';
 import { useMovies } from '../contexts/MoviesContext';
 
 export default function ExploreView() {
   const navigate = useNavigate();
   const {
-    moviesList = movies,
+    moviesList = [],
     isMoviesLoading: isLoading = false,
     moviePagination: pagination = null,
     setMoviePagination,
@@ -16,20 +15,19 @@ export default function ExploreView() {
     setSearchQuery,
     movieDateFilter: selectedDate = '',
     setMovieDateFilter,
+    genres = [],
+    selectedGenreId = '',
+    setSelectedGenreId,
   } = useMovies();
   const onSearchChange = (q) => { setSearchQuery(q); setMoviePagination(prev => ({ ...prev, page: 0 })); };
   const onDateChange = (d) => { setMovieDateFilter(d); setMoviePagination(prev => ({ ...prev, page: 0 })); };
   const onPageChange = (page) => setMoviePagination(prev => ({ ...prev, page: page - 1 }));
   const onSelectMovie = (id) => navigate(`/movies/${id}`);
   const onBookMovie = (movie) => navigate(`/movies/${movie.id}/book`);
-  const [selectedGenre, setSelectedGenre] = useState('Tất cả');
   const [sortBy, setSortBy] = useState('aiOverall'); // aiOverall, newest, duration
   const [localPage, setLocalPage] = useState(1);
   const itemsPerPage = 8;
   const currentPage = pagination ? (Number(pagination.page) || 0) + 1 : localPage;
-
-  // Pre-configured unique genres list
-  const genres = ['Tất cả', 'Sci-Fi', 'Hành Động', 'Tâm Lý', 'Gây Cấn', 'Hoạt Hình', 'Noir'];
 
   // Filter and sort logical step
   const processedMovies = useMemo(() => {
@@ -47,12 +45,7 @@ export default function ExploreView() {
       );
     }
 
-    // 2. Genre Filter
-    if (selectedGenre !== 'Tất cả') {
-      result = result.filter((m) => m.genre.includes(selectedGenre));
-    }
-
-    // 3. Sorting
+    // 2. Sorting
     result.sort((a, b) => {
       if (sortBy === 'aiOverall') {
         const aRating = a.ratings?.aiOverall || 0;
@@ -69,7 +62,7 @@ export default function ExploreView() {
     });
 
     return result;
-  }, [searchQuery, selectedGenre, sortBy, moviesList]);
+  }, [searchQuery, sortBy, moviesList]);
 
   // Pagination logical step
   const totalPages = pagination?.totalPages || Math.max(1, Math.ceil(processedMovies.length / itemsPerPage));
@@ -91,7 +84,7 @@ export default function ExploreView() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 space-y-10 pb-24">
-      
+
       {/* Search Header Container */}
       <div className="space-y-4 border-b border-white/5 pb-6">
         <div className="flex items-center space-x-3">
@@ -107,27 +100,26 @@ export default function ExploreView() {
 
       {/* Filter and Control Toolbar */}
       <div className="bg-black border border-white/10 p-5 space-y-4">
-        
+
         {/* Genre Tags Selector & Sort Selection */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          
+
           {/* Genre Chips list */}
           <div className="flex flex-wrap gap-2" id="genre-filter-chips">
-            {genres.map((g) => (
+            {[{ id: '', name: 'Tất cả' }, ...genres].map((genre) => (
               <button
-                key={g}
+                key={genre.id || 'all'}
                 onClick={() => {
-                  setSelectedGenre(g);
+                  setSelectedGenreId(genre.id);
                   if (pagination) onPageChange(1);
                   setLocalPage(1);
                 }}
-                className={`px-4 py-2 text-[10px] uppercase font-sans tracking-[0.15em] transition-all duration-300 ${
-                  selectedGenre === g
+                className={`px-4 py-2 text-[10px] uppercase font-sans tracking-[0.15em] transition-all duration-300 ${String(selectedGenreId) === String(genre.id)
                     ? 'bg-white text-black border border-white'
                     : 'bg-black text-neutral-400 border border-white/10 hover:text-white hover:border-white/30'
-                }`}
+                  }`}
               >
-                {g}
+                {genre.name}
               </button>
             ))}
           </div>
@@ -192,7 +184,7 @@ export default function ExploreView() {
 
       {/* Grid movies or Blank fallback page */}
       {currentMovies.length > 0 ? (
-        <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4" id="explore-movies-grid">
+        <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5" id="explore-movies-grid">
           {currentMovies.map((movie) => (
             <MovieCard
               key={movie.id}
@@ -207,11 +199,11 @@ export default function ExploreView() {
           <Filter className="h-8 w-8 text-neutral-600 mx-auto" />
           <h3 className="text-base font-serif text-white italic">Không tuyển lựa ra kết quả tương thích</h3>
           <p className="text-xs text-neutral-500 max-w-md mx-auto font-sans leading-relaxed">
-             Hãy chuyển dịch lại từ khóa tìm kiếm hoặc bấm nút Thiết lập lại phía dưới để quay lại danh mục chuẩn.
+            Hãy chuyển dịch lại từ khóa tìm kiếm hoặc bấm nút Thiết lập lại phía dưới để quay lại danh mục chuẩn.
           </p>
           <button
             onClick={() => {
-              setSelectedGenre('Tất cả');
+              setSelectedGenreId('');
               onSearchChange('');
               onDateChange('');
               handlePageChange(1);
@@ -226,7 +218,7 @@ export default function ExploreView() {
       {/* Pagination Container */}
       {totalPages > 1 && (
         <div className="flex items-center justify-center space-x-2 pt-8" id="pagination">
-          
+
           {/* Back button */}
           <button
             disabled={currentPage === 1}
@@ -241,11 +233,10 @@ export default function ExploreView() {
             <button
               key={pg}
               onClick={() => handlePageChange(pg)}
-              className={`h-9 w-9 text-xs transition font-sans ${
-                currentPage === pg
+              className={`h-9 w-9 text-xs transition font-sans ${currentPage === pg
                   ? 'bg-white text-black font-bold border border-white'
                   : 'border border-white/10 bg-black text-neutral-400 hover:border-white hover:text-white'
-              }`}
+                }`}
             >
               {pg}
             </button>

@@ -18,6 +18,7 @@ export default function Layout({ children }) {
 
   const activeTab = (() => {
     const p = location.pathname;
+    if (p.startsWith('/staff')) return 'staff';
     if (p.startsWith('/admin')) return 'admin';
     if (p.startsWith('/movies')) return 'explore';
     if (p === '/tickets') return 'my-tickets';
@@ -27,9 +28,17 @@ export default function Layout({ children }) {
   })();
 
   const handleTabChange = (tab) => {
-    const paths = { home: '/', explore: '/movies', 'my-tickets': '/tickets', wishlist: '/watchlist', profile: '/profile', policies: '/policies', admin: '/admin/overview' };
+    if (tab === 'my-tickets' && !isLoggedIn) return;
+    const paths = { home: '/', explore: '/movies', 'my-tickets': '/tickets', wishlist: '/watchlist', profile: '/profile', policies: '/policies', staff: '/staff', admin: '/admin/overview' };
     navigate(paths[tab] || '/');
   };
+
+  const toastDurationMs = Number.isFinite(Number(toast?.durationMs)) && Number(toast?.durationMs) > 0
+    ? Number(toast.durationMs)
+    : 4500;
+  const toastRemainingMs = Number.isFinite(Number(toast?.remainingMs)) && Number(toast?.remainingMs) >= 0
+    ? Number(toast.remainingMs)
+    : toastDurationMs;
 
   return (
     <div className="min-h-screen bg-black text-white selection:bg-white selection:text-black">
@@ -55,10 +64,10 @@ export default function Layout({ children }) {
               <button type="button" onClick={() => setToast(null)} className="shrink-0 rounded-sm px-2 py-1 text-base font-bold leading-none text-amber-100/70 transition hover:bg-white/10 hover:text-white">✕</button>
             </div>
             <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-white/15">
-              <div className={`toast-progress h-full rounded-full origin-left ${toast.tone === 'sad' ? 'bg-gradient-to-r from-rose-300 via-fuchsia-300 to-indigo-300 shadow-[0_0_16px_rgba(244,63,94,0.6)]' : 'bg-gradient-to-r from-emerald-300 via-amber-300 to-amber-500 shadow-[0_0_16px_rgba(251,191,36,0.65)]'}`} style={{ animationDuration: `${toast.durationMs}ms` }} />
+              <div className={`toast-progress h-full rounded-full origin-left ${toast.tone === 'sad' ? 'bg-gradient-to-r from-rose-300 via-fuchsia-300 to-indigo-300 shadow-[0_0_16px_rgba(244,63,94,0.6)]' : 'bg-gradient-to-r from-emerald-300 via-amber-300 to-amber-500 shadow-[0_0_16px_rgba(251,191,36,0.65)]'}`} style={{ animationDuration: `${toastDurationMs}ms` }} />
             </div>
             <div className="mt-3 flex items-center justify-between gap-3">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-100/70">Tự tắt sau {Math.ceil(toast.remainingMs / 1000)}s</div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-100/70">Tự tắt sau {Math.ceil(toastRemainingMs / 1000)}s</div>
               {toast.action && (
                 <button type="button" onClick={() => { toast.action.onClick(); setToast(null); }} className="border border-rose-300/50 bg-rose-500/20 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-rose-50 transition hover:bg-rose-400 hover:text-black">
                   {toast.action.label}
@@ -73,8 +82,14 @@ export default function Layout({ children }) {
       <div className="hidden md:flex flex-col items-center justify-between py-12 border-r border-white/10 bg-black text-neutral-500 w-[60px] h-screen fixed left-0 top-0 z-40">
         <div className="text-[9px] uppercase tracking-[0.3em] font-sans font-bold whitespace-nowrap rotate-270 -my-8 text-neutral-400 select-none">EST. 2026</div>
         <div className="flex flex-col items-center space-y-4">
-          {[['home', '/'], ['explore', '/movies'], ['my-tickets', '/tickets'], ['wishlist', '/watchlist']].map(([tab, path]) => (
-            <div key={tab} onClick={() => navigate(path)} className={`w-1.5 h-1.5 rounded-full cursor-pointer transition-all duration-300 ${activeTab === tab ? 'bg-white scale-150' : 'bg-neutral-800'}`} title={tab} />
+          {[['home', '/'], ['explore', '/movies'], ...(isLoggedIn ? [['my-tickets', '/tickets']] : []), ['wishlist', '/watchlist']].map(([tab, path]) => (
+            <button
+              type="button"
+              key={tab}
+              onClick={() => navigate(path)}
+              className={`w-1.5 h-1.5 rounded-full cursor-pointer transition-all duration-300 ${activeTab === tab ? 'bg-white scale-150' : 'bg-neutral-800'}`}
+              title={tab}
+            />
           ))}
         </div>
         <div className="text-[10px] uppercase tracking-[0.25em] font-serif italic text-white text-center select-none font-light">C P</div>
