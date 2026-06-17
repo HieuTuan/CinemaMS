@@ -33,7 +33,6 @@ import com.sba301.cinemaai.repository.BookingSeatRepository;
 import com.sba301.cinemaai.repository.BookingTicketRepository;
 import com.sba301.cinemaai.repository.SeatRepository;
 import com.sba301.cinemaai.repository.ShowtimeRepository;
-import com.sba301.cinemaai.service.LoyaltyPointService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.EnumMap;
@@ -69,6 +68,8 @@ public class BookingService {
     private final QrTicketService qrTicketService;
     private final BookingMapper bookingMapper;
     private final LoyaltyPointService loyaltyPointService;
+    private final SeatWebSocketService seatWebSocketService;
+    private final MailService mailService;
 
     @Transactional
     public BookingResponse holdSeats(String email, HoldSeatsRequest request) {
@@ -89,6 +90,7 @@ public class BookingService {
             BigDecimal unitPrice = showtime.getPriceForSeatType(seat.getSeatType());
             BookingSeat bookingSeat = bookingSeatRepository.save(new BookingSeat(booking, showtime, seat, unitPrice));
             subtotal = subtotal.add(bookingSeat.getUnitPrice());
+            seatWebSocketService.broadcastSeatUpdate(bookingSeat);
         }
 
         if (request.tickets() != null && !request.tickets().isEmpty()) {
@@ -132,8 +134,11 @@ public class BookingService {
             }
         }
 
-        bookingSeatRepository.findByBooking(booking)
-                .forEach(seat -> seat.changeStatus(SeatRuntimeStatus.BOOKED));
+        List<BookingSeat> seats = bookingSeatRepository.findByBooking(booking);
+        seats.forEach(seat -> {
+            seat.changeStatus(SeatRuntimeStatus.BOOKED);
+            seatWebSocketService.broadcastSeatUpdate(seat);
+        });
         BigDecimal discount = booking.getDiscountAmount();
         booking.updateAmounts(subtotal, discount, subtotal.subtract(discount));
         booking.markPendingPayment();
@@ -181,6 +186,7 @@ public class BookingService {
         validateRefundable(booking);
         booking.requestRefund(reason);
         releaseSeats(booking);
+        mailService.sendCancellationEmail(booking);
         return toResponse(booking);
     }
 
@@ -190,6 +196,7 @@ public class BookingService {
         validateRefundable(booking);
         booking.requestRefund(reason);
         releaseSeats(booking);
+        mailService.sendCancellationEmail(booking);
         return toResponse(booking);
     }
 
@@ -214,6 +221,7 @@ public class BookingService {
         }
         releaseSeats(booking);
         booking.cancel();
+        mailService.sendCancellationEmail(booking);
         return toResponse(booking);
     }
 
@@ -232,7 +240,10 @@ public class BookingService {
         }
         booking.checkIn();
         bookingSeatRepository.findByBooking(booking)
-                .forEach(seat -> seat.changeStatus(SeatRuntimeStatus.CHECKED_IN));
+                .forEach(seat -> {
+                    seat.changeStatus(SeatRuntimeStatus.CHECKED_IN);
+                    seatWebSocketService.broadcastSeatUpdate(seat);
+                });
         return toResponse(booking);
     }
 
@@ -255,7 +266,10 @@ public class BookingService {
         }
         booking.checkIn();
         bookingSeatRepository.findByBooking(booking)
-                .forEach(seat -> seat.changeStatus(SeatRuntimeStatus.CHECKED_IN));
+                .forEach(seat -> {
+                    seat.changeStatus(SeatRuntimeStatus.CHECKED_IN);
+                    seatWebSocketService.broadcastSeatUpdate(seat);
+                });
         return toResponse(booking);
     }
 
@@ -420,7 +434,10 @@ public class BookingService {
 
     private void releaseSeats(Booking booking) {
         bookingSeatRepository.findByBooking(booking)
-                .forEach(seat -> seat.changeStatus(SeatRuntimeStatus.RELEASED));
+                .forEach(seat -> {
+                    seat.changeStatus(SeatRuntimeStatus.RELEASED);
+                    seatWebSocketService.broadcastSeatAvailable(seat);
+                });
     }
 
     private void validateRefundable(Booking booking) {

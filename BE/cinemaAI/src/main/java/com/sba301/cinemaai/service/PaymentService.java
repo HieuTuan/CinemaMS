@@ -3,6 +3,9 @@ package com.sba301.cinemaai.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sba301.cinemaai.dto.response.payment.PaymentResponse;
 import com.sba301.cinemaai.entity.Booking;
+import com.sba301.cinemaai.entity.BookingFoodItem;
+import com.sba301.cinemaai.entity.BookingSeat;
+import com.sba301.cinemaai.entity.BookingTicket;
 import com.sba301.cinemaai.entity.Payment;
 import com.sba301.cinemaai.enums.BookingStatus;
 import com.sba301.cinemaai.enums.PaymentProvider;
@@ -11,10 +14,13 @@ import com.sba301.cinemaai.enums.SeatRuntimeStatus;
 import com.sba301.cinemaai.exception.BadRequestException;
 import com.sba301.cinemaai.exception.ConflictException;
 import com.sba301.cinemaai.exception.NotFoundException;
+import com.sba301.cinemaai.repository.BookingFoodItemRepository;
 import com.sba301.cinemaai.repository.BookingRepository;
 import com.sba301.cinemaai.repository.BookingSeatRepository;
+import com.sba301.cinemaai.repository.BookingTicketRepository;
 import com.sba301.cinemaai.repository.PaymentRepository;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,10 +35,14 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final BookingRepository bookingRepository;
     private final BookingSeatRepository bookingSeatRepository;
+    private final BookingTicketRepository bookingTicketRepository;
+    private final BookingFoodItemRepository bookingFoodItemRepository;
     private final VNPayService vnpayService;
     private final QrTicketService qrTicketService;
     private final LoyaltyPointService loyaltyPointService;
     private final ObjectMapper objectMapper;
+    private final MailService mailService;
+    private final SeatWebSocketService seatWebSocketService;
 
     @Transactional
     public PaymentResponse createVnpayPayment(String email, Long bookingId, String clientIp) {
@@ -151,12 +161,22 @@ public class PaymentService {
 
         payment.markSuccess(transactionNo, toJson(params));
         Booking booking = payment.getBooking();
-        bookingSeatRepository.findByBooking(booking)
-                .forEach(seat -> seat.changeStatus(SeatRuntimeStatus.BOOKED));
+
+        List<BookingSeat> seats = bookingSeatRepository.findByBooking(booking);
+        seats.forEach(seat -> {
+            seat.changeStatus(SeatRuntimeStatus.BOOKED);
+            seatWebSocketService.broadcastSeatUpdate(seat);
+        });
+
         booking.updateAmounts(booking.getSubtotal(), booking.getDiscountAmount(), booking.getTotalAmount());
         booking.markPaid(qrTicketService.generate(booking));
         loyaltyPointService.addPointsFromBooking(booking.getUser(), booking);
         log.info("Payment {} confirmed for booking {}", payment.getId(), booking.getBookingCode());
+
+        List<BookingTicket> tickets = bookingTicketRepository.findByBooking(booking);
+        List<BookingFoodItem> foods = bookingFoodItemRepository.findByBooking(booking);
+        mailService.sendBookingConfirmation(booking, seats, tickets, foods);
+        mailService.sendTicketEmail(booking, seats, tickets, foods);
     }
 
     private Payment findPaymentByTxnRef(String txnRef) {
