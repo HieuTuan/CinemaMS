@@ -51,6 +51,11 @@ public class StaffProfile extends BaseEntity {
         this.position = position;
     }
 
+    public void updateInfo(Cinema cinema, String position) {
+        this.cinema = cinema;
+        this.position = position;
+    }
+
     public void changeStatus(StaffStatus status) {
         this.status = status;
     }

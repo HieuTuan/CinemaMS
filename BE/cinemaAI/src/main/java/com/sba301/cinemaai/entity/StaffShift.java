@@ -47,4 +47,10 @@ public class StaffShift extends BaseEntity {
         this.endTime = endTime;
         this.note = note;
     }
+
+    public void update(LocalDateTime startTime, LocalDateTime endTime, String note) {
+        this.startTime = startTime;
+        this.endTime = endTime;
+        this.note = note;
+    }
 }

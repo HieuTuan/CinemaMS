@@ -1,0 +1,21 @@
+package com.sba301.cinemaai.dto.request.staff;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+
+public record CreateStaffRequest(
+
+        @NotNull(message = "User ID is required")
+        Long userId,
+
+        Long cinemaId,
+
+        @NotBlank(message = "Employee code is required")
+        @Size(max = 50, message = "Employee code must be at most 50 characters")
+        String employeeCode,
+
+        @NotBlank(message = "Position is required")
+        @Size(max = 100, message = "Position must be at most 100 characters")
+        String position
+) {}
