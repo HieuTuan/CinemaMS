@@ -8,10 +8,12 @@ import com.sba301.cinemaai.repository.MovieGenreRepository;
 import java.util.Comparator;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-@Component
+/**
+ * Rule-based recommendation strategy using genre/actor/director preference scores.
+ * Not a Spring @Component — managed by {@link com.sba301.cinemaai.config.RecommendationStrategyConfig}.
+ */
 @RequiredArgsConstructor
 public class MockRecommendationStrategy implements RecommendationStrategy {
 

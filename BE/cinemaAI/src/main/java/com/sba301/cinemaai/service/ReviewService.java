@@ -19,6 +19,7 @@ import com.sba301.cinemaai.repository.UserRepository;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,14 @@ public class ReviewService {
     private final UserRepository userRepository;
     private final MovieRepository movieRepository;
     private final BookingRepository bookingRepository;
+
+    /**
+     * 13.5 – After a review changes, the user's recommendation profile is refreshed asynchronously
+     * so that the new rating immediately influences future movie suggestions.
+     * @Lazy avoids a potential circular dependency at startup.
+     */
+    @Lazy
+    private final RecommendationService recommendationService;
 
     @Transactional
     public ReviewResponse createReview(String email, CreateReviewRequest request) {
@@ -55,6 +64,10 @@ public class ReviewService {
         Review saved = reviewRepository.save(review);
 
         log.info("Review created: userId={}, movieId={}, rating={}", user.getId(), movie.getId(), request.getRating());
+
+        // 13.5 – refresh preference profile so the new rating influences recommendations
+        recommendationService.refreshProfileAsync(email);
+
         return ReviewResponse.from(saved);
     }
 
@@ -69,6 +82,10 @@ public class ReviewService {
         Review saved = reviewRepository.save(review);
 
         log.info("Review updated: reviewId={}, userId={}, newRating={}", reviewId, user.getId(), request.getRating());
+
+        // 13.5 – refresh preference profile so the updated rating influences recommendations
+        recommendationService.refreshProfileAsync(email);
+
         return ReviewResponse.from(saved);
     }
 
@@ -82,6 +99,9 @@ public class ReviewService {
         reviewRepository.save(review);
 
         log.info("Review soft-deleted: reviewId={}, userId={}", reviewId, user.getId());
+
+        // 13.5 – recalculate preference profile after review removal
+        recommendationService.refreshProfileAsync(email);
     }
 
     @Transactional(readOnly = true)
