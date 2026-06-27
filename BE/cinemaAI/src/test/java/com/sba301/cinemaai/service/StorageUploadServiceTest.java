@@ -12,10 +12,10 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockMultipartFile;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,6 +27,13 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class StorageUploadServiceTest {
+
+    private static final String TEST_CLOUD_NAME = "test-cloud-name";
+    private static final String TEST_API_KEY = "test-api-key";
+    private static final String TEST_API_SECRET = "test-api-secret";
+
+    private static final Long TEST_USER_ID = 1L;
+    private static final String TEST_UPLOAD_FOLDER = "posters";
 
     @Mock
     private Cloudinary cloudinary;
@@ -46,7 +53,7 @@ class StorageUploadServiceTest {
     void setUp() {
         storageUploadService = new StorageUploadServiceImpl(
                 cloudinary,
-                new CloudinaryCredentials("dmcodhbcc", "api-key", "api-secret"),
+                new CloudinaryCredentials(TEST_CLOUD_NAME, TEST_API_KEY, TEST_API_SECRET),
                 uploadedFileRepository,
                 userRepository
         );
@@ -60,16 +67,22 @@ class StorageUploadServiceTest {
                 MediaType.IMAGE_JPEG_VALUE,
                 new byte[] {1}
         );
-        User user = new User("admin@example.com", "password", "Admin", "0900111222");
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        User user = new User(
+                "admin@example.com",
+                "password",
+                "Admin",
+                "0900111222"
+        );
+
+        when(userRepository.findById(TEST_USER_ID)).thenReturn(Optional.of(user));
         when(cloudinary.uploader()).thenReturn(uploader);
         when(uploader.upload(any(byte[].class), anyMap()))
-                .thenThrow(new RuntimeException("Invalid cloud_name dmcodhbcc"));
+                .thenThrow(new RuntimeException("Invalid cloud_name " + TEST_CLOUD_NAME));
 
-        assertThatThrownBy(() -> storageUploadService.uploadImage(file, "posters", 1L))
+        assertThatThrownBy(() -> storageUploadService.uploadImage(file, TEST_UPLOAD_FOLDER, TEST_USER_ID))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessage("Cloudinary upload failed: Invalid cloud_name dmcodhbcc");
+                .hasMessage("Cloudinary upload failed: Invalid cloud_name " + TEST_CLOUD_NAME);
 
         verify(uploadedFileRepository, never()).save(any());
     }
@@ -78,10 +91,11 @@ class StorageUploadServiceTest {
     void shouldRejectMissingCloudinaryConfigurationBeforeUpload() {
         storageUploadService = new StorageUploadServiceImpl(
                 cloudinary,
-                new CloudinaryCredentials("", "api-key", "api-secret"),
+                new CloudinaryCredentials("", TEST_API_KEY, TEST_API_SECRET),
                 uploadedFileRepository,
                 userRepository
         );
+
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "poster.jpg",
@@ -89,7 +103,7 @@ class StorageUploadServiceTest {
                 new byte[] {1}
         );
 
-        assertThatThrownBy(() -> storageUploadService.uploadImage(file, "posters", 1L))
+        assertThatThrownBy(() -> storageUploadService.uploadImage(file, TEST_UPLOAD_FOLDER, TEST_USER_ID))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessage("Cloudinary is not configured");
 
