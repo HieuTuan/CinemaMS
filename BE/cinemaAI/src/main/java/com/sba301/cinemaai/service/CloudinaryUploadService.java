@@ -1,9 +1,0 @@
-package com.sba301.cinemaai.service;
-
-import com.sba301.cinemaai.dto.response.upload.UploadedFileResponse;
-import org.springframework.web.multipart.MultipartFile;
-
-public interface CloudinaryUploadService {
-
-        public UploadedFileResponse uploadImage(MultipartFile file, String requestedFolder, Long userId);
-}

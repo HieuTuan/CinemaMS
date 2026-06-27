@@ -4,20 +4,14 @@ import {
   Plus, Trash2, Edit3, ShieldAlert, FileText, Database,
   Calendar, Users, DollarSign, Activity, AlertCircle, CheckCircle2,
   Search, Sliders, ChevronDown, Check, RefreshCw, Layers, ShoppingBag,
-  BarChart2, Clock, MapPin, Film, Play, Eye, EyeOff, Sparkles, TrendingUp, Info, Globe, Tags, ImageUp
+  BarChart2, Clock, MapPin, Film, Play, Eye, EyeOff, Sparkles, TrendingUp, Info, Globe, Tags, ImageUp, Video
 } from 'lucide-react';
-import { authApi } from '../../services/authApi';
+import { adminService } from '../../services/adminService';
 
 export default function AdminMoviesPanel({ ctx }) {
   const {
     activeTab,
     setActiveTab,
-    selectedAnalysisMovieId,
-    setSelectedAnalysisMovieId,
-    isReanalyzing,
-    setIsReanalyzing,
-    analysisScrambleOffset,
-    setAnalysisScrambleOffset,
     activeChartPoint,
     setActiveChartPoint,
     searchQuery,
@@ -57,10 +51,6 @@ export default function AdminMoviesPanel({ ctx }) {
     setIsGenreLoading,
     isGenreSaving,
     setIsGenreSaving,
-    homepageForm,
-    setHomepageForm,
-    homepageVideoError,
-    setHomepageVideoError,
     foodItems,
     setFoodItems,
     foodCombos,
@@ -86,8 +76,6 @@ export default function AdminMoviesPanel({ ctx }) {
     auditLogs,
     setAuditLogs,
     addAuditLog,
-    getYoutubeId,
-    handleHomepageVideoSubmit,
     resetFoodForm,
     validateFoodForm,
     fetchFoods,
@@ -118,13 +106,10 @@ export default function AdminMoviesPanel({ ctx }) {
     setMoviesList,
     bookedTickets,
     setBookedTickets,
-    cinemaLocations,
     onSelectMovie,
     showToast,
     initialSection,
     onSectionChange,
-    homepageVideoUrl,
-    onHomepageVideoUrlChange,
     onFoodCatalogChanged,
     isAdmin
   } = ctx;
@@ -132,7 +117,33 @@ export default function AdminMoviesPanel({ ctx }) {
   const [actorForm, setActorForm] = useState({ name: '', biography: '', avatarUrl: '' });
   const [isActorSaving, setIsActorSaving] = useState(false);
   const [isActorImageUploading, setIsActorImageUploading] = useState(false);
+  const [isPosterUploading, setIsPosterUploading] = useState(false);
+  const [isBannerUploading, setIsBannerUploading] = useState(false);
+  const [isTrailerUploading, setIsTrailerUploading] = useState(false);
   const [createdActors, setCreatedActors] = useState([]);
+
+  const hasReleaseDatePassed = (value) => {
+    if (!value) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const releaseDate = new Date(value);
+    releaseDate.setHours(0, 0, 0, 0);
+    return !Number.isNaN(releaseDate.getTime()) && releaseDate < today;
+  };
+
+  const statusRank = (status) => ({ UPCOMING: 0, NOW_SHOWING: 1, ENDED: 2 }[String(status || '').toUpperCase()] ?? -1);
+
+  const isBackwardStatus = (currentStatus, requestedStatus) => {
+    const currentRank = statusRank(currentStatus);
+    const requestedRank = statusRank(requestedStatus);
+    return currentRank >= 0 && requestedRank >= 0 && requestedRank < currentRank;
+  };
+
+  const isMovieStatusOptionDisabled = (movie, requestedStatus) => {
+    if (requestedStatus === 'INACTIVE') return false;
+    if (!hasReleaseDatePassed(movie?.releaseDate)) return false;
+    return requestedStatus === 'UPCOMING' || isBackwardStatus(movie?.status, requestedStatus);
+  };
 
   const toggleMovieGenre = (genreId) => {
     const normalizedId = Number(genreId);
@@ -168,10 +179,10 @@ export default function AdminMoviesPanel({ ctx }) {
   const toggleMovieMainActor = (actorId) => {
     const id = Number(actorId);
     const actorIds = (formData.actorIds || []).map(Number);
-    if (!actorIds.includes(id)) return;
     const mainActorIds = (formData.mainActorIds || []).map(Number);
     setFormData({
       ...formData,
+      actorIds: actorIds.includes(id) ? actorIds : [...actorIds, id],
       mainActorIds: mainActorIds.includes(id)
         ? mainActorIds.filter((item) => item !== id)
         : [...mainActorIds, id]
@@ -189,7 +200,7 @@ export default function AdminMoviesPanel({ ctx }) {
 
     setIsActorSaving(true);
     try {
-      const actor = await authApi.createAdminActor(token, {
+      const actor = await adminService.createAdminActor(token, {
         name: actorForm.name.trim(),
         biography: actorForm.biography.trim(),
         avatarUrl: actorForm.avatarUrl.trim()
@@ -221,13 +232,52 @@ export default function AdminMoviesPanel({ ctx }) {
 
     setIsActorImageUploading(true);
     try {
-      const uploaded = await authApi.uploadAdminImage(token, file, 'actors');
+      const uploaded = await adminService.uploadAdminImage(token, file, 'actors');
       setActorForm((prev) => ({ ...prev, avatarUrl: uploaded.url }));
-      showToast('Đã tải ảnh diễn viên lên Cloudinary.');
+      showToast('Đã tải ảnh diễn viên lên Storage.');
     } catch (error) {
-      showToast(error.message || 'Không thể tải ảnh lên Cloudinary.');
+      showToast(error.message || 'Không thể tải ảnh lên Storage.');
     } finally {
       setIsActorImageUploading(false);
+    }
+  };
+
+  const handleMovieImageUpload = async (field, folder, event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const token = getAdminToken();
+    if (!token) return;
+
+    const setUploading = field === 'posterUrl' ? setIsPosterUploading : setIsBannerUploading;
+    setUploading(true);
+    try {
+      const uploaded = await adminService.uploadAdminImage(token, file, folder);
+      setFormData((prev) => ({ ...prev, [field]: uploaded.url }));
+      showToast(field === 'posterUrl' ? 'Đã tải poster lên Storage.' : 'Đã tải banner lên Storage.');
+    } catch (error) {
+      showToast(error.message || 'Không thể tải ảnh lên Storage.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleTrailerVideoUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const token = getAdminToken();
+    if (!token) return;
+
+    setIsTrailerUploading(true);
+    try {
+      const uploaded = await adminService.uploadAdminVideo(token, file, 'movies/trailers');
+      setFormData((prev) => ({ ...prev, trailerUrl: uploaded.url }));
+      showToast('Đã tải trailer lên Storage.');
+    } catch (error) {
+      showToast(error.message || 'Không thể tải trailer lên Storage.');
+    } finally {
+      setIsTrailerUploading(false);
     }
   };
 
@@ -236,8 +286,8 @@ export default function AdminMoviesPanel({ ctx }) {
     if (status === 'UPCOMING') {
       return {
         label: 'SẮP CHIẾU',
-        dot: 'bg-amber-500',
-        className: 'bg-amber-950/40 text-amber-400 border-amber-500/30'
+        dot: 'bg-purple-500',
+        className: 'bg-purple-950/40 text-purple-400 border-purple-500/30'
       };
     }
     if (status === 'ENDED') {
@@ -288,7 +338,7 @@ export default function AdminMoviesPanel({ ctx }) {
                   setSearchQuery(e.target.value);
                   setAdminMoviePagination((prev) => ({ ...prev, page: 0 }));
                 }}
-                className="w-full bg-black border border-neutral-800 focus:border-amber-400 p-2.5 pl-10 text-xs text-white focus:outline-none focus:ring-0 placeholder-neutral-700 font-sans"
+                className="w-full bg-black border border-neutral-800 focus:border-purple-400 p-2.5 pl-10 text-xs text-white focus:outline-none focus:ring-0 placeholder-neutral-700 font-sans"
                 id="search-all-movies-input"
               />
             </div>
@@ -301,7 +351,7 @@ export default function AdminMoviesPanel({ ctx }) {
                   setAdminGenreFilter(event.target.value);
                   setAdminMoviePagination((prev) => ({ ...prev, page: 0 }));
                 }}
-                className="border border-neutral-800 bg-black px-3 py-2 text-[9.5px] font-bold uppercase text-neutral-300 focus:border-amber-400 focus:outline-none"
+                className="border border-neutral-800 bg-black px-3 py-2 text-[9.5px] font-bold uppercase text-neutral-300 focus:border-purple-400 focus:outline-none"
                 aria-label="Lọc phim theo thể loại"
               >
                 <option value="">TẤT CẢ THỂ LOẠI</option>
@@ -322,7 +372,7 @@ export default function AdminMoviesPanel({ ctx }) {
                     setAdminMoviePagination((prev) => ({ ...prev, page: 0 }));
                   }}
                   className={`px-3 py-2 text-[9.5px] uppercase font-bold transition-all ${filmFilter === filter.id
-                    ? 'bg-amber-500 text-black font-extrabold'
+                    ? 'bg-purple-500 text-black font-extrabold'
                     : 'bg-black text-neutral-400 border border-neutral-800 hover:border-neutral-700'
                     }`}
                 >
@@ -350,14 +400,14 @@ export default function AdminMoviesPanel({ ctx }) {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="border border-amber-500/20 bg-gradient-to-b from-[#0e0c05] to-[#040404] p-5.5 space-y-4"
+                className="border border-purple-500/20 bg-gradient-to-b from-[#0e0c05] to-[#040404] p-5.5 space-y-4"
               >
-                <div className="flex justify-between items-center border-b border-amber-500/20 pb-2">
-                  <span className="text-[10px] uppercase font-bold tracking-widest text-amber-400 flex items-center gap-1">
+                <div className="flex justify-between items-center border-b border-purple-500/20 pb-2">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-purple-400 flex items-center gap-1">
                     <Play className="h-3 w-3" /> THIẾT LẬP HỒ SƠ PHÁT HÀNH CHI TIẾT
                   </span>
                   {editingMovie && (
-                    <span className="text-[9px] uppercase text-amber-200 font-mono">
+                    <span className="text-[9px] uppercase text-purple-200 font-mono">
                       Đang chỉnh sửa: {editingMovie.title}
                     </span>
                   )}
@@ -379,11 +429,11 @@ export default function AdminMoviesPanel({ ctx }) {
                       <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-extrabold block">Tên tác phẩm (Tiếng Việt viết Hoa)</label>
                       <input
                         type="text"
-                        required
-                        placeholder="VÍ DỤ: CHIẾN BINH ÁNH SÁNG"
+                        placeholder="VD: CHIẾN BINH ÁNH SÁNG (tối đa 50 ký tự)"
+                        maxLength={50}
                         value={formData.title}
                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-amber-400 font-bold"
+                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-purple-400 font-bold"
                       />
                     </div>
 
@@ -391,10 +441,11 @@ export default function AdminMoviesPanel({ ctx }) {
                       <label className="text-[9px] uppercase tracking-wider text-neutral-500 font-extrabold block">Tên tiếng Anh hoặc tiêu đề gốc</label>
                       <input
                         type="text"
-                        placeholder="VÍ DỤ: Dawn of Light"
+                        placeholder="VD: Dawn of Light (tối đa 30 ký tự)"
+                        maxLength={30}
                         value={formData.englishTitle}
                         onChange={(e) => setFormData({ ...formData, englishTitle: e.target.value })}
-                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
+                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-purple-400"
                       />
                     </div>
                   </div>
@@ -404,10 +455,11 @@ export default function AdminMoviesPanel({ ctx }) {
                       <label className="text-[9px] uppercase tracking-wider text-[#A1B0B8] block">Đạo diễn</label>
                       <input
                         type="text"
-                        placeholder="Trần Anh Hùng"
+                        placeholder="VD: Trần Anh Hùng (tối đa 50 ký tự)"
+                        maxLength={50}
                         value={formData.director}
                         onChange={(e) => setFormData({ ...formData, director: e.target.value })}
-                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
+                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-purple-400"
                       />
                     </div>
 
@@ -415,11 +467,10 @@ export default function AdminMoviesPanel({ ctx }) {
                       <label className="text-[9px] uppercase tracking-wider text-[#A1B0B8] block">Thể loại (Ngăn nhau bởi dấu phẩy)</label>
                       <input
                         type="text"
-                        required
-                        placeholder="Hành Động, Khoa Học"
+                        placeholder="Chọn ít nhất 1 thể loại bên dưới"
                         value={formData.genre}
                         readOnly
-                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
+                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-purple-400"
                       />
                       <div className="mt-2 min-h-[42px] max-h-28 overflow-y-auto bg-black border border-neutral-800 p-2">
                         {isGenreLoading ? (
@@ -434,7 +485,7 @@ export default function AdminMoviesPanel({ ctx }) {
                                   type="button"
                                   onClick={() => toggleMovieGenre(genre.id)}
                                   className={`px-2 py-1 text-[9px] uppercase font-bold border transition ${checked
-                                    ? 'border-amber-400 bg-amber-500 text-black'
+                                    ? 'border-purple-400 bg-purple-500 text-black'
                                     : 'border-neutral-800 bg-neutral-950 text-neutral-400 hover:border-neutral-600 hover:text-white'
                                     }`}
                                 >
@@ -453,10 +504,12 @@ export default function AdminMoviesPanel({ ctx }) {
                       <label className="text-[9px] uppercase tracking-wider text-[#A1B0B8] block">Thời lượng (Số phút)</label>
                       <input
                         type="number"
-                        required
+                        placeholder="60 - 180 phút"
+                        min={60}
+                        max={180}
                         value={formData.duration}
                         onChange={(e) => setFormData({ ...formData, duration: Number(e.target.value) })}
-                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-purple-400 font-mono"
                       />
                     </div>
 
@@ -465,7 +518,7 @@ export default function AdminMoviesPanel({ ctx }) {
                       <select
                         value={formData.ageRating}
                         onChange={(e) => setFormData({ ...formData, ageRating: e.target.value })}
-                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-amber-400 font-bold"
+                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-purple-400 font-bold"
                       >
                         <option value="P">P (Mọi lứa tuổi)</option>
                         <option value="T13">T13 (Dưới 13 hạn chế)</option>
@@ -480,9 +533,10 @@ export default function AdminMoviesPanel({ ctx }) {
                       <label className="text-[9px] uppercase tracking-wider text-[#A1B0B8] block">Ngày phát hành</label>
                       <input
                         type="date"
+                        title="Bắt buộc chọn ngày phát hành"
                         value={formData.releaseDate}
                         onChange={(e) => setFormData({ ...formData, releaseDate: e.target.value })}
-                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-amber-400 font-mono [color-scheme:dark]"
+                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-purple-400 font-mono [color-scheme:dark]"
                       />
                     </div>
 
@@ -491,22 +545,27 @@ export default function AdminMoviesPanel({ ctx }) {
                       <select
                         value={formData.status}
                         onChange={(e) => setFormData({ ...formData, status: e.target.value, isUpcoming: e.target.value === 'UPCOMING' })}
-                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-amber-400 font-bold"
+                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-purple-400 font-bold"
                       >
                         <option value="NOW_SHOWING">NOW_SHOWING</option>
-                        <option value="UPCOMING">UPCOMING</option>
+                        <option value="UPCOMING" disabled={hasReleaseDatePassed(formData.releaseDate)}>UPCOMING</option>
                         <option value="ENDED">ENDED</option>
                         <option value="INACTIVE">INACTIVE</option>
                       </select>
+                      {hasReleaseDatePassed(formData.releaseDate) && (
+                        <p className="text-[9px] font-bold text-purple-300">Phim đã qua ngày phát hành nên không thể để UPCOMING.</p>
+                      )}
                     </div>
 
                     <div className="space-y-1.5">
                       <label className="text-[9px] uppercase tracking-wider text-[#A1B0B8] block">Ngôn ngữ</label>
                       <input
                         type="text"
+                        placeholder="VD: Tiếng Việt (tối đa 30 ký tự)"
+                        maxLength={30}
                         value={formData.language}
                         onChange={(e) => setFormData({ ...formData, language: e.target.value })}
-                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
+                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-purple-400"
                       />
                     </div>
 
@@ -514,9 +573,11 @@ export default function AdminMoviesPanel({ ctx }) {
                       <label className="text-[9px] uppercase tracking-wider text-[#A1B0B8] block">Phụ đề</label>
                       <input
                         type="text"
+                        placeholder="VD: EN Sub (tối đa 30 ký tự)"
+                        maxLength={30}
                         value={formData.subtitleLanguage}
                         onChange={(e) => setFormData({ ...formData, subtitleLanguage: e.target.value })}
-                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
+                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-purple-400"
                       />
                     </div>
                   </div>
@@ -535,19 +596,28 @@ export default function AdminMoviesPanel({ ctx }) {
                           const isSelected = (formData.actorIds || []).map(Number).includes(actorId);
                           const isMain = (formData.mainActorIds || []).map(Number).includes(actorId);
                           return (
-                            <div key={actor.id} className={`border p-2 flex items-center gap-2 ${isSelected ? 'border-amber-500/50 bg-amber-500/10' : 'border-neutral-850 bg-neutral-950'}`}>
+                            <div key={actor.id} className={`border p-2 flex items-center gap-2 ${isSelected ? 'border-purple-500/50 bg-purple-500/10' : 'border-neutral-850 bg-neutral-950'}`}>
                               <button type="button" onClick={() => toggleMovieActor(actorId)} className="min-w-0 flex-1 text-left">
                                 <span className="block text-xs font-bold text-white truncate">{actor.name}</span>
                                 <span className="block text-[9px] text-neutral-500">#{actor.id} · {actor.movieCount || 0} phim</span>
                               </button>
                               <button
                                 type="button"
-                                disabled={!isSelected}
                                 onClick={() => toggleMovieMainActor(actorId)}
-                                className={`px-2 py-1 text-[9px] font-black uppercase border disabled:opacity-25 ${isMain ? 'border-amber-400 bg-amber-400 text-black' : 'border-neutral-700 text-neutral-400'}`}
+                                className={`px-2 py-1 text-[9px] font-black uppercase border ${isMain ? 'border-purple-400 bg-purple-400 text-black' : 'border-neutral-700 text-neutral-400 hover:border-purple-400 hover:text-purple-300'}`}
                               >
                                 Main
                               </button>
+                              {isSelected && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleMovieActor(actorId)}
+                                  className="border border-rose-500/30 px-2 py-1 text-[9px] font-black uppercase text-rose-300 transition hover:bg-rose-500 hover:text-white"
+                                  title="Bỏ chọn diễn viên khỏi phim"
+                                >
+                                  Xóa
+                                </button>
+                              )}
                             </div>
                           );
                         }) : <p className="text-[10px] text-neutral-500">Chưa có actor. Tạo actor bên dưới hoặc tại mục Diễn viên.</p>}
@@ -561,14 +631,14 @@ export default function AdminMoviesPanel({ ctx }) {
                           placeholder="Tên actor"
                           value={actorForm.name}
                           onChange={(e) => setActorForm({ ...actorForm, name: e.target.value })}
-                          className="bg-neutral-950 border border-neutral-800 p-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                          className="bg-neutral-950 border border-neutral-800 p-2 text-xs text-white focus:outline-none focus:border-purple-400"
                         />
                         <input
                           type="text"
                           placeholder="Tiểu sử"
                           value={actorForm.biography}
                           onChange={(e) => setActorForm({ ...actorForm, biography: e.target.value })}
-                          className="bg-neutral-950 border border-neutral-800 p-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                          className="bg-neutral-950 border border-neutral-800 p-2 text-xs text-white focus:outline-none focus:border-purple-400"
                         />
                         <div className="flex gap-1">
                           <input
@@ -576,9 +646,9 @@ export default function AdminMoviesPanel({ ctx }) {
                             placeholder="Avatar URL"
                             value={actorForm.avatarUrl}
                             onChange={(e) => setActorForm({ ...actorForm, avatarUrl: e.target.value })}
-                            className="min-w-0 flex-1 bg-neutral-950 border border-neutral-800 p-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                            className="min-w-0 flex-1 bg-neutral-950 border border-neutral-800 p-2 text-xs text-white focus:outline-none focus:border-purple-400"
                           />
-                          <label className={`grid place-items-center border border-amber-500/40 bg-amber-500/10 px-2 text-amber-300 cursor-pointer ${isActorImageUploading ? 'opacity-50 pointer-events-none' : ''}`} title="Chọn ảnh từ máy">
+                          <label className={`grid place-items-center border border-purple-500/40 bg-purple-500/10 px-2 text-purple-300 cursor-pointer ${isActorImageUploading ? 'opacity-50 pointer-events-none' : ''}`} title="Chọn ảnh từ máy">
                             <ImageUp className="h-4 w-4" />
                             <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleQuickActorImageUpload} className="hidden" />
                           </label>
@@ -601,34 +671,77 @@ export default function AdminMoviesPanel({ ctx }) {
 
                     <div className="space-y-1.5">
                       <label className="text-[9px] uppercase tracking-wider text-[#A1B0B8] block">Trailer URL</label>
-                      <input
-                        type="text"
-                        value={formData.trailerUrl}
-                        onChange={(e) => setFormData({ ...formData, trailerUrl: e.target.value })}
-                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
-                      />
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Dán URL trailer hoặc bấm Local để upload video"
+                          maxLength={500}
+                          value={formData.trailerUrl}
+                          onChange={(e) => setFormData({ ...formData, trailerUrl: e.target.value })}
+                          className="min-w-0 flex-1 bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-purple-400 font-mono"
+                        />
+                        <label className={`flex cursor-pointer items-center gap-1.5 border border-purple-500/40 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-purple-300 transition hover:bg-purple-500 hover:text-black ${isTrailerUploading ? 'pointer-events-none opacity-60' : ''}`}>
+                          {isTrailerUploading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Video className="h-3.5 w-3.5" />}
+                          Local
+                          <input
+                            type="file"
+                            accept="video/mp4,video/webm,video/quicktime"
+                            onChange={handleTrailerVideoUpload}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                      <p className="text-[9px] text-neutral-500">Hỗ trợ URL YouTube/Storage hoặc video local MP4, WEBM, MOV tối đa 100MB.</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[9px] uppercase tracking-wider text-neutral-500 block">Địa chỉ ảnh Poster đứng (URL)</label>
-                      <input
-                        type="text"
-                        value={formData.posterUrl}
-                        onChange={(e) => setFormData({ ...formData, posterUrl: e.target.value })}
-                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-neutral-300 focus:outline-none focus:border-amber-400 font-mono"
-                      />
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Bắt buộc: https://... hoặc bấm Local"
+                          maxLength={500}
+                          value={formData.posterUrl}
+                          onChange={(e) => setFormData({ ...formData, posterUrl: e.target.value })}
+                          className="min-w-0 flex-1 bg-black border border-neutral-800 p-2.5 text-xs text-neutral-300 focus:outline-none focus:border-amber-400 font-mono"
+                        />
+                        <label className={`flex cursor-pointer items-center gap-1.5 border border-purple-500/40 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-purple-300 transition hover:bg-purple-500 hover:text-black ${isPosterUploading ? 'pointer-events-none opacity-60' : ''}`}>
+                          {isPosterUploading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ImageUp className="h-3.5 w-3.5" />}
+                          Local
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={(event) => handleMovieImageUpload('posterUrl', 'movies/posters', event)}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
                     </div>
 
                     <div className="space-y-1.5">
                       <label className="text-[9px] uppercase tracking-wider text-neutral-500 block">Địa chỉ ảnh Banner ngang (URL)</label>
-                      <input
-                        type="text"
-                        value={formData.bannerUrl}
-                        onChange={(e) => setFormData({ ...formData, bannerUrl: e.target.value })}
-                        className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-neutral-300 focus:outline-none focus:border-amber-400 font-mono"
-                      />
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Bắt buộc: https://... hoặc bấm Local"
+                          maxLength={500}
+                          value={formData.bannerUrl}
+                          onChange={(e) => setFormData({ ...formData, bannerUrl: e.target.value })}
+                          className="min-w-0 flex-1 bg-black border border-neutral-800 p-2.5 text-xs text-neutral-300 focus:outline-none focus:border-amber-400 font-mono"
+                        />
+                        <label className={`flex cursor-pointer items-center gap-1.5 border border-purple-500/40 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-purple-300 transition hover:bg-purple-500 hover:text-black ${isBannerUploading ? 'pointer-events-none opacity-60' : ''}`}>
+                          {isBannerUploading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ImageUp className="h-3.5 w-3.5" />}
+                          Local
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={(event) => handleMovieImageUpload('bannerUrl', 'movies/banners', event)}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
                     </div>
                   </div>
 
@@ -636,10 +749,11 @@ export default function AdminMoviesPanel({ ctx }) {
                     <label className="text-[9px] uppercase tracking-wider text-[#A1B0B8] block">Tóm tắt cốt truyện cốt lõi</label>
                     <textarea
                       rows={3}
+                      maxLength={1000}
                       value={formData.synopsis}
                       onChange={(e) => setFormData({ ...formData, synopsis: e.target.value })}
-                      placeholder="Mô tả tóm tắt nội dung để hấp dẫn khách mua vé..."
-                      className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-amber-400 leading-relaxed"
+                      placeholder="Tóm tắt nội dung phim, tối đa 1000 ký tự"
+                      className="w-full bg-black border border-neutral-800 p-2.5 text-xs text-white focus:outline-none focus:border-purple-400 leading-relaxed"
                     />
                   </div>
 
@@ -668,10 +782,10 @@ export default function AdminMoviesPanel({ ctx }) {
                   <button
                     type="submit"
                     disabled={isMovieSaving}
-                    className="w-full py-4.5 bg-amber-500 hover:bg-amber-400 text-black font-sans font-black text-xs uppercase tracking-widest transition shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+                    className="w-full py-4.5 bg-purple-600 hover:bg-purple-500 text-white font-sans font-black text-xs uppercase tracking-widest transition shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isMovieSaving
-                      ? (editingMovie ? 'ĐANG GỬI API CẬP NHẬT PHIM...' : 'ĐANG GỬI API TẠO PHIM...')
+                      ? (editingMovie ? 'ĐANG CHUẨN BỊ CẬP NHẬT PHIM...' : 'ĐANG CHUẨN BỊ CẬP NHẬT PHIM...')
                       : (editingMovie ? 'CẬP NHẬT BẢN GHI PHIM' : 'GHI BẢN GHI PHIM & PHÁT HÀNH TRÊN CỔNG TRỰC TUYẾN')}
                   </button>
                 </form>
@@ -723,41 +837,44 @@ export default function AdminMoviesPanel({ ctx }) {
                         <select
                           value={mv.status || 'NOW_SHOWING'}
                           onChange={(event) => handleUpdateMovieStatus(mv, event.target.value)}
-                          className="h-7 min-w-32 border border-neutral-800 bg-black px-2 text-[9px] font-bold uppercase tracking-wider text-zinc-300 focus:border-amber-400 focus:outline-none"
+                          className="h-7 min-w-32 border border-neutral-800 bg-black px-2 text-[9px] font-bold uppercase tracking-wider text-zinc-300 focus:border-purple-400 focus:outline-none"
                           aria-label={`Đổi trạng thái ${mv.title}`}
                         >
                           <option value="NOW_SHOWING">NOW_SHOWING</option>
-                          <option value="UPCOMING">UPCOMING</option>
-                          <option value="ENDED">ENDED</option>
+                          <option value="UPCOMING" disabled={isMovieStatusOptionDisabled(mv, 'UPCOMING')}>UPCOMING</option>
+                          <option value="ENDED" disabled={isMovieStatusOptionDisabled(mv, 'ENDED')}>ENDED</option>
                           <option value="INACTIVE">INACTIVE</option>
                         </select>
+                        {hasReleaseDatePassed(mv.releaseDate) && (
+                          <span className="text-[8px] font-bold uppercase tracking-wider text-amber-300">Không được lùi trạng thái sau ngày phát hành</span>
+                        )}
                         <div className="flex items-center gap-2">
-                        {mv.status === 'INACTIVE' ? (
-                          <span className="inline-flex items-center px-2 py-1 bg-rose-950/30 text-rose-300 border border-rose-500/30 text-[9px] uppercase font-bold tracking-wider rounded-sm select-none shrink-0 h-6">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1.5"></span>
-                            NGỪNG CÔNG CHIẾU
-                          </span>
-                        ) : mv.status === 'ENDED' ? (
-                          <span className="inline-flex items-center px-2 py-1 bg-sky-950/30 text-sky-300 border border-sky-500/25 text-[9px] uppercase font-bold tracking-wider rounded-sm select-none shrink-0 h-6">
-                            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 mr-1.5"></span>
-                            ĐÃ KẾT THÚC
-                          </span>
-                        ) : mv.isUpcoming ? (
-                          <span className="inline-flex items-center px-2 py-1 bg-amber-950/40 text-amber-400 border border-amber-500/30 text-[9px] uppercase font-bold tracking-wider rounded-sm select-none shrink-0 h-6">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5 animate-pulse"></span>
-                            SẮP CHIẾU
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-1 bg-emerald-950/30 text-emerald-400 border border-emerald-500/20 text-[9px] uppercase font-bold tracking-wider rounded-sm select-none shrink-0 h-6">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
-                            ĐANG CHIẾU
-                          </span>
-                        )}
-                        {mv.isHot && (
-                          <span className="inline-flex items-center px-1.5 py-1 bg-red-600 text-white text-[8px] font-black tracking-widest uppercase rounded-sm select-none shrink-0 h-6">
-                            HOT
-                          </span>
-                        )}
+                          {mv.status === 'INACTIVE' ? (
+                            <span className="inline-flex items-center px-2 py-1 bg-rose-950/30 text-rose-300 border border-rose-500/30 text-[9px] uppercase font-bold tracking-wider rounded-sm select-none shrink-0 h-6">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1.5"></span>
+                              NGỪNG CÔNG CHIẾU
+                            </span>
+                          ) : mv.status === 'ENDED' ? (
+                            <span className="inline-flex items-center px-2 py-1 bg-sky-950/30 text-sky-300 border border-sky-500/25 text-[9px] uppercase font-bold tracking-wider rounded-sm select-none shrink-0 h-6">
+                              <span className="w-1.5 h-1.5 rounded-full bg-sky-400 mr-1.5"></span>
+                              ĐÃ KẾT THÚC
+                            </span>
+                          ) : mv.isUpcoming ? (
+                            <span className="inline-flex items-center px-2 py-1 bg-purple-950/40 text-purple-400 border border-purple-500/30 text-[9px] uppercase font-bold tracking-wider rounded-sm select-none shrink-0 h-6">
+                              <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mr-1.5 animate-pulse"></span>
+                              SẮP CHIẾU
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-1 bg-emerald-950/30 text-emerald-400 border border-emerald-500/20 text-[9px] uppercase font-bold tracking-wider rounded-sm select-none shrink-0 h-6">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+                              ĐANG CHIẾU
+                            </span>
+                          )}
+                          {mv.isHot && (
+                            <span className="inline-flex items-center px-1.5 py-1 bg-red-600 text-white text-[8px] font-black tracking-widest uppercase rounded-sm select-none shrink-0 h-6">
+                              HOT
+                            </span>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -773,7 +890,7 @@ export default function AdminMoviesPanel({ ctx }) {
                         <button
                           onClick={() => handleEditMovie(mv)}
                           disabled={mv.status === 'INACTIVE' || mv.isInactive}
-                          className="p-1.5 text-amber-400 hover:bg-amber-950/10 border border-transparent hover:border-amber-500/30 transition shadow-sm disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:border-transparent"
+                          className="p-1.5 text-purple-400 hover:bg-purple-950/10 border border-transparent hover:border-purple-500/30 transition shadow-sm disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:border-transparent"
                           title="Chỉnh sửa phim"
                         >
                           <Edit3 className="h-3.5 w-3.5" />

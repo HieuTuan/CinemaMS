@@ -6,7 +6,7 @@ import {
   ChevronDown, ChevronLeft, ChevronRight, Layers, DollarSign,
   Play, PauseCircle, Ban, Check, X, Info, Zap
 } from 'lucide-react';
-import { authApi } from '../../services/authApi';
+import { adminService } from '../../services/adminService';
 
 /* ─── helpers ────────────────────────────────────────────── */
 const STATUS_META = {
@@ -160,7 +160,8 @@ const getAgeRatingMinimum = (ageRating) => {
   return match ? Number(match[0]) : 0;
 };
 
-const allowsChildTicketsForMovie = (movie) => getAgeRatingMinimum(movie?.ageRating) < 16;
+const CHILD_TICKET_MAX_AGE = 12;
+const allowsChildTicketsForMovie = (movie) => getAgeRatingMinimum(movie?.ageRating) <= CHILD_TICKET_MAX_AGE;
 
 const clearChildPrices = (state) => ({
   ...state,
@@ -251,7 +252,7 @@ function DateTimePicker({ value, onChange, error, label }) {
         </div>
 
         {timePart && (
-          <p className="text-[9px] text-amber-400 font-mono font-bold mt-3 text-center bg-amber-900/20 py-1.5 rounded border border-amber-900/30">
+          <p className="text-[9px] text-purple-300 font-mono font-bold mt-3 text-center bg-purple-900/20 py-1.5 rounded border border-purple-900/30">
             ✓ Đã chọn: {datePart ? `${datePart.split('-').reverse().join('/')} lúc ${timePart}` : timePart}
           </p>
         )}
@@ -321,7 +322,7 @@ function PriceMatrix({ value, onChange, errors = {}, prefix = '', allowChildTick
         </table>
       </div>
       {!allowChildTickets && (
-        <p className="text-[11px] font-black uppercase tracking-wide text-amber-300">
+        <p className="text-[11px] font-black uppercase tracking-wide text-purple-300">
           Phim {ageRatingLabel || '16+'} Không cho phép bán vé trẻ em, bảng giá mục này vô hiệu hóa!
         </p>
       )}
@@ -370,7 +371,7 @@ export default function AdminShowtimesPanel({ ctx }) {
   useEffect(() => {
     const token = getAdminToken();
     if (!token) return;
-    authApi.getAdminRooms(token).then(data => {
+    adminService.getAdminRooms(token).then(data => {
       const list = Array.isArray(data) ? data : (data?.content || data?.items || []);
       setRooms(list);
     }).catch(() => { });
@@ -384,7 +385,7 @@ export default function AdminShowtimesPanel({ ctx }) {
     try {
       const params = { page: p, size: 10, ...filters };
       Object.keys(params).forEach(k => { if (!params[k]) delete params[k]; });
-      const data = await authApi.getAdminShowtimes(token, params);
+      const data = await adminService.getAdminShowtimes(token, params);
       const items = data?.content || data?.items || (Array.isArray(data) ? data : []);
       setShowtimes(items);
       setTotalPages(data?.totalPages || 1);
@@ -430,10 +431,10 @@ export default function AdminShowtimesPanel({ ctx }) {
           showToast?.('Suất chiếu đang mở bán không thể chỉnh sửa.', 'error');
           return;
         }
-        await authApi.updateAdminShowtime(token, editingId, payload);
+        await adminService.updateAdminShowtime(token, editingId, payload);
         showToast?.('Cập nhật suất chiếu thành công', 'success');
       } else {
-        await authApi.createAdminShowtime(token, payload);
+        await adminService.createAdminShowtime(token, payload);
         showToast?.('Tạo suất chiếu thành công', 'success');
       }
       setMode('list');
@@ -492,7 +493,7 @@ export default function AdminShowtimesPanel({ ctx }) {
 
     setSaving(true);
     try {
-      const result = await authApi.createAdminShowtimesBulk(token, payload);
+      const result = await adminService.createAdminShowtimesBulk(token, payload);
       const count = Array.isArray(result) ? result.length : '?';
       showToast?.(`Tạo thành công ${count} suất chiếu`, 'success');
       setMode('list');
@@ -511,7 +512,7 @@ export default function AdminShowtimesPanel({ ctx }) {
     const token = getAdminToken();
     if (!token) return;
     try {
-      await authApi.updateAdminShowtimeStatus(token, showtimeId, newStatus);
+      await adminService.updateAdminShowtimeStatus(token, showtimeId, newStatus);
       showToast?.('Cập nhật trạng thái thành công', 'success');
       fetchShowtimes(page);
     } catch (e) {
@@ -524,7 +525,7 @@ export default function AdminShowtimesPanel({ ctx }) {
     const token = getAdminToken();
     if (!token) return;
     try {
-      await authApi.deleteAdminShowtime(token, showtimeId);
+      await adminService.deleteAdminShowtime(token, showtimeId);
       showToast?.('Đã xóa suất chiếu', 'success');
       setConfirmDelete(null);
       fetchShowtimes(page);
@@ -557,6 +558,8 @@ export default function AdminShowtimesPanel({ ctx }) {
     const movieId = copySource.movieId ?? copySource.movie?.id;
     const roomId = copySource.roomId ?? copySource.room?.id;
     const nextStartTime = buildDateTimeOnDate(copySource.startTime, copyDate);
+    const copyMovie = findUiMovie(movieId) || copySource.movie;
+    const allowChildTickets = allowsChildTicketsForMovie(copyMovie);
     if (!movieId || !roomId || !nextStartTime) {
       showToast?.('Không đủ dữ liệu phim/phòng/giờ để copy suất chiếu.', 'error');
       return;
@@ -570,13 +573,13 @@ export default function AdminShowtimesPanel({ ctx }) {
       vipPrice: copySource.vipPrice ?? copySource.adultVipPrice ?? null,
       couplePrice: copySource.couplePrice ?? copySource.adultCouplePrice ?? null,
       adultStandardPrice: copySource.adultStandardPrice ?? copySource.basePrice ?? 0,
-      childStandardPrice: copySource.childStandardPrice ?? null,
+      childStandardPrice: allowChildTickets ? copySource.childStandardPrice ?? null : null,
       studentStandardPrice: copySource.studentStandardPrice ?? copySource.basePrice ?? 0,
       adultVipPrice: copySource.adultVipPrice ?? copySource.vipPrice ?? null,
-      childVipPrice: copySource.childVipPrice ?? null,
+      childVipPrice: allowChildTickets ? copySource.childVipPrice ?? null : null,
       studentVipPrice: copySource.studentVipPrice ?? null,
       adultCouplePrice: copySource.adultCouplePrice ?? copySource.couplePrice ?? null,
-      childCouplePrice: copySource.childCouplePrice ?? null,
+      childCouplePrice: allowChildTickets ? copySource.childCouplePrice ?? null : null,
       studentCouplePrice: copySource.studentCouplePrice ?? null,
       weekendSurcharge: Boolean(copySource.weekendSurcharge),
       holidaySurcharge: Boolean(copySource.holidaySurcharge),
@@ -585,7 +588,7 @@ export default function AdminShowtimesPanel({ ctx }) {
 
     setIsCopying(true);
     try {
-      await authApi.createAdminShowtime(token, payload);
+      await adminService.createAdminShowtime(token, payload);
       showToast?.('Đã copy suất chiếu sang ngày mới.', 'success');
       setCopySource(null);
       setCopyDate('');
@@ -632,7 +635,7 @@ export default function AdminShowtimesPanel({ ctx }) {
   const activeMovies = (moviesList || []).filter(m => m.status === 'ACTIVE' || m.status === 'NOW_SHOWING' || m.status === 'UPCOMING');
   const formMovie = findUiMovie(form.movieId);
   const formAllowsChildTickets = allowsChildTicketsForMovie(formMovie);
-  const bulkMovie = (moviesList || []).find(m => String(m.backendId ?? m.id) === String(bulkForm.movieId));
+  const bulkMovie = findUiMovie(bulkForm.movieId);
   const bulkAllowsChildTickets = allowsChildTicketsForMovie(bulkMovie);
   const bulkMovieDuration = Number(bulkMovie?.durationMinutes ?? bulkMovie?.duration ?? 0);
   const bulkStepMinutes = bulkMovieDuration ? bulkMovieDuration + 15 : 0;
@@ -748,7 +751,7 @@ export default function AdminShowtimesPanel({ ctx }) {
               <Plus className="w-3 h-3" /> Tạo suất
             </button>
             <button onClick={() => { setMode('bulk'); setBulkForm(EMPTY_BULK); setEditingBulkSlotIndex(0); setEditingId(null); setEditingStatus(''); setErrors({}); }}
-              className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 text-black text-[10px] font-black uppercase tracking-wider hover:bg-amber-400 transition">
+              className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 text-white text-[10px] font-black uppercase tracking-wider hover:bg-purple-500 transition">
               <Zap className="w-3 h-3" /> Tạo hàng loạt
             </button>
           </div>
@@ -840,10 +843,10 @@ export default function AdminShowtimesPanel({ ctx }) {
         {/* ── BULK FORM ── */}
         {mode === 'bulk' && (
           <motion.div key="form-bulk" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-            className="border border-amber-500/30 bg-gradient-to-b from-[#0d0900] to-[#040404] p-6">
+            className="border border-purple-500/30 bg-gradient-to-b from-[#0d0900] to-[#040404] p-6">
             <div className="flex items-center gap-2 mb-4 pb-2 border-b border-zinc-900">
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              <h3 className="text-xs font-black uppercase tracking-wider text-amber-300">Tạo hàng loạt suất chiếu</h3>
+              <Zap className="w-3.5 h-3.5 text-purple-400" />
+              <h3 className="text-xs font-black uppercase tracking-wider text-purple-300">Tạo hàng loạt suất chiếu</h3>
 
             </div>
             <form onSubmit={handleBulkSubmit} className="space-y-5 text-xs font-sans">
@@ -885,7 +888,7 @@ export default function AdminShowtimesPanel({ ctx }) {
               <div className="space-y-4 border border-zinc-900 bg-zinc-950/40 p-4">
                 <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
                   <div>
-                    <label className="text-[9px] uppercase tracking-wider text-amber-500 font-bold">
+                    <label className="text-[9px] uppercase tracking-wider text-purple-500 font-bold">
                       Khung giờ có thể chiếu ({selectedBulkSlotsCount}/{bulkForm.slots.length} đã chọn)
                     </label>
                     <p className="text-[10px] text-zinc-400 mt-1">

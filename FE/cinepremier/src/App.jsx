@@ -1,113 +1,65 @@
-import React from 'react';
-import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
-import Layout from './layout/Layout';
-import HomeView from './pages/HomePage';
-import ExploreView from './pages/ExplorePage';
-import DetailView from './pages/MovieDetailPage';
-import BookingView from './pages/BookingPage';
-import ProfileView from './pages/ProfilePage';
-import MyTicketsView from './pages/MyTicketsPage';
-import WishlistView from './pages/WishlistPage';
-import AdminDashboard from './pages/AdminPage';
-import PoliciesPage from './pages/PoliciesPage';
-import PaymentCallbackPage from './pages/PaymentCallbackPage';
-import AdminRoute from './components/AdminRoute';
-import ProtectedRoute from './components/ProtectedRoute';
-import { UIProvider, useUI } from './contexts/UIContext';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { MoviesProvider, useMovies } from './contexts/MoviesContext';
+import React, { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import AppRoutes from './routes/AppRoutes';
+import { useAuthStore } from './stores/useAuthStore';
+import { useMovieStore } from './stores/useMovieStore';
+import { useUiStore } from './stores/useUiStore';
 
-function AppShell({ children }) {
-  return <Layout>{children}</Layout>;
+function AuthBootstrap() {
+  const restoreSession = useAuthStore((state) => state.restoreSession);
+  const subscribeSessionExpired = useAuthStore((state) => state.subscribeSessionExpired);
+  const setShowOTP = useUiStore((state) => state.setShowOTP);
+
+  useEffect(() => {
+    restoreSession();
+  }, [restoreSession]);
+
+  useEffect(() => subscribeSessionExpired({ setShowOTP }), [setShowOTP, subscribeSessionExpired]);
+
+  return null;
 }
 
-function HomeRoute() {
-  const navigate = useNavigate();
-  const { moviesList, homepageVideoUrl } = useMovies();
+function MovieBootstrap() {
+  const location = useLocation();
+  const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
+  const fetchPublicCinema = useMovieStore((state) => state.fetchPublicCinema);
+  const fetchGenres = useMovieStore((state) => state.fetchGenres);
+  const fetchMoviesPage = useMovieStore((state) => state.fetchMoviesPage);
+  const fetchWishlist = useMovieStore((state) => state.fetchWishlist);
+  const setFoodCatalog = useMovieStore((state) => state.setFoodCatalog);
+  const searchQuery = useMovieStore((state) => state.searchQuery);
+  const selectedGenreId = useMovieStore((state) => state.selectedGenreId);
+  const movieDateFilter = useMovieStore((state) => state.movieDateFilter);
+  const moviePage = useMovieStore((state) => state.moviePagination.page);
+  const moviePageSize = useMovieStore((state) => state.moviePagination.size);
+  const isExplorePage = location.pathname === '/movies';
 
-  const goToTab = (tab) => {
-    const paths = { home: '/', explore: '/movies', 'my-tickets': '/tickets', wishlist: '/watchlist', profile: '/profile', policies: '/policies' };
-    navigate(paths[tab] || '/');
-  };
+  useEffect(() => {
+    fetchPublicCinema();
+    fetchGenres();
+  }, [fetchGenres, fetchPublicCinema]);
 
-  return (
-    <HomeView
-      moviesList={moviesList}
-      homepageVideoUrl={homepageVideoUrl}
-      onSelectMovie={(id) => navigate(`/movies/${id}`)}
-      onBookMovie={(movie) => navigate(`/movies/${movie.id}/book`)}
-      onTabChange={goToTab}
-    />
-  );
-}
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      fetchMoviesPage({ isExplorePage });
+    }, 350);
+    return () => window.clearTimeout(timeoutId);
+  }, [fetchMoviesPage, isExplorePage, searchQuery, selectedGenreId, movieDateFilter, moviePage, moviePageSize]);
 
-function AdminRouteView() {
-  const navigate = useNavigate();
-  const { section = 'overview' } = useParams();
-  const { showToast } = useUI();
-  const { currentRole, currentUser } = useAuth();
-  const {
-    moviesList,
-    setMoviesList,
-    bookedTickets,
-    setBookedTickets,
-    homepageVideoUrl,
-    handleHomepageVideoUrlChange,
-    fetchPublicFoodCatalog,
-    cinemaLocations,
-    fetchPublicCinema,
-  } = useMovies();
+  useEffect(() => {
+    if (!isLoggedIn) setFoodCatalog([]);
+    fetchWishlist({ isLoggedIn });
+  }, [fetchWishlist, isLoggedIn, setFoodCatalog]);
 
-  return (
-    <AdminRoute>
-      <AdminDashboard
-        moviesList={moviesList}
-        setMoviesList={setMoviesList}
-        bookedTickets={bookedTickets}
-        setBookedTickets={setBookedTickets}
-        cinemaLocations={cinemaLocations}
-        onCinemaChanged={fetchPublicCinema}
-        onSelectMovie={(id) => navigate(`/movies/${id}`)}
-        showToast={showToast}
-        initialSection={section}
-        onSectionChange={(nextSection) => navigate(`/admin/${nextSection}`)}
-        homepageVideoUrl={homepageVideoUrl}
-        onHomepageVideoUrlChange={handleHomepageVideoUrlChange}
-        onFoodCatalogChanged={fetchPublicFoodCatalog}
-        isAdmin={currentRole === 'admin'}
-        currentUser={currentUser}
-      />
-    </AdminRoute>
-  );
-}
-
-function AppRoutes() {
-  return (
-    <Routes>
-      <Route path="/payment-callback" element={<PaymentCallbackPage />} />
-      <Route path="/" element={<AppShell><HomeRoute /></AppShell>} />
-      <Route path="/movies" element={<AppShell><ExploreView /></AppShell>} />
-      <Route path="/movies/:id" element={<AppShell><DetailView /></AppShell>} />
-      <Route path="/movies/:id/book" element={<AppShell><ProtectedRoute><BookingView /></ProtectedRoute></AppShell>} />
-      <Route path="/tickets" element={<AppShell><ProtectedRoute><MyTicketsView /></ProtectedRoute></AppShell>} />
-      <Route path="/watchlist" element={<AppShell><ProtectedRoute><WishlistView /></ProtectedRoute></AppShell>} />
-      <Route path="/profile" element={<AppShell><ProtectedRoute><ProfileView /></ProtectedRoute></AppShell>} />
-      <Route path="/policies" element={<AppShell><PoliciesPage /></AppShell>} />
-      <Route path="/admin" element={<Navigate to="/admin/overview" replace />} />
-      <Route path="/admin/:section" element={<AppShell><AdminRouteView /></AppShell>} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  );
+  return null;
 }
 
 export default function App() {
   return (
-    <UIProvider>
-      <AuthProvider>
-        <MoviesProvider>
-          <AppRoutes />
-        </MoviesProvider>
-      </AuthProvider>
-    </UIProvider>
+    <>
+      <AuthBootstrap />
+      <MovieBootstrap />
+      <AppRoutes />
+    </>
   );
 }

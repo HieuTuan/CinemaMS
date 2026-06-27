@@ -11,12 +11,6 @@ export default function AdminGenresPanel({ ctx }) {
   const {
     activeTab,
     setActiveTab,
-    selectedAnalysisMovieId,
-    setSelectedAnalysisMovieId,
-    isReanalyzing,
-    setIsReanalyzing,
-    analysisScrambleOffset,
-    setAnalysisScrambleOffset,
     activeChartPoint,
     setActiveChartPoint,
     searchQuery,
@@ -51,10 +45,6 @@ export default function AdminGenresPanel({ ctx }) {
     setIsGenreLoading,
     isGenreSaving,
     setIsGenreSaving,
-    homepageForm,
-    setHomepageForm,
-    homepageVideoError,
-    setHomepageVideoError,
     foodItems,
     setFoodItems,
     foodCombos,
@@ -80,8 +70,6 @@ export default function AdminGenresPanel({ ctx }) {
     auditLogs,
     setAuditLogs,
     addAuditLog,
-    getYoutubeId,
-    handleHomepageVideoSubmit,
     resetFoodForm,
     validateFoodForm,
     fetchFoods,
@@ -110,13 +98,10 @@ export default function AdminGenresPanel({ ctx }) {
     setMoviesList,
     bookedTickets,
     setBookedTickets,
-    cinemaLocations,
     onSelectMovie,
     showToast,
     initialSection,
     onSectionChange,
-    homepageVideoUrl,
-    onHomepageVideoUrlChange,
     onFoodCatalogChanged,
     isAdmin
   } = ctx;
@@ -135,7 +120,7 @@ export default function AdminGenresPanel({ ctx }) {
                 >
                   <div className="border border-neutral-850 bg-gradient-to-r from-[#090909] to-[#050505] p-5">
                     <div>
-                      <span className="text-[8px] font-mono tracking-[0.24em] text-amber-500 uppercase font-black block">ADMIN GENRE</span>
+                      <span className="text-[8px] font-mono tracking-[0.24em] text-purple-500 uppercase font-black block">ADMIN GENRE</span>
                       <h2 className="text-lg font-sans font-black uppercase tracking-wider text-white mt-1">Quản trị thể loại phim</h2>
                     </div>
                   </div>
@@ -155,7 +140,7 @@ export default function AdminGenresPanel({ ctx }) {
                           <button
                             type="button"
                             onClick={resetGenreForm}
-                            className="border border-amber-400/50 bg-amber-400/10 px-3 py-1.5 text-[10px] uppercase tracking-widest text-amber-200 hover:bg-amber-400 hover:text-black font-black transition"
+                            className="border border-purple-400/50 bg-purple-400/10 px-3 py-1.5 text-[10px] uppercase tracking-widest text-purple-200 hover:bg-purple-400 hover:text-black font-black transition"
                           >
                             Hủy sửa
                           </button>
@@ -216,7 +201,7 @@ export default function AdminGenresPanel({ ctx }) {
                         <button
                           type="submit"
                           disabled={isGenreSaving}
-                          className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-black font-sans font-black text-xs uppercase tracking-widest transition disabled:opacity-60 flex items-center justify-center gap-2"
+                          className="w-full py-3.5 bg-purple-600 hover:bg-purple-500 text-white font-sans font-black text-xs uppercase tracking-widest transition disabled:opacity-60 flex items-center justify-center gap-2"
                         >
                           {isGenreSaving ? (
                             <span className="h-4 w-4 border-2 border-black border-t-transparent animate-spin rounded-full inline-block"></span>
@@ -244,7 +229,7 @@ export default function AdminGenresPanel({ ctx }) {
                             value={genreSearch}
                             onChange={(e) => setGenreSearch(e.target.value)}
                             placeholder="Tìm thể loại..."
-                            className="w-full bg-black border border-neutral-800 py-2.5 pl-9 pr-3 text-xs text-white focus:outline-none focus:border-amber-400"
+                            className="w-full bg-black border border-neutral-800 py-2.5 pl-9 pr-3 text-xs text-white focus:outline-none focus:border-purple-400"
                           />
                         </div>
                       </div>
@@ -284,7 +269,7 @@ export default function AdminGenresPanel({ ctx }) {
                                       <button
                                         type="button"
                                         onClick={() => handleEditGenre(genre)}
-                                        className="p-1.5 text-amber-300 border border-amber-500/20 bg-amber-500/5 hover:bg-amber-400 hover:text-black transition"
+                                        className="p-1.5 text-purple-300 border border-purple-500/20 bg-purple-500/5 hover:bg-purple-400 hover:text-black transition"
                                         title="Chỉnh sửa thể loại"
                                       >
                                         <Edit3 className="h-3.5 w-3.5" />
