@@ -1,14 +1,15 @@
 package com.sba301.cinemaai.entity;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,7 +18,11 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(
         name = "movie_actors",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"movie_id", "actor_id"})
+        indexes = {
+                @Index(name = "idx_movie_actors_movie", columnList = "movie_id"),
+                @Index(name = "idx_movie_actors_actor_movie", columnList = "actor_id, movie_id"),
+                @Index(name = "idx_movie_actors_movie_main", columnList = "movie_id, is_main_actor")
+        }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MovieActor extends BaseEntity {
@@ -34,8 +39,12 @@ public class MovieActor extends BaseEntity {
     @JoinColumn(name = "actor_id", nullable = false)
     private Actor actor;
 
-    public MovieActor(Movie movie, Actor actor) {
+    @Column(name = "is_main_actor", nullable = false)
+    private boolean mainActor;
+
+    public MovieActor(Movie movie, Actor actor, boolean mainActor) {
         this.movie = movie;
         this.actor = actor;
+        this.mainActor = mainActor;
     }
 }

@@ -44,17 +44,29 @@ public class SecurityConfig {
                         ).permitAll()
                         .requestMatchers(
                                 HttpMethod.GET,
+                                "/api/v1/admin/cinema",
                                 "/api/v1/movies/**",
                                 "/api/v1/genres/**",
                                 "/api/v1/actors/**",
+                                "/api/v1/cinema",
+                                "/api/v1/cinema/**",
                                 "/api/v1/cinemas/**",
                                 "/api/v1/showtimes/**",
+                                "/api/v1/reviews/movies/**",
                                 "/api/v1/foods/**",
-                                "/api/v1/ticket-pricing/combos"
+                                "/api/v1/ticket-pricing/combos",
+                                "/api/v1/recommendation/content/**",
+                                "/api/v1/recommendation/stats"
                         ).permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/chat").permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
-                        .requestMatchers("/api/v1/payments/vnpay/return", "/api/v1/payments/vnpay/ipn").permitAll()
-                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers(
+                                "/api/v1/payments/vnpay/return",
+                                "/api/v1/payments/vnpay/null",
+                                "/api/v1/payments/vnpay/ipn"
+                        ).permitAll()
+                         .requestMatchers("/api/v1/admin/wallet/**").hasAnyRole("ADMIN", "STAFF")
+.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/staff/**").hasAnyRole("ADMIN", "STAFF")
                         .anyRequest().authenticated()
                 )

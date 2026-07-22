@@ -12,6 +12,7 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
 @Entity
@@ -23,18 +24,23 @@ public class Cinema extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Setter
     @Column(nullable = false)
     private String name;
 
+    @Setter
     @Column(nullable = false, length = 500)
     private String address;
 
+    @Setter
     @Column(length = 100)
     private String city;
 
+    @Setter
     @Column(length = 20)
     private String phone;
 
+    @Setter
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private CinemaStatus status = CinemaStatus.ACTIVE;
@@ -44,16 +50,5 @@ public class Cinema extends BaseEntity {
         this.address = address;
         this.city = city;
         this.phone = phone;
-    }
-
-    public void updateInfo(String name, String address, String city, String phone) {
-        this.name = name;
-        this.address = address;
-        this.city = city;
-        this.phone = phone;
-    }
-
-    public void changeStatus(CinemaStatus status) {
-        this.status = status;
     }
 }

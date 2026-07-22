@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
 @Entity
@@ -47,40 +48,72 @@ public class Booking extends BaseEntity {
     @JoinColumn(name = "showtime_id", nullable = false)
     private Showtime showtime;
 
+    @Setter
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal subtotal = BigDecimal.ZERO;
 
+    @Setter
     @Column(name = "discount_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal discountAmount = BigDecimal.ZERO;
 
+    @Setter
+    @Column(name = "loyalty_points_redeemed", nullable = false)
+    private int loyaltyPointsRedeemed = 0;
+
+    @Setter
     @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount = BigDecimal.ZERO;
 
+    @Setter
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private BookingStatus status = BookingStatus.HOLDING;
 
+    @Setter
     @Column(name = "hold_expires_at")
     private LocalDateTime holdExpiresAt;
 
+    @Setter
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
 
+    @Setter
     @Column(name = "cancelled_at")
     private LocalDateTime cancelledAt;
 
+    @Setter
     @Column(name = "checked_in_at")
     private LocalDateTime checkedInAt;
 
+    @Setter
     @Column(name = "refund_requested_at")
     private LocalDateTime refundRequestedAt;
 
+    @Setter
     @Column(name = "refunded_at")
     private LocalDateTime refundedAt;
 
+    @Setter
     @Column(name = "refund_reason", length = 500)
     private String refundReason;
 
+    @Setter
+    @Column(name = "refund_method", length = 50)
+    private String refundMethod;
+
+    @Setter
+    @Column(name = "bulk_refund", nullable = false)
+    private boolean bulkRefund = false;
+
+    @Setter
+    @Column(name = "refund_retry_attempts", nullable = false)
+    private int refundRetryAttempts = 0;
+
+    @Setter
+    @Column(name = "last_refund_attempt_at")
+    private LocalDateTime lastRefundAttemptAt;
+
+    @Setter
     @Column(name = "qr_code", length = 500)
     private String qrCode;
 
@@ -89,51 +122,5 @@ public class Booking extends BaseEntity {
         this.user = user;
         this.showtime = showtime;
         this.holdExpiresAt = holdExpiresAt;
-    }
-
-    public void updateAmounts(BigDecimal subtotal, BigDecimal discountAmount, BigDecimal totalAmount) {
-        this.subtotal = subtotal;
-        this.discountAmount = discountAmount;
-        this.totalAmount = totalAmount;
-    }
-
-    public void markPendingPayment() {
-        this.status = BookingStatus.PENDING_PAYMENT;
-    }
-
-    public void markPaid(String qrCode) {
-        this.qrCode = qrCode;
-        this.paidAt = LocalDateTime.now();
-        this.status = BookingStatus.PAID;
-    }
-
-    public void cancel() {
-        this.cancelledAt = LocalDateTime.now();
-        this.status = BookingStatus.CANCELLED;
-    }
-
-    public void expire() {
-        this.status = BookingStatus.EXPIRED;
-    }
-
-    public void checkIn() {
-        this.checkedInAt = LocalDateTime.now();
-        this.status = BookingStatus.USED;
-    }
-
-    public void requestRefund(String reason) {
-        this.refundRequestedAt = LocalDateTime.now();
-        this.refundReason = reason;
-        this.status = BookingStatus.REFUND_REQUESTED;
-    }
-
-    public void markRefunded() {
-        this.refundedAt = LocalDateTime.now();
-        this.status = BookingStatus.REFUNDED;
-    }
-
-    public void clearPromotion() {
-        this.discountAmount = BigDecimal.ZERO;
-        this.totalAmount = this.subtotal;
     }
 }

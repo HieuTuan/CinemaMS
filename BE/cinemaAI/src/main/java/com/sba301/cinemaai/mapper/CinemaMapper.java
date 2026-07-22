@@ -9,6 +9,7 @@ import com.sba301.cinemaai.entity.Cinema;
 import com.sba301.cinemaai.entity.Seat;
 import com.sba301.cinemaai.entity.Room;
 import com.sba301.cinemaai.entity.Showtime;
+import java.time.LocalDateTime;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -46,8 +47,12 @@ public class CinemaMapper {
         return new SeatResponse(
                 seat.getId(),
                 seat.getRoom().getId(),
+                seat.getSeatRow().getId(),
                 seat.getRowLabel(),
+                seat.getSeatRow().getDisplayOrder(),
                 seat.getSeatNumber(),
+                seat.getDisplayColumn(),
+                seat.getSeatRow().getStartColumn(),
                 seat.getSeatType(),
                 seat.getStatus()
         );
@@ -67,20 +72,40 @@ public class CinemaMapper {
                 showtime.getBasePrice(),
                 showtime.getVipPrice(),
                 showtime.getCouplePrice(),
+                showtime.getAdultStandardPrice(),
+                showtime.getChildStandardPrice(),
+                showtime.getStudentStandardPrice(),
+                showtime.getAdultVipPrice(),
+                showtime.getChildVipPrice(),
+                showtime.getStudentVipPrice(),
+                showtime.getAdultCouplePrice(),
+                showtime.getChildCouplePrice(),
+                showtime.getStudentCouplePrice(),
+                showtime.isWeekendSurcharge(),
+                showtime.isHolidaySurcharge(),
+                showtime.getLateNightSurchargeAmount(),
+                showtime.getSurchargeAmount(),
                 showtime.getStatus(),
+                showtime.getCancellationReason(),
+                showtime.getCancelledAt(),
                 showtime.getCreatedAt(),
                 showtime.getUpdatedAt()
         );
     }
 
-    public ShowtimeSeatResponse toShowtimeSeatResponse(Seat seat, String runtimeStatus, Showtime showtime) {
+    public ShowtimeSeatResponse toShowtimeSeatResponse(Seat seat, String runtimeStatus, LocalDateTime holdExpiresAt, Showtime showtime) {
         return new ShowtimeSeatResponse(
                 seat.getId(),
+                seat.getSeatRow().getId(),
                 seat.getRowLabel(),
+                seat.getSeatRow().getDisplayOrder(),
                 seat.getSeatNumber(),
+                seat.getDisplayColumn(),
+                seat.getSeatRow().getStartColumn(),
                 seat.getSeatType(),
                 seat.getStatus(),
                 runtimeStatus,
+                holdExpiresAt,
                 showtime.getPriceForSeatType(seat.getSeatType())
         );
     }

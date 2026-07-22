@@ -1,6 +1,5 @@
 package com.sba301.cinemaai.controller;
 
-import com.sba301.cinemaai.dto.request.movie.MovieActorAssignmentRequest;
 import com.sba301.cinemaai.dto.request.movie.MovieCreateRequest;
 import com.sba301.cinemaai.dto.response.movie.MovieResponse;
 import com.sba301.cinemaai.dto.request.movie.MovieStatusUpdateRequest;
@@ -34,7 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/admin/movies")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "Bearer Authentication")
-@Tag(name = "Admin Movies", description = "Admin movie management endpoints - requires ADMIN role")
+@Tag(name = "Admin - Movies", description = "Admin movie management endpoints - requires ADMIN role")
 public class AdminMovieController {
 
     private final MovieService movieService;
@@ -99,15 +98,6 @@ public class AdminMovieController {
             @Valid @RequestBody MovieUpdateRequest request
     ) {
         return ApiResponse.success(movieService.update(movieId, request), "Movie updated successfully");
-    }
-
-    @PutMapping("/{movieId}/actors")
-    @Operation(summary = "Assign actors to movie (Admin)", description = "Replace the actor list of a movie (Admin only)")
-    public ApiResponse<MovieResponse> assignActors(
-            @PathVariable Long movieId,
-            @Valid @RequestBody MovieActorAssignmentRequest request
-    ) {
-        return ApiResponse.success(movieService.assignActors(movieId, request), "Movie actors updated successfully");
     }
 
     @PatchMapping("/{movieId}/status")

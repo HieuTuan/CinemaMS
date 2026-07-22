@@ -2,12 +2,13 @@ package com.sba301.cinemaai.controller;
 
 import com.sba301.cinemaai.dto.response.booking.BookingResponse;
 import com.sba301.cinemaai.dto.request.booking.CheckInRequest;
-import com.sba301.cinemaai.dto.request.booking.RefundRequest;
 import com.sba301.cinemaai.dto.response.ApiResponse;
+import com.sba301.cinemaai.dto.response.PageResponse;
 import com.sba301.cinemaai.enums.BookingStatus;
 import com.sba301.cinemaai.service.BookingService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,16 +21,20 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/admin/bookings")
+@Tag(name = "Admin - Bookings")
 @RequiredArgsConstructor
+@SecurityRequirement(name = "Bearer Authentication")
 public class AdminBookingController {
 
     private final BookingService bookingService;
 
     @GetMapping
-    public ApiResponse<List<BookingResponse>> getBookings(
-            @RequestParam(required = false) BookingStatus status
+    public ApiResponse<PageResponse<BookingResponse>> getBookings(
+            @RequestParam(required = false) BookingStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
     ) {
-        return ApiResponse.success(bookingService.getAdminBookings(status));
+        return ApiResponse.success(bookingService.getAdminBookings(status, page, size));
     }
 
     @GetMapping("/{bookingId}")
@@ -38,8 +43,11 @@ public class AdminBookingController {
     }
 
     @DeleteMapping("/{bookingId}")
-    public ApiResponse<BookingResponse> cancel(@PathVariable Long bookingId) {
-        return ApiResponse.success(bookingService.cancelAdmin(bookingId), "Booking cancelled successfully");
+    public ApiResponse<BookingResponse> cancel(
+            @PathVariable Long bookingId,
+            @RequestParam(required = false) String reason
+    ) {
+        return ApiResponse.success(bookingService.cancelAdmin(bookingId, reason), "Booking cancelled successfully");
     }
 
     @PostMapping("/{bookingId}/check-in")
@@ -49,21 +57,5 @@ public class AdminBookingController {
     ) {
         String qrCode = request == null ? null : request.qrCode();
         return ApiResponse.success(bookingService.checkInAdmin(bookingId, qrCode), "Booking checked in successfully");
-    }
-
-    @PostMapping("/{bookingId}/refund-request")
-    public ApiResponse<BookingResponse> requestRefund(
-            @PathVariable Long bookingId,
-            @Valid @RequestBody RefundRequest request
-    ) {
-        return ApiResponse.success(
-                bookingService.requestRefundAdmin(bookingId, request.reason()),
-                "Refund requested successfully"
-        );
-    }
-
-    @PostMapping("/{bookingId}/mark-refunded")
-    public ApiResponse<BookingResponse> markRefunded(@PathVariable Long bookingId) {
-        return ApiResponse.success(bookingService.markRefunded(bookingId), "Booking marked as refunded successfully");
     }
 }

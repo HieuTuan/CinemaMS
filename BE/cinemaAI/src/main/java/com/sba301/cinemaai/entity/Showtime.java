@@ -2,6 +2,7 @@ package com.sba301.cinemaai.entity;
 
 import com.sba301.cinemaai.enums.SeatType;
 import com.sba301.cinemaai.enums.ShowtimeStatus;
+import com.sba301.cinemaai.enums.TicketType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
 @Entity
@@ -46,23 +48,85 @@ public class Showtime extends BaseEntity {
     private Room room;
 
     @Column(name = "start_time", nullable = false)
+    @Setter
     private LocalDateTime startTime;
 
     @Column(name = "end_time", nullable = false)
+    @Setter
     private LocalDateTime endTime;
 
     @Column(name = "base_price", nullable = false, precision = 12, scale = 2)
+    @Setter
     private BigDecimal basePrice;
 
     @Column(name = "vip_price", precision = 12, scale = 2)
+    @Setter
     private BigDecimal vipPrice;
 
     @Column(name = "couple_price", precision = 12, scale = 2)
+    @Setter
     private BigDecimal couplePrice;
+
+    @Column(name = "adult_standard_price", precision = 12, scale = 2)
+    @Setter
+    private BigDecimal adultStandardPrice;
+
+    @Column(name = "child_standard_price", precision = 12, scale = 2)
+    @Setter
+    private BigDecimal childStandardPrice;
+
+    @Column(name = "student_standard_price", precision = 12, scale = 2)
+    @Setter
+    private BigDecimal studentStandardPrice;
+
+    @Column(name = "adult_vip_price", precision = 12, scale = 2)
+    @Setter
+    private BigDecimal adultVipPrice;
+
+    @Column(name = "child_vip_price", precision = 12, scale = 2)
+    @Setter
+    private BigDecimal childVipPrice;
+
+    @Column(name = "student_vip_price", precision = 12, scale = 2)
+    @Setter
+    private BigDecimal studentVipPrice;
+
+    @Column(name = "adult_couple_price", precision = 12, scale = 2)
+    @Setter
+    private BigDecimal adultCouplePrice;
+
+    @Column(name = "child_couple_price", precision = 12, scale = 2)
+    @Setter
+    private BigDecimal childCouplePrice;
+
+    @Column(name = "student_couple_price", precision = 12, scale = 2)
+    @Setter
+    private BigDecimal studentCouplePrice;
+
+    @Column(name = "weekend_surcharge", nullable = false)
+    @Setter
+    private boolean weekendSurcharge;
+
+    @Column(name = "holiday_surcharge", nullable = false)
+    @Setter
+    private boolean holidaySurcharge;
+
+    @Column(name = "late_night_surcharge_amount", nullable = false, precision = 12, scale = 2)
+    @Setter
+    private BigDecimal lateNightSurchargeAmount = BigDecimal.valueOf(20_000);
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
+    @Setter
     private ShowtimeStatus status = ShowtimeStatus.SCHEDULED;
+
+    @Column(name = "cancellation_reason", columnDefinition = "TEXT")
+    @Setter
+    private String cancellationReason;
+
+    @Column(name = "cancelled_at")
+    @Setter
+    private LocalDateTime cancelledAt;
 
     public Showtime(Movie movie, Room room, LocalDateTime startTime, LocalDateTime endTime, BigDecimal basePrice) {
         this.movie = movie;
@@ -72,30 +136,60 @@ public class Showtime extends BaseEntity {
         this.basePrice = basePrice;
     }
 
-    public void reschedule(LocalDateTime startTime, LocalDateTime endTime) {
-        this.startTime = startTime;
-        this.endTime = endTime;
-    }
-
-    public void changeBasePrice(BigDecimal basePrice) {
-        this.basePrice = basePrice;
-    }
-
-    public void changePrices(BigDecimal basePrice, BigDecimal vipPrice, BigDecimal couplePrice) {
-        this.basePrice = basePrice;
-        this.vipPrice = vipPrice;
-        this.couplePrice = couplePrice;
-    }
-
     public BigDecimal getPriceForSeatType(SeatType seatType) {
-        return switch (seatType) {
+        return getPriceForTicketAndSeatType(TicketType.ADULT, seatType);
+    }
+
+    public BigDecimal getPriceForTicketAndSeatType(TicketType ticketType, SeatType seatType) {
+        BigDecimal configured = switch (ticketType) {
+            case CHILD -> switch (normalizeSeatType(seatType)) {
+                case VIP -> childVipPrice;
+                case COUPLE -> childCouplePrice;
+                default -> childStandardPrice;
+            };
+            case STUDENT -> switch (normalizeSeatType(seatType)) {
+                case VIP -> studentVipPrice;
+                case COUPLE -> studentCouplePrice;
+                default -> studentStandardPrice;
+            };
+            default -> switch (normalizeSeatType(seatType)) {
+                case VIP -> adultVipPrice;
+                case COUPLE -> adultCouplePrice;
+                default -> adultStandardPrice;
+            };
+        };
+        BigDecimal fallback = switch (normalizeSeatType(seatType)) {
             case VIP    -> vipPrice    != null ? vipPrice    : basePrice.multiply(new BigDecimal("1.5"));
             case COUPLE -> couplePrice != null ? couplePrice : basePrice.multiply(new BigDecimal("2.0"));
             default     -> basePrice;
         };
+        return defaultMoney(configured, fallback).add(getSurchargeAmount());
     }
 
-    public void changeStatus(ShowtimeStatus status) {
-        this.status = status;
+    public BigDecimal getSurchargeAmount() {
+        BigDecimal surcharge = BigDecimal.ZERO;
+        if (weekendSurcharge) {
+            surcharge = surcharge.add(BigDecimal.valueOf(10_000));
+        }
+        if (holidaySurcharge) {
+            surcharge = surcharge.add(BigDecimal.valueOf(10_000));
+        }
+        if (isLateNight()) {
+            surcharge = surcharge.add(defaultMoney(lateNightSurchargeAmount, BigDecimal.valueOf(20_000)));
+        }
+        return surcharge;
+    }
+
+    private boolean isLateNight() {
+        int hour = startTime.getHour();
+        return hour >= 23 || hour < 5;
+    }
+
+    private SeatType normalizeSeatType(SeatType seatType) {
+        return seatType == SeatType.NORMAL ? SeatType.STANDARD : seatType;
+    }
+
+    private BigDecimal defaultMoney(BigDecimal value, BigDecimal fallback) {
+        return value != null ? value : fallback;
     }
 }

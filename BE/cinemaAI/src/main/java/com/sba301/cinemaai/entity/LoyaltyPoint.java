@@ -12,10 +12,10 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
  * One row per user — stores the user's current loyalty balance.
@@ -24,10 +24,7 @@ import lombok.NoArgsConstructor;
  */
 @Getter
 @Entity
-@Table(
-        name = "loyalty_points",
-        uniqueConstraints = @UniqueConstraint(name = "uq_loyalty_points_user", columnNames = "user_id")
-)
+@Table(name = "loyalty_points")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LoyaltyPoint extends BaseEntity {
 
@@ -39,12 +36,15 @@ public class LoyaltyPoint extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Setter
     @Column(nullable = false)
     private int points = 0;
 
+    @Setter
     @Column(name = "total_points", nullable = false)
     private int totalPoints = 0;
 
+    @Setter
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private LoyaltyStatus status = LoyaltyStatus.ACTIVE;
@@ -54,18 +54,5 @@ public class LoyaltyPoint extends BaseEntity {
         this.points = 0;
         this.totalPoints = 0;
         this.status = LoyaltyStatus.ACTIVE;
-    }
-
-    public void addPoints(int pts) {
-        this.points += pts;
-        this.totalPoints += pts;
-    }
-
-    public void redeemPoints(int pts) {
-        this.points -= pts;
-    }
-
-    public void changeStatus(LoyaltyStatus status) {
-        this.status = status;
     }
 }

@@ -13,16 +13,15 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
 @Entity
 @Table(
         name = "reviews",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "movie_id"}),
         indexes = {
                 @Index(name = "idx_reviews_movie", columnList = "movie_id"),
                 @Index(name = "idx_reviews_status", columnList = "status")
@@ -43,16 +42,20 @@ public class Review extends BaseEntity {
     @JoinColumn(name = "movie_id", nullable = false)
     private Movie movie;
 
+    @Setter
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "booking_id")
     private Booking booking;
 
+    @Setter
     @Column(nullable = false)
     private int rating;
 
+    @Setter
     @Column(length = 2000)
     private String comment;
 
+    @Setter
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private ReviewStatus status = ReviewStatus.VISIBLE;
@@ -63,14 +66,5 @@ public class Review extends BaseEntity {
         this.booking = booking;
         this.rating = rating;
         this.comment = comment;
-    }
-
-    public void update(int rating, String comment) {
-        this.rating = rating;
-        this.comment = comment;
-    }
-
-    public void changeStatus(ReviewStatus status) {
-        this.status = status;
     }
 }

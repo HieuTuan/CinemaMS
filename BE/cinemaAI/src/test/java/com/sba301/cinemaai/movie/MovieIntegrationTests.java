@@ -3,6 +3,7 @@ package com.sba301.cinemaai.movie;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sba301.cinemaai.dto.request.auth.LoginRequest;
+import com.sba301.cinemaai.dto.request.movie.ActorRequest;
 import com.sba301.cinemaai.dto.request.movie.GenreRequest;
 import com.sba301.cinemaai.dto.request.movie.MovieCreateRequest;
 import com.sba301.cinemaai.dto.request.movie.MovieStatusUpdateRequest;
@@ -60,6 +61,17 @@ class MovieIntegrationTests {
         String token = loginAsAdmin();
 
         Long genreId = createGenre(token, "Phase 3 Adventure");
+        Long actorOneId = createActor(token, "Actor One");
+        Long actorTwoId = createActor(token, "Actor Two");
+        Long actorThreeId = createActor(token, "Actor Three");
+
+        mockMvc.perform(get("/api/v1/admin/actors")
+                        .header("Authorization", "Bearer " + token)
+                .param("keyword", "Actor T")
+                .param("limit", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].name").value("Actor Three"))
+                .andExpect(jsonPath("$.data.items[1].name").value("Actor Two"));
 
         String createMovieResponse = mockMvc.perform(post("/api/v1/admin/movies")
                         .header("Authorization", "Bearer " + token)
@@ -71,20 +83,24 @@ class MovieIntegrationTests {
                                 "https://example.com/poster.jpg",
                                 "https://example.com/avatar.jpg",
                                 121,
-                                LocalDate.of(2026, 5, 19),
+                                LocalDate.now().plusDays(30),
+                                LocalDate.now().plusDays(60),
                                 "English",
                                 "Vietnamese",
                                 MovieStatus.UPCOMING,
                                 "13+",
                                 "Test Director",
-                                "Actor One",
-                                "Actor One, Actor Two",
-                                List.of(genreId)
+                                List.of(genreId),
+                                List.of(actorOneId, actorTwoId),
+                                List.of(actorOneId)
                         ))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.title").value("Phase 3 Orbit"))
                 .andExpect(jsonPath("$.data.genres[0].id").value(genreId))
+                .andExpect(jsonPath("$.data.mainActors").value("Actor One"))
+                .andExpect(jsonPath("$.data.castList").value("Actor One, Actor Two"))
+                .andExpect(jsonPath("$.data.mainActorIds[0]").value(actorOneId))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
@@ -112,15 +128,16 @@ class MovieIntegrationTests {
                                 "https://example.com/poster-2.jpg",
                                 "https://example.com/avatar-2.jpg",
                                 125,
-                                LocalDate.of(2026, 6, 1),
+                                LocalDate.now().plusDays(35),
+                                LocalDate.now().plusDays(65),
                                 "English",
                                 "Vietnamese",
                                 MovieStatus.UPCOMING,
                                 "16+",
                                 "Updated Director",
-                                "Actor Three",
-                                "Actor Three",
-                                List.of(genreId)
+                                List.of(genreId),
+                                List.of(actorThreeId),
+                                List.of(actorThreeId)
                         ))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.title").value("Phase 3 Orbit Updated"))
@@ -145,15 +162,16 @@ class MovieIntegrationTests {
                                 "https://example.com/poster-3.jpg",
                                 "https://example.com/avatar-3.jpg",
                                 126,
-                                LocalDate.of(2026, 6, 2),
+                                LocalDate.now().plusDays(40),
+                                LocalDate.now().plusDays(70),
                                 "English",
                                 "Vietnamese",
                                 MovieStatus.UPCOMING,
                                 "16+",
                                 "Blocked Director",
-                                "Blocked Actor",
-                                "Blocked Actor",
-                                List.of(genreId)
+                                List.of(genreId),
+                                List.of(actorThreeId),
+                                List.of(actorThreeId)
                         ))))
                 .andExpect(status().isBadRequest());
 
@@ -192,6 +210,25 @@ class MovieIntegrationTests {
         return objectMapper.readTree(response).at("/data/id").asLong();
     }
 
+    private Long createActor(String token, String name) throws Exception {
+        String response = mockMvc.perform(post("/api/v1/admin/actors")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ActorRequest(
+                                name,
+                                "Created by integration test.",
+                                "https://example.com/" + name.replace(" ", "-").toLowerCase() + ".jpg"
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.name").value(name))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        return objectMapper.readTree(response).at("/data/id").asLong();
+    }
+
     private String loginAsAdmin() throws Exception {
         String email = "phase3.admin." + System.nanoTime() + "@example.com";
         String password = "Password123";
@@ -199,7 +236,8 @@ class MovieIntegrationTests {
                 .orElseGet(() -> roleRepository.save(new Role(RoleName.ADMIN)));
 
         User admin = new User(email, passwordEncoder.encode(password), "Phase Three Admin", "0900333444");
-        admin.activateEmail();
+        admin.setEmailVerified(true);
+        admin.setStatus(com.sba301.cinemaai.enums.UserStatus.ACTIVE);
         User savedAdmin = userRepository.save(admin);
         userRoleRepository.save(new UserRole(savedAdmin, adminRole));
 

@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
 @Entity
@@ -34,45 +35,58 @@ public class Payment extends BaseEntity {
     @JoinColumn(name = "booking_id", nullable = false)
     private Booking booking;
 
+    @Setter
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "food_order_id")
+    private FoodOrder foodOrder;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private PaymentProvider provider;
 
+    @Setter
     @Column(name = "transaction_id", length = 100)
     private String transactionId;
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;
 
+    @Setter
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private PaymentStatus status = PaymentStatus.PENDING;
 
+    @Setter
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
 
-    @Column(name = "callback_payload", columnDefinition = "MEDIUMTEXT")
+    @Setter
+    @Column(name = "callback_payload", columnDefinition = "TEXT")
     private String callbackPayload;
+
+    @Setter
+    @Column(name = "payment_account_label", length = 100)
+    private String paymentAccountLabel;
+
+    @Setter
+    @Column(name = "refund_amount", precision = 12, scale = 2)
+    private BigDecimal refundAmount; // Số tiền thực tế bồi thường (Bằng booking.totalAmount)
+
+    @Setter
+    @Column(name = "refunded_at")
+    private LocalDateTime refundedAt; // Thời điểm giao dịch hoàn tiền hoàn tất
+
+    @Setter
+    @Column(name = "refund_transaction_no", length = 100)
+    private String refundTransactionNo; // Mã đối soát của VNPay hoặc mã Staff xử lý tay
+
+    @Setter
+    @Column(name = "refund_method", length = 50)
+    private String refundMethod;
 
     public Payment(Booking booking, PaymentProvider provider, BigDecimal amount) {
         this.booking = booking;
         this.provider = provider;
         this.amount = amount;
-    }
-
-    public void markSuccess(String transactionId, String callbackPayload) {
-        this.transactionId = transactionId;
-        this.callbackPayload = callbackPayload;
-        this.paidAt = LocalDateTime.now();
-        this.status = PaymentStatus.SUCCESS;
-    }
-
-    public void markFailed(String callbackPayload) {
-        this.callbackPayload = callbackPayload;
-        this.status = PaymentStatus.FAILED;
-    }
-
-    public void refund() {
-        this.status = PaymentStatus.REFUNDED;
     }
 }

@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
 @Entity
@@ -21,27 +22,31 @@ public class TicketCombo extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Setter
     @Column(nullable = false, unique = true)
     private String name;
 
+    @Setter
     @Column(length = 500)
     private String description;
 
+    @Setter
     @Column(name = "adult_count", nullable = false)
     private int adultCount;
 
+    @Setter
     @Column(name = "child_count", nullable = false)
     private int childCount;
 
-    @Column(name = "senior_count", nullable = false)
-    private int seniorCount;
-
+    @Setter
     @Column(name = "student_count", nullable = false)
     private int studentCount;
 
+    @Setter
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 
+    @Setter
     @Column(nullable = false)
     private boolean active = true;
 
@@ -50,7 +55,6 @@ public class TicketCombo extends BaseEntity {
             String description,
             int adultCount,
             int childCount,
-            int seniorCount,
             int studentCount,
             BigDecimal price
     ) {
@@ -58,32 +62,7 @@ public class TicketCombo extends BaseEntity {
         this.description = description;
         this.adultCount = adultCount;
         this.childCount = childCount;
-        this.seniorCount = seniorCount;
         this.studentCount = studentCount;
         this.price = price;
-    }
-
-    public void update(
-            String name,
-            String description,
-            int adultCount,
-            int childCount,
-            int seniorCount,
-            int studentCount,
-            BigDecimal price,
-            boolean active
-    ) {
-        this.name = name;
-        this.description = description;
-        this.adultCount = adultCount;
-        this.childCount = childCount;
-        this.seniorCount = seniorCount;
-        this.studentCount = studentCount;
-        this.price = price;
-        this.active = active;
-    }
-
-    public void deactivate() {
-        this.active = false;
     }
 }

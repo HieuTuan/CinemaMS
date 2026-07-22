@@ -2,64 +2,26 @@ package com.sba301.cinemaai.service;
 
 import com.sba301.cinemaai.dto.request.notification.NotificationCreateRequest;
 import com.sba301.cinemaai.dto.response.notification.NotificationResponse;
-import com.sba301.cinemaai.entity.Notification;
+import com.sba301.cinemaai.entity.Booking;
+import com.sba301.cinemaai.entity.Showtime;
 import com.sba301.cinemaai.entity.User;
-import com.sba301.cinemaai.exception.NotFoundException;
-import com.sba301.cinemaai.repository.NotificationRepository;
-import com.sba301.cinemaai.repository.UserRepository;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-@Service
-@RequiredArgsConstructor
-public class NotificationService {
+public interface NotificationService {
 
-    private final NotificationRepository notificationRepository;
-    private final UserRepository userRepository;
+        NotificationResponse createForUser(NotificationCreateRequest request);
 
-    @Transactional
-    public NotificationResponse createForUser(NotificationCreateRequest request) {
-        User user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new NotFoundException("User not found: " + request.getUserId()));
+        List<NotificationResponse> getMyNotifications(Long userId);
 
-        Notification notification = new Notification(
-                user,
-                request.getTitle(),
-                request.getMessage(),
-                request.getType()
-        );
+        List<NotificationResponse> getMyUnread(Long userId);
 
-        return NotificationResponse.from(notificationRepository.save(notification));
-    }
+        NotificationResponse markRead(Long userId, Long notificationId);
 
-    @Transactional(readOnly = true)
-    public List<NotificationResponse> getMyNotifications(Long userId) {
-        return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId)
-                .stream()
-                .map(NotificationResponse::from)
-                .toList();
-    }
+        int markAllRead(Long userId);
 
-    @Transactional(readOnly = true)
-    public List<NotificationResponse> getMyUnread(Long userId) {
-        return notificationRepository.findByUserIdAndIsReadFalse(userId)
-                .stream()
-                .map(NotificationResponse::from)
-                .toList();
-    }
+        void notifyBookingPaid(Booking booking);
 
-    @Transactional
-    public NotificationResponse markRead(Long userId, Long notificationId) {
-        Notification notification = notificationRepository.findByIdAndUserId(notificationId, userId)
-                .orElseThrow(() -> new NotFoundException("Notification not found: " + notificationId));
+        void notifyBookingCancelled(Booking booking);
 
-        if (Boolean.TRUE.equals(notification.getIsRead())) {
-            return NotificationResponse.from(notification);
-        }
-
-        notification.markRead();
-        return NotificationResponse.from(notificationRepository.save(notification));
-    }
+        void notifyShowtimeCancelled(User user, Booking booking, Showtime showtime);
 }

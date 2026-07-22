@@ -1,5 +1,6 @@
 package com.sba301.cinemaai.controller;
 
+import com.sba301.cinemaai.config.PaymentRedirectProperties;
 import com.sba301.cinemaai.dto.response.payment.PaymentResponse;
 import com.sba301.cinemaai.dto.response.ApiResponse;
 import com.sba301.cinemaai.security.AuthenticatedUser;
@@ -27,10 +28,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final PaymentRedirectProperties paymentRedirectProperties;
 
     @PostMapping("/vnpay/create")
     @SecurityRequirement(name = "Bearer Authentication")
-    @Operation(summary = "Create VNPAY payment URL", description = "Creates a VNPAY payment for a HOLDING booking")
+    @Operation(summary = "Create VNPAY payment URL", description = "Creates a VNPAY payment for a HOLDING or PENDING_PAYMENT booking")
     public ResponseEntity<ApiResponse<PaymentResponse>> createVnpayPayment(
             @AuthenticationPrincipal AuthenticatedUser user,
             @RequestParam Long bookingId,
@@ -47,8 +49,16 @@ public class PaymentController {
         Map<String, String> params = extractParams(request);
         paymentService.handleVnpayReturn(params);
         String queryString = request.getQueryString();
-        String redirectUrl = "http://localhost:3000/payment-callback" + (queryString != null ? "?" + queryString : "");
+        String successRedirectUrl = resolveSuccessRedirectUrl();
+        String redirectUrl = successRedirectUrl
+                + (queryString != null ? "?" + queryString : "");
         return ResponseEntity.status(302).header("Location", redirectUrl).build();
+    }
+
+    @GetMapping("/vnpay/null")
+    @Operation(summary = "VNPAY legacy null return URL handler", description = "Handles old callbacks generated before redirect URL was configured")
+    public ResponseEntity<Void> vnpayNullReturn(HttpServletRequest request) {
+        return vnpayReturn(request);
     }
 
     @GetMapping("/vnpay/ipn")
@@ -67,6 +77,30 @@ public class PaymentController {
             @RequestParam Long bookingId
     ) {
         return ResponseEntity.ok(ApiResponse.success(paymentService.mockPayment(user.email(), bookingId), "Payment confirmed"));
+    }
+
+    @PostMapping("/food-orders/{foodOrderId}/vnpay/create")
+    @SecurityRequirement(name = "Bearer Authentication")
+    @Operation(summary = "Create VNPAY payment URL for a food order")
+    public ResponseEntity<ApiResponse<PaymentResponse>> createVnpayFoodOrderPayment(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long foodOrderId,
+            HttpServletRequest request
+    ) {
+        String clientIp = getClientIp(request);
+        PaymentResponse response = paymentService.createVnpayFoodOrderPayment(user.email(), foodOrderId, clientIp);
+        return ResponseEntity.ok(ApiResponse.success(response, "Payment URL created"));
+    }
+
+    @PostMapping("/food-orders/{foodOrderId}/mock")
+    @SecurityRequirement(name = "Bearer Authentication")
+    @Operation(summary = "Mock payment for a food order (dev only)")
+    public ResponseEntity<ApiResponse<PaymentResponse>> mockFoodOrderPayment(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long foodOrderId
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                paymentService.mockFoodOrderPayment(user.email(), foodOrderId), "Payment confirmed"));
     }
 
     @GetMapping("/booking/{bookingId}")
@@ -95,5 +129,12 @@ public class PaymentController {
             return xForwardedFor.split(",")[0].trim();
         }
         return request.getRemoteAddr();
+    }
+
+    private String resolveSuccessRedirectUrl() {
+        String configuredUrl = paymentRedirectProperties.getSuccessRedirectUrl();
+        return (configuredUrl == null || configuredUrl.isBlank() || "null".equalsIgnoreCase(configuredUrl))
+                ? "http://localhost:3000/payment-callback"
+                : configuredUrl;
     }
 }

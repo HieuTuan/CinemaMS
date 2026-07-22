@@ -1,4 +1,4 @@
-# Phase 5 - Một rạp, phòng chiếu, ghế, suất chiếu và giá vé
+﻿# Phase 5 - Một rạp, phòng chiếu, ghế, suất chiếu và giá vé
 
 ## 1. Tạo rạp
 
@@ -7,8 +7,8 @@ Admin tạo rạp chính của hệ thống. Scope hiện tại là một rạp,
 
 ### API
 ```http
-POST /api/v1/admin/cinemas
-Authorization: Bearer ADMIN_TOKEN
+POST /api/v1/admin/cinema
+Authorization: Bearer {{adminToken}}
 ```
 
 ### JSON
@@ -69,21 +69,52 @@ GET /api/v1/cinemas
 }
 ```
 
+## 2.1. Lấy rạp hiện tại cho admin
+
+### Tên mô tả API
+Admin lấy rạp đã có trong hệ thống để lưu `cinemaId`. Dùng API này khi `POST /api/v1/admin/cinema` trả `409 System is limited to one cinema`.
+
+### API
+```http
+GET /api/v1/admin/cinema
+Authorization: Bearer {{adminToken}}
+```
+
+### JSON
+```json
+{}
+```
+
+### Post-response
+```javascript
+const body = pm.response.json();
+
+pm.test("Lấy rạp hiện tại thành công", function () {
+  pm.expect(pm.response.code).to.eql(200);
+  pm.expect(body.success).to.eql(true);
+  pm.expect(body.data.id).to.exist;
+});
+
+const cinema = body.data;
+
+pm.collectionVariables.set("cinemaId", cinema.id);
+pm.collectionVariables.set("cinemaName", cinema.name);
+```
+
 ## 3. Tạo phòng chiếu
 
 ### Tên mô tả API
-Admin tạo phòng chiếu thuộc rạp hiện tại.
+Admin tạo phòng chiếu thuộc rạp hiện tại. Backend tự lấy rạp đã cấu hình và database tự sinh ID phòng.
 
 ### API
 ```http
 POST /api/v1/admin/rooms
-Authorization: Bearer ADMIN_TOKEN
+Authorization: Bearer {{adminToken}}
 ```
 
 ### JSON
 ```json
 {
-  "cinemaId": 1,
   "name": "Phòng 2D số 1",
   "roomType": "TWO_D",
   "rowCount": 3,
@@ -98,7 +129,7 @@ Authorization: Bearer ADMIN_TOKEN
   "success": true,
   "data": {
     "id": 1,
-    "cinemaId": 1,
+    "cinemaId": {{cinemaId}},
     "name": "Phòng 2D số 1",
     "roomType": "TWO_D",
     "rowCount": 3,
@@ -112,19 +143,54 @@ Authorization: Bearer ADMIN_TOKEN
 ## 4. Sinh sơ đồ ghế
 
 ### Tên mô tả API
-Admin sinh ghế theo số hàng/cột của phòng. Nếu `overwrite=false`, hệ thống không ghi đè sơ đồ ghế đã có.
+Admin tạo sơ đồ ghế lần đầu theo số hàng/cột của phòng. Nếu phòng đã có ghế, API trả `409`; dùng API PUT bên dưới để thay toàn bộ sơ đồ. Nếu truyền `rows`, backend sẽ tạo layout ghế lệch theo từng hàng ghế.
 
 ### API
 ```http
-POST /api/v1/admin/rooms/1/seats/generate
-Authorization: Bearer ADMIN_TOKEN
+POST /api/v1/admin/rooms/{{roomId}}/seats/generate
+Authorization: Bearer {{adminToken}}
 ```
 
 ### JSON
 ```json
 {
-  "seatType": "NORMAL",
-  "overwrite": false
+  "defaultSeatType": "NORMAL"
+}
+```
+
+### API thay toàn bộ sơ đồ ghế
+```http
+PUT /api/v1/admin/rooms/{{roomId}}/seats
+Authorization: Bearer {{adminToken}}
+```
+
+### JSON - layout ghế lệch dùng cho POST hoặc PUT
+```json
+{
+  "defaultSeatType": "STANDARD",
+  "rows": [
+    {
+      "rowLabel": "A",
+      "displayOrder": 1,
+      "startColumn": 2,
+      "seatType": "STANDARD",
+      "seatNumbers": [18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+    },
+    {
+      "rowLabel": "D",
+      "displayOrder": 4,
+      "startColumn": 1,
+      "seatType": "STANDARD",
+      "seatNumbers": [19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+    },
+    {
+      "rowLabel": "O",
+      "displayOrder": 14,
+      "startColumn": 5,
+      "seatType": "COUPLE",
+      "seatNumbers": [6, 5, 4, 3, 2, 1]
+    }
+  ]
 }
 ```
 
@@ -135,9 +201,13 @@ Authorization: Bearer ADMIN_TOKEN
   "data": [
     {
       "id": 1,
-      "roomId": 1,
+      "roomId": {{roomId}},
+      "seatRowId": 1,
       "rowLabel": "A",
+      "displayOrder": 1,
       "seatNumber": 1,
+      "displayColumn": 1,
+      "startColumn": 1,
       "seatType": "NORMAL",
       "status": "AVAILABLE"
     }
@@ -153,14 +223,14 @@ Admin tạo suất chiếu. Backend tự tính giờ kết thúc bằng thời l
 ### API
 ```http
 POST /api/v1/admin/showtimes
-Authorization: Bearer ADMIN_TOKEN
+Authorization: Bearer {{adminToken}}
 ```
 
 ### JSON
 ```json
 {
-  "movieId": 1,
-  "roomId": 1,
+  "movieId": {{movieId}},
+  "roomId": {{roomId}},
   "startTime": "2026-07-01T19:00:00",
   "basePrice": 90000,
   "status": "OPEN"
@@ -173,9 +243,9 @@ Authorization: Bearer ADMIN_TOKEN
   "success": true,
   "data": {
     "id": 1,
-    "movieId": 1,
+    "movieId": {{movieId}},
     "movieTitle": "Action Movie A",
-    "roomId": 1,
+    "roomId": {{roomId}},
     "roomName": "Phòng 2D số 1",
     "startTime": "2026-07-01T19:00:00",
     "endTime": "2026-07-01T21:15:00",
@@ -193,7 +263,7 @@ Khách tìm suất chiếu theo phim, phòng hoặc ngày.
 
 ### API
 ```http
-GET /api/v1/showtimes?movieId=1&date=2026-07-01
+GET /api/v1/showtimes?movieId={{movieId}}&date=2026-07-01
 ```
 
 ### JSON
@@ -208,8 +278,8 @@ GET /api/v1/showtimes?movieId=1&date=2026-07-01
   "data": [
     {
       "id": 1,
-      "movieId": 1,
-      "roomId": 1,
+      "movieId": {{movieId}},
+      "roomId": {{roomId}},
       "startTime": "2026-07-01T19:00:00",
       "basePrice": 90000,
       "status": "OPEN"
@@ -225,7 +295,7 @@ Khách xem sơ đồ ghế theo suất chiếu, bao gồm trạng thái runtime 
 
 ### API
 ```http
-GET /api/v1/showtimes/1/seat-map
+GET /api/v1/showtimes/{{showtimeId}}/seat-map
 ```
 
 ### JSON
@@ -248,8 +318,12 @@ GET /api/v1/showtimes/1/seat-map
     "seats": [
       {
         "id": 1,
+        "seatRowId": 1,
         "rowLabel": "A",
+        "displayOrder": 1,
         "seatNumber": 1,
+        "displayColumn": 1,
+        "startColumn": 1,
         "seatType": "NORMAL",
         "runtimeStatus": "AVAILABLE"
       }
@@ -266,7 +340,7 @@ Admin tạo giá vé theo loại vé, loại phòng, ngày thường/cuối tu�
 ### API
 ```http
 POST /api/v1/admin/ticket-pricing/rules
-Authorization: Bearer ADMIN_TOKEN
+Authorization: Bearer {{adminToken}}
 ```
 
 ### JSON
@@ -306,7 +380,7 @@ Admin tạo combo vé, ví dụ 1 vé người lớn hoặc 2 vé người lớn
 ### API
 ```http
 POST /api/v1/admin/ticket-pricing/combos
-Authorization: Bearer ADMIN_TOKEN
+Authorization: Bearer {{adminToken}}
 ```
 
 ### JSON
@@ -347,14 +421,14 @@ Kiểm tra vé có hợp lệ với tuổi người xem và giới hạn tuổi 
 ### API
 ```http
 POST /api/v1/ticket-pricing/validate
-Authorization: Bearer CUSTOMER_TOKEN
+Authorization: Bearer {{accessToken}}
 ```
 
 ### JSON
 ```json
 {
-  "showtimeId": 1,
-  "comboId": 1,
+  "showtimeId": {{showtimeId}},
+  "comboId": {{ticketComboId}},
   "holiday": false,
   "tickets": [
     {
@@ -376,8 +450,8 @@ Authorization: Bearer CUSTOMER_TOKEN
 {
   "success": true,
   "data": {
-    "showtimeId": 1,
-    "movieId": 1,
+    "showtimeId": {{showtimeId}},
+    "movieId": {{movieId}},
     "movieTitle": "Action Movie A",
     "ageRating": "13+",
     "eligible": false,

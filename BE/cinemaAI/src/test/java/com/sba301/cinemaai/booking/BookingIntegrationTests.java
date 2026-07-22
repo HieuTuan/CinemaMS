@@ -7,7 +7,6 @@ import com.sba301.cinemaai.dto.request.booking.BookingFoodRequest;
 import com.sba301.cinemaai.dto.request.booking.CheckInRequest;
 import com.sba301.cinemaai.dto.request.booking.CreateBookingRequest;
 import com.sba301.cinemaai.dto.request.booking.HoldSeatsRequest;
-import com.sba301.cinemaai.dto.request.booking.RefundRequest;
 import com.sba301.cinemaai.dto.request.food.FoodItemRequest;
 import com.sba301.cinemaai.dto.request.ticket.TicketPricingRuleRequest;
 import com.sba301.cinemaai.dto.request.ticket.TicketSelectionRequest;
@@ -18,9 +17,11 @@ import com.sba301.cinemaai.entity.Movie;
 import com.sba301.cinemaai.entity.Role;
 import com.sba301.cinemaai.entity.Room;
 import com.sba301.cinemaai.entity.Seat;
+import com.sba301.cinemaai.entity.SeatRow;
 import com.sba301.cinemaai.entity.Showtime;
 import com.sba301.cinemaai.entity.User;
 import com.sba301.cinemaai.entity.UserRole;
+import com.sba301.cinemaai.enums.AgeRating;
 import com.sba301.cinemaai.enums.BookingStatus;
 import com.sba301.cinemaai.enums.FoodItemStatus;
 import com.sba301.cinemaai.enums.MovieStatus;
@@ -37,6 +38,7 @@ import com.sba301.cinemaai.repository.MovieRepository;
 import com.sba301.cinemaai.repository.RoleRepository;
 import com.sba301.cinemaai.repository.RoomRepository;
 import com.sba301.cinemaai.repository.SeatRepository;
+import com.sba301.cinemaai.repository.SeatRowRepository;
 import com.sba301.cinemaai.repository.ShowtimeRepository;
 import com.sba301.cinemaai.repository.UserRepository;
 import com.sba301.cinemaai.repository.UserRoleRepository;
@@ -81,6 +83,9 @@ class BookingIntegrationTests {
 
     @Autowired
     private SeatRepository seatRepository;
+
+    @Autowired
+    private SeatRowRepository seatRowRepository;
 
     @Autowired
     private ShowtimeRepository showtimeRepository;
@@ -147,29 +152,47 @@ class BookingIntegrationTests {
                         .content(objectMapper.writeValueAsString(new CreateBookingRequest(
                                 holdBookingId,
                                 List.of(new BookingFoodRequest(foodItemId, null, 2))
-                        ))))
+                ))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("PAID"))
+                .andExpect(jsonPath("$.data.status").value("PENDING_PAYMENT"))
                 .andExpect(jsonPath("$.data.totalAmount").value(155000))
-                .andExpect(jsonPath("$.data.qrCode").isNotEmpty())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
 
         JsonNode bookingJson = objectMapper.readTree(bookingResponse);
         Long bookingId = bookingJson.at("/data/id").asLong();
-        String qrCode = bookingJson.at("/data/qrCode").asText();
 
         mockMvc.perform(get("/api/v1/admin/bookings/{bookingId}", bookingId)
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("PAID"));
+                .andExpect(jsonPath("$.data.status").value("PENDING_PAYMENT"));
+
+        String paidBookingResponse = mockMvc.perform(post("/api/v1/payments/mock")
+                        .header("Authorization", "Bearer " + customerToken)
+                        .param("bookingId", bookingId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("SUCCESS"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        assertThat(objectMapper.readTree(paidBookingResponse).at("/data/bookingId").asLong()).isEqualTo(bookingId);
+
+        String paidAdminBookingResponse = mockMvc.perform(get("/api/v1/admin/bookings/{bookingId}", bookingId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PAID"))
+                .andExpect(jsonPath("$.data.qrCode").isNotEmpty())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String qrCode = objectMapper.readTree(paidAdminBookingResponse).at("/data/qrCode").asText();
 
         mockMvc.perform(get("/api/v1/admin/bookings")
-                        .header("Authorization", "Bearer " + adminToken)
-                        .param("status", "PAID"))
+                .header("Authorization", "Bearer " + adminToken)
+                .param("status", "PAID"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].status").value("PAID"));
+                .andExpect(jsonPath("$.data.items[0].status").value("PAID"));
 
         mockMvc.perform(get("/api/v1/showtimes/{showtimeId}/seat-map", showtime.getId()))
                 .andExpect(status().isOk())
@@ -185,12 +208,12 @@ class BookingIntegrationTests {
 
         mockMvc.perform(get("/api/v1/foods/items"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].status").value("ACTIVE"));
+                .andExpect(jsonPath("$.data.items[0].status").value("ACTIVE"));
 
         mockMvc.perform(delete("/api/v1/admin/foods/items/{itemId}", foodItemId)
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("INACTIVE"));
+                .andExpect(jsonPath("$.data.status").value("OUT_OF_STOCK"));
     }
 
     @Test
@@ -246,13 +269,14 @@ class BookingIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new CreateBookingRequest(
                                 holdBookingId,
-                                null,
+                                List.of(),
                                 null,
                                 false,
-                                List.of(new TicketSelectionRequest(TicketType.ADULT, 22, 1))
+                                List.of(new TicketSelectionRequest(TicketType.ADULT, 20, 1)),
+                                null
                         ))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("PAID"))
+                .andExpect(jsonPath("$.data.status").value("PENDING_PAYMENT"))
                 .andExpect(jsonPath("$.data.totalAmount").value(95000))
                 .andExpect(jsonPath("$.data.tickets[0].ticketType").value("ADULT"))
                 .andReturn()
@@ -260,19 +284,121 @@ class BookingIntegrationTests {
                 .getContentAsString();
         Long bookingId = objectMapper.readTree(bookingResponse).at("/data/id").asLong();
 
-        mockMvc.perform(post("/api/v1/bookings/{bookingId}/refund-request", bookingId)
+        mockMvc.perform(post("/api/v1/payments/mock")
                         .header("Authorization", "Bearer " + customerToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new RefundRequest("Cúp điện trong rạp"))))
+                        .param("bookingId", bookingId.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("REFUND_REQUESTED"))
-                .andExpect(jsonPath("$.data.refundReason").value("Cúp điện trong rạp"));
+                .andExpect(jsonPath("$.data.status").value("SUCCESS"));
 
-        mockMvc.perform(post("/api/v1/admin/bookings/{bookingId}/mark-refunded", bookingId)
+        mockMvc.perform(post("/api/v1/admin/showtimes/{showtimeId}/cancel", showtime.getId())
+                        .header("Authorization", "Bearer " + adminToken)
+                        .param("reason", "Cúp điện trong rạp"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"));
+
+        mockMvc.perform(get("/api/v1/admin/bookings/{bookingId}", bookingId)
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("REFUNDED"))
-                .andExpect(jsonPath("$.data.refundedAt").isNotEmpty());
+                .andExpect(jsonPath("$.data.refundedAt").isNotEmpty())
+                .andExpect(jsonPath("$.data.refundReason").value("Hủy suất chiếu do sự cố: Cúp điện trong rạp"))
+                .andExpect(jsonPath("$.data.qrCode").doesNotExist())
+                .andExpect(jsonPath("$.data.paymentAccount").doesNotExist());
+    }
+
+    @Test
+    void adminCancelPaidBookingShouldRefundToCineWallet() throws Exception {
+        String adminToken = loginAs("phase6.refund.admin.", RoleName.ADMIN);
+        String customerToken = loginAs("phase6.refund.customer.", RoleName.CUSTOMER);
+        Showtime showtime = createShowtimeFixture();
+        createAdultTicketRule(adminToken);
+        Seat firstSeat = seatRepository.findByRoom(showtime.getRoom()).get(0);
+
+        Long bookingId = createPaidBooking(customerToken, showtime, firstSeat);
+
+        // Admin hủy vé đã thanh toán -> tiền hoàn về CineWallet của khách
+        mockMvc.perform(delete("/api/v1/admin/bookings/{bookingId}", bookingId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .param("reason", "Khách yêu cầu hủy"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REFUNDED"))
+                .andExpect(jsonPath("$.data.refundedAt").isNotEmpty())
+                .andExpect(jsonPath("$.data.refundReason").value("Admin hoàn/hủy vé: Khách yêu cầu hủy"))
+                .andExpect(jsonPath("$.data.qrCode").doesNotExist());
+
+        // Ghế được giải phóng
+        Booking refunded = bookingRepository.findById(bookingId).orElseThrow();
+        assertThat(refunded.getStatus()).isEqualTo(BookingStatus.REFUNDED);
+        assertThat(refunded.getRefundMethod()).isEqualTo("CINEWALLET");
+
+        // Số dư ví của khách được ghi có đúng totalAmount
+        mockMvc.perform(get("/api/v1/wallet")
+                        .header("Authorization", "Bearer " + customerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.balance").value(95000));
+    }
+
+    @Test
+    void adminCancelCheckedInBookingShouldBeRejected() throws Exception {
+        String adminToken = loginAs("phase6.used.admin.", RoleName.ADMIN);
+        String customerToken = loginAs("phase6.used.customer.", RoleName.CUSTOMER);
+        Showtime showtime = createShowtimeFixture();
+        createAdultTicketRule(adminToken);
+        Seat firstSeat = seatRepository.findByRoom(showtime.getRoom()).get(0);
+
+        Long bookingId = createPaidBooking(customerToken, showtime, firstSeat);
+
+        // Ép trạng thái USED (đã check-in) — không được phép hoàn
+        Booking booking = bookingRepository.findById(bookingId).orElseThrow();
+        booking.setStatus(BookingStatus.USED);
+        bookingRepository.save(booking);
+
+        mockMvc.perform(delete("/api/v1/admin/bookings/{bookingId}", bookingId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest());
+
+        assertThat(bookingRepository.findById(bookingId).orElseThrow().getStatus())
+                .isEqualTo(BookingStatus.USED);
+    }
+
+    private Long createPaidBooking(String customerToken, Showtime showtime, Seat seat) throws Exception {
+        String holdResponse = mockMvc.perform(post("/api/v1/bookings/hold")
+                        .header("Authorization", "Bearer " + customerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new HoldSeatsRequest(
+                                showtime.getId(),
+                                List.of(seat.getId())
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        Long holdBookingId = objectMapper.readTree(holdResponse).at("/data/id").asLong();
+
+        String bookingResponse = mockMvc.perform(post("/api/v1/bookings")
+                        .header("Authorization", "Bearer " + customerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CreateBookingRequest(
+                                holdBookingId,
+                                List.of(),
+                                null,
+                                false,
+                                List.of(new TicketSelectionRequest(TicketType.ADULT, 20, 1)),
+                                null
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        Long bookingId = objectMapper.readTree(bookingResponse).at("/data/id").asLong();
+
+        mockMvc.perform(post("/api/v1/payments/mock")
+                        .header("Authorization", "Bearer " + customerToken)
+                        .param("bookingId", bookingId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("SUCCESS"));
+
+        return bookingId;
     }
 
     private Long createFoodItem(String adminToken) throws Exception {
@@ -294,32 +420,43 @@ class BookingIntegrationTests {
     }
 
     private void createAdultTicketRule(String adminToken) throws Exception {
-        mockMvc.perform(post("/api/v1/admin/ticket-pricing/rules")
+        int status = mockMvc.perform(post("/api/v1/admin/ticket-pricing/rules")
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new TicketPricingRuleRequest(
                                 TicketType.ADULT,
                                 RoomType.TWO_D,
+                                SeatType.STANDARD,
                                 false,
                                 false,
                                 BigDecimal.valueOf(95000),
                                 true
                         ))))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.ticketType").value("ADULT"));
+                .andReturn()
+                .getResponse()
+                .getStatus();
+        // 201 = tạo mới; 409 = quy tắc đã tồn tại (DB dùng chung giữa các test) — cả hai đều hợp lệ
+        assertThat(status).isIn(201, 409);
     }
 
     private Showtime createShowtimeFixture() {
         String suffix = Long.toString(System.nanoTime());
         Movie movie = new Movie("Phase 6 Movie " + suffix, 110, MovieStatus.NOW_SHOWING);
-        movie.updateDetails(movie.getTitle(), "Booking flow movie.", 110, LocalDate.of(2026, 5, 19));
-        movie.updateMetadata("English", "Vietnamese", "13+", "Phase Six Director", "Phase Six Lead", "Cast");
+        movie.setDescription("Booking flow movie.");
+        movie.setReleaseDate(LocalDate.of(2026, 5, 19));
+        movie.setLanguage("English");
+        movie.setSubtitleLanguage("Vietnamese");
+        movie.setAgeRating(AgeRating.from("13+"));
+        movie.setDirector("Phase Six Director");
+        movie.setMainActors("Phase Six Lead");
+        movie.setCastList("Cast");
         Movie savedMovie = movieRepository.save(movie);
 
         Cinema cinema = cinemaRepository.save(new Cinema("Phase 6 Cinema " + suffix, "1 Booking Street", "HCMC", "0900666777"));
         Room room = roomRepository.save(new Room(cinema, "Room 6", RoomType.TWO_D, 1, 2));
-        seatRepository.save(new Seat(room, "A", 1, SeatType.NORMAL));
-        seatRepository.save(new Seat(room, "A", 2, SeatType.NORMAL));
+        SeatRow seatRow = seatRowRepository.save(new SeatRow(room, "A", 1, 1, SeatType.NORMAL));
+        seatRepository.save(new Seat(room, seatRow, 1, 1, SeatType.NORMAL));
+        seatRepository.save(new Seat(room, seatRow, 2, 2, SeatType.NORMAL));
 
         Showtime showtime = new Showtime(
                 savedMovie,
@@ -328,7 +465,7 @@ class BookingIntegrationTests {
                 LocalDateTime.of(2026, 5, 21, 21, 5),
                 BigDecimal.valueOf(95000)
         );
-        showtime.changeStatus(ShowtimeStatus.OPEN);
+        showtime.setStatus(ShowtimeStatus.OPEN);
         return showtimeRepository.save(showtime);
     }
 
@@ -357,7 +494,8 @@ class BookingIntegrationTests {
                 .orElseGet(() -> roleRepository.save(new Role(roleName)));
 
         User user = new User(email, passwordEncoder.encode(password), "Phase Six User", "0900666888");
-        user.activateEmail();
+        user.setEmailVerified(true);
+        user.setStatus(com.sba301.cinemaai.enums.UserStatus.ACTIVE);
         User savedUser = userRepository.save(user);
         userRoleRepository.save(new UserRole(savedUser, role));
         return savedUser;

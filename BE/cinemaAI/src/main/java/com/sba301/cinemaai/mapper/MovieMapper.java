@@ -34,7 +34,12 @@ public class MovieMapper {
         );
     }
 
-    public MovieResponse toMovieResponse(Movie movie, List<Genre> genres, List<ActorResponse> actors) {
+    public MovieResponse toMovieResponse(
+            Movie movie,
+            List<Genre> genres,
+            List<ActorResponse> actors,
+            List<Long> mainActorIds
+    ) {
         return new MovieResponse(
                 movie.getId(),
                 movie.getTitle(),
@@ -44,6 +49,7 @@ public class MovieMapper {
                 movie.getAvatarUrl(),
                 movie.getDurationMinutes(),
                 movie.getReleaseDate(),
+                movie.getEndDate(),
                 movie.getLanguage(),
                 movie.getSubtitleLanguage(),
                 movie.getStatus(),
@@ -53,6 +59,7 @@ public class MovieMapper {
                 movie.getCastList(),
                 genres.stream().map(this::toGenreResponse).toList(),
                 actors,
+                mainActorIds,
                 movie.getCreatedAt(),
                 movie.getUpdatedAt()
         );

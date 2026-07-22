@@ -1,65 +1,76 @@
-import React from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import { Toaster } from 'sonner';
+import AppRoutes from './routes/AppRoutes';
+import { useAuthStore } from './stores/useAuthStore';
+import { useMovieStore } from './stores/useMovieStore';
+import { useUiStore } from './stores/useUiStore';
 
-import { UIProvider } from './contexts/UIContext';
-import { AuthProvider } from './contexts/AuthContext';
-import { MoviesProvider } from './contexts/MoviesContext';
-import Layout from './layout/Layout';
-import ProtectedRoute from './components/ProtectedRoute';
-import AdminRoute from './components/AdminRoute';
+function AuthBootstrap() {
+  const restoreSession = useAuthStore((state) => state.restoreSession);
+  const subscribeSessionExpired = useAuthStore((state) => state.subscribeSessionExpired);
+  const setShowOTP = useUiStore((state) => state.setShowOTP);
 
-import HomePage from './pages/HomePage';
-import ExplorePage from './pages/ExplorePage';
-import MovieDetailPage from './pages/MovieDetailPage';
-import BookingPage from './pages/BookingPage';
-import ProfilePage from './pages/ProfilePage';
-import MyTicketsPage from './pages/MyTicketsPage';
-import WishlistPage from './pages/WishlistPage';
-import AdminPage from './pages/AdminPage';
-import PoliciesPage from './pages/PoliciesPage';
-import PaymentCallbackPage from './pages/PaymentCallbackPage';
+  useEffect(() => {
+    restoreSession();
+  }, [restoreSession]);
 
-function AnimatedRoutes() {
+  useEffect(() => subscribeSessionExpired({ setShowOTP }), [setShowOTP, subscribeSessionExpired]);
+
+  return null;
+}
+
+function MovieBootstrap() {
   const location = useLocation();
-  return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={location.pathname}
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -16 }}
-        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-      >
-        <Routes location={location}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/movies" element={<ExplorePage />} />
-          <Route path="/movies/:id" element={<MovieDetailPage />} />
-          <Route path="/movies/:id/book" element={<BookingPage />} />
-          <Route path="/watchlist" element={<WishlistPage />} />
-          <Route path="/policies" element={<PoliciesPage />} />
-          <Route path="/payment-callback" element={<PaymentCallbackPage />} />
-          <Route path="/tickets" element={<ProtectedRoute><MyTicketsPage /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-          <Route path="/admin" element={<Navigate to="/admin/overview" replace />} />
-          <Route path="/admin/:section" element={<AdminRoute><AdminPage /></AdminRoute>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </motion.div>
-    </AnimatePresence>
-  );
+  const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
+  const currentRole = useAuthStore((state) => state.currentRole);
+  const fetchPublicCinema = useMovieStore((state) => state.fetchPublicCinema);
+  const fetchGenres = useMovieStore((state) => state.fetchGenres);
+  const fetchMoviesPage = useMovieStore((state) => state.fetchMoviesPage);
+  const fetchWishlist = useMovieStore((state) => state.fetchWishlist);
+  const setFoodCatalog = useMovieStore((state) => state.setFoodCatalog);
+  const searchQuery = useMovieStore((state) => state.searchQuery);
+  const selectedGenreId = useMovieStore((state) => state.selectedGenreId);
+  const movieDateFilter = useMovieStore((state) => state.movieDateFilter);
+  const moviePage = useMovieStore((state) => state.moviePagination.page);
+  const moviePageSize = useMovieStore((state) => state.moviePagination.size);
+  const isExplorePage = location.pathname === '/movies';
+
+  useEffect(() => {
+    fetchPublicCinema();
+    fetchGenres();
+  }, [fetchGenres, fetchPublicCinema]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      fetchMoviesPage({ isExplorePage });
+    }, 350);
+    return () => window.clearTimeout(timeoutId);
+  }, [fetchMoviesPage, isExplorePage, searchQuery, selectedGenreId, movieDateFilter, moviePage, moviePageSize]);
+
+  useEffect(() => {
+    if (!isLoggedIn) setFoodCatalog([]);
+    fetchWishlist({ isLoggedIn, currentRole });
+  }, [currentRole, fetchWishlist, isLoggedIn, setFoodCatalog]);
+
+  return null;
 }
 
 export default function App() {
   return (
-    <UIProvider>
-      <AuthProvider>
-        <MoviesProvider>
-          <Layout>
-            <AnimatedRoutes />
-          </Layout>
-        </MoviesProvider>
-      </AuthProvider>
-    </UIProvider>
+    <>
+      <AuthBootstrap />
+      <MovieBootstrap />
+      <Toaster
+        position="top-right"
+        theme="dark"
+        richColors={false}
+        expand
+        visibleToasts={3}
+        className="cine-sonner-center"
+        toastOptions={{ duration: 6000 }}
+      />
+      <AppRoutes />
+    </>
   );
 }
