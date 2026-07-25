@@ -1850,7 +1850,8 @@ export default function AdminShowtimesPanel({ ctx }) {
                 Thao tác này sẽ chặn khách đặt vé cho suất chiếu đó.
               </p>
               <label className="block space-y-1.5">
-                <span className="text-[10px] uppercase tracking-[0.18em] text-neutral-200 font-black">LÝ DO HỦY</span>
+                <span className="text-[10px] uppercase tracking-[0.18em] text-neutral-200 font-black">LÝ DO HỦY.
+                </span>
                 <textarea
                   value={cancelReason}
                   onChange={e => setCancelReason(e.target.value)}
