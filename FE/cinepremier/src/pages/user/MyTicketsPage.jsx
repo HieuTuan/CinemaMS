@@ -196,76 +196,91 @@ export default function MyTicketsView({ embedded = false }) {
   );
 
   // Đơn chờ thanh toán chỉ nằm trong "Vé của tôi" khi session giữ ghế còn hiệu lực.
-  const activeTickets = realBookings
-    .filter((booking) => (
-      booking.status === 'PAID'
-      || booking.status === 'USED'
-      || (isPendingBooking(booking) && !hasHoldExpired(booking))
-    ))
-    .map(b => {
-      // Trạng thái giữ ghế realtime: đếm ngược tới holdExpiresAt; hết giờ thì
-      // hiển thị "ĐÃ HẾT HẠN" ngay cả khi BE scheduler (60s/lần) chưa kịp đổi status
-      const isPendingStatus = ['HOLDING', 'PENDING_PAYMENT'].includes(b.status);
-      const holdSecondsLeft = isPendingStatus && b.holdExpiresAt
-        ? Math.max(0, Math.ceil((new Date(b.holdExpiresAt).getTime() - clockTick) / 1000))
-        : null;
-      const isClientExpired = isPendingStatus && b.holdExpiresAt && holdSecondsLeft === 0;
-      const isHoldActive = isPendingStatus && !isClientExpired;
-      // USED nhưng suất CHƯA chiếu xong = vừa check-in (đang xem); xem xong mới là "đã sử dụng"
-      const isWatching = b.status === 'USED' && b.showtimeEnd
-        && Date.now() < new Date(b.showtimeEnd).getTime();
+  const activeTickets = useMemo(() => {
+    return realBookings
+      .filter((booking) => (
+        booking.status === 'PAID'
+        || booking.status === 'USED'
+        || (isPendingBooking(booking) && !hasHoldExpired(booking))
+      ))
+      .map(b => {
+        // Trạng thái giữ ghế realtime: đếm ngược tới holdExpiresAt; hết giờ thì
+        // hiển thị "ĐÃ HẾT HẠN" ngay cả khi BE scheduler (60s/lần) chưa kịp đổi status
+        const isPendingStatus = ['HOLDING', 'PENDING_PAYMENT'].includes(b.status);
+        const holdSecondsLeft = isPendingStatus && b.holdExpiresAt
+          ? Math.max(0, Math.ceil((new Date(b.holdExpiresAt).getTime() - clockTick) / 1000))
+          : null;
+        const isClientExpired = isPendingStatus && b.holdExpiresAt && holdSecondsLeft === 0;
+        const isHoldActive = isPendingStatus && !isClientExpired;
+        // USED nhưng suất CHƯA chiếu xong = vừa check-in (đang xem); xem xong mới là "đã sử dụng"
+        const isWatching = b.status === 'USED' && b.showtimeEnd
+          && Date.now() < new Date(b.showtimeEnd).getTime();
 
-      // Gộp bắp nước đã đặt (cả chọn lúc đặt vé lẫn đặt thêm qua VNPay) theo tên
-      // để hiển thị gọn trên vé của khách. BE chỉ trả các món đã thanh toán (food order PAID).
-      const foods = Array.isArray(b.foods)
-        ? Object.values(b.foods.reduce((acc, f) => {
-          const key = f.name || f.foodItemId || f.foodComboId;
-          if (!acc[key]) acc[key] = { name: f.name || 'Bắp nước', quantity: 0, totalPrice: 0 };
-          acc[key].quantity += Number(f.quantity || 0);
-          acc[key].totalPrice += Number(f.totalPrice || 0);
-          return acc;
-        }, {}))
-        : [];
+        // Gộp bắp nước đã đặt (cả chọn lúc đặt vé lẫn đặt thêm qua VNPay) theo tên
+        // để hiển thị gọn trên vé của khách. BE chỉ trả các món đã thanh toán (food order PAID).
+        const foods = Array.isArray(b.foods)
+          ? Object.values(b.foods.reduce((acc, f) => {
+            const key = f.name || f.foodItemId || f.foodComboId;
+            if (!acc[key]) acc[key] = { name: f.name || 'Bắp nước', quantity: 0, totalPrice: 0 };
+            acc[key].quantity += Number(f.quantity || 0);
+            acc[key].totalPrice += Number(f.totalPrice || 0);
+            return acc;
+          }, {}))
+          : [];
 
-      return {
-        bookingId: b.id,
-        id: b.bookingCode || String(b.id),
-        status: b.status,
-        movieId: b.movieId || b.showtime?.movieId || findMovieForBooking(b)?.backendId || findMovieForBooking(b)?.id,
-        title: b.movieTitle || b.showtime?.movieTitle || 'Phim',
-        englishTitle: b.bookingCode || '',
-        time: b.showtimeStart ? new Date(b.showtimeStart).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '—',
-        date: b.showtimeStart ? new Date(b.showtimeStart).toLocaleDateString('vi-VN') : '—',
-        room: b.roomName || b.showtime?.roomName || '—',
-        location: b.cinemaName || publicCinema?.name || 'Rạp chưa được cấu hình',
-        seats: b.seats?.map(s => `${s.rowLabel}${s.seatNumber}`).join(', ') || '—',
-        code: b.bookingCode || String(b.id),
-        qrCode: b.qrCode || '',
-        badge: isClientExpired ? 'ĐÃ HẾT HẠN' : isWatching ? 'ĐÃ CHECK-IN' : getBookingBadge(b.status),
-        badgeColor: isClientExpired
-          ? getBookingBadgeColor('EXPIRED')
-          : isWatching
-            ? 'bg-emerald-950/30 text-emerald-400 border-emerald-500/20'
-            : getBookingBadgeColor(b.status),
-        helperText: isClientExpired
-          ? 'Hết thời gian giữ ghế — ghế đã được nhả cho khách khác'
-          : isWatching
-            ? 'Đã vào rạp — chúc bạn xem phim vui vẻ 🍿'
-            : getBookingHelperText(b),
-        isWatching,
-        holdExpiresAt: b.holdExpiresAt,
-        holdSecondsLeft,
-        isClientExpired,
-        isHoldActive,
-        foods,
-        totalAmount: b.totalAmount,
-        seatDetails: Array.isArray(b.seats) ? b.seats : [],
-        showtimeStart: b.showtimeStart || null,
-        showtimeEnd: b.showtimeEnd || null,
-        poster: b.posterUrl || b.moviePosterUrl || b.showtime?.posterUrl || b.showtime?.moviePosterUrl || findMovieForBooking(b)?.posterUrl || 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRb30EroFOo6S_-d49SOIyTINg8t7Vpmm_lpcJ1zZ2xNA&s=10',
-        isReal: true
-      };
-    });
+        return {
+          bookingId: b.id,
+          id: b.bookingCode || String(b.id),
+          paidAt: b.paidAt || null,
+          createdAt: b.createdAt || null,
+          status: b.status,
+          movieId: b.movieId || b.showtime?.movieId || findMovieForBooking(b)?.backendId || findMovieForBooking(b)?.id,
+          title: b.movieTitle || b.showtime?.movieTitle || 'Phim',
+          englishTitle: b.bookingCode || '',
+          time: b.showtimeStart ? new Date(b.showtimeStart).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '—',
+          date: b.showtimeStart ? new Date(b.showtimeStart).toLocaleDateString('vi-VN') : '—',
+          room: b.roomName || b.showtime?.roomName || '—',
+          location: b.cinemaName || publicCinema?.name || 'Rạp chưa được cấu hình',
+          seats: b.seats?.map(s => `${s.rowLabel}${s.seatNumber}`).join(', ') || '—',
+          code: b.bookingCode || String(b.id),
+          qrCode: b.qrCode || '',
+          badge: isClientExpired ? 'ĐÃ HẾT HẠN' : isWatching ? 'ĐÃ CHECK-IN' : getBookingBadge(b.status),
+          badgeColor: isClientExpired
+            ? getBookingBadgeColor('EXPIRED')
+            : isWatching
+              ? 'bg-emerald-950/30 text-emerald-400 border-emerald-500/20'
+              : getBookingBadgeColor(b.status),
+          helperText: isClientExpired
+            ? 'Hết thời gian giữ ghế — ghế đã được nhả cho khách khác'
+            : isWatching
+              ? 'Đã vào rạp — chúc bạn xem phim vui vẻ 🍿'
+              : getBookingHelperText(b),
+          isWatching,
+          holdExpiresAt: b.holdExpiresAt,
+          holdSecondsLeft,
+          isClientExpired,
+          isHoldActive,
+          foods,
+          totalAmount: b.totalAmount,
+          seatDetails: Array.isArray(b.seats) ? b.seats : [],
+          showtimeStart: b.showtimeStart || null,
+          showtimeEnd: b.showtimeEnd || null,
+          poster: b.posterUrl || b.moviePosterUrl || b.showtime?.posterUrl || b.showtime?.moviePosterUrl || findMovieForBooking(b)?.posterUrl || 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRb30EroFOo6S_-d49SOIyTINg8t7Vpmm_lpcJ1zZ2xNA&s=10',
+          isReal: true
+        };
+      })
+      .sort((a, b) => {
+        // Vé mua/đặt mới nhất (ID đơn lớn nhất) được đưa lên đầu tiên
+        const idA = Number(a.bookingId || a.id || 0);
+        const idB = Number(b.bookingId || b.id || 0);
+        if (idA !== idB && idA > 0 && idB > 0) {
+          return idB - idA;
+        }
+        const timeA = a.paidAt ? new Date(a.paidAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.paidAt ? new Date(b.paidAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return timeB - timeA;
+      });
+  }, [realBookings, clockTick, publicCinema, moviesList]);
 
   const totalActiveTickets = activeTickets.length;
   const totalTicketPages = Math.ceil(totalActiveTickets / TICKET_PAGE_SIZE) || 1;
@@ -308,25 +323,41 @@ export default function MyTicketsView({ embedded = false }) {
   }, [highlightBookingId, activeTickets]);
 
   // HOLDING/PENDING_PAYMENT chỉ chuyển xuống lịch sử sau đúng thời điểm holdExpiresAt.
-  const bookingHistory = realBookings
-    .filter((booking) => !isPendingBooking(booking) || hasHoldExpired(booking))
-    .map((booking) => {
-      const isExpiredHold = hasHoldExpired(booking);
-      const isWatching = booking.status === 'USED' && booking.showtimeEnd
-        && Date.now() < new Date(booking.showtimeEnd).getTime();
-      return {
-        movie: booking.movieTitle || booking.showtime?.movieTitle || 'Phim',
-        date: booking.showtimeStart ? new Date(booking.showtimeStart).toLocaleDateString('vi-VN') : '—',
-        location: booking.cinemaName || publicCinema?.name || 'Rạp chưa được cấu hình',
-        seats: booking.seats?.map((seat) => `${seat.rowLabel}${seat.seatNumber}`).join(', ') || '—',
-        status: isExpiredHold ? 'ĐÃ HẾT HẠN' : isWatching ? 'ĐÃ CHECK-IN' : getBookingBadge(booking.status),
-        statusColor: isExpiredHold
-          ? getBookingBadgeColor('EXPIRED')
-          : isWatching
-            ? 'bg-emerald-950/30 text-emerald-400 border-emerald-500/20'
-            : getBookingBadgeColor(booking.status)
-      };
-    });
+  const bookingHistory = useMemo(() => {
+    return realBookings
+      .filter((booking) => !isPendingBooking(booking) || hasHoldExpired(booking))
+      .map((booking) => {
+        const isExpiredHold = hasHoldExpired(booking);
+        const isWatching = booking.status === 'USED' && booking.showtimeEnd
+          && Date.now() < new Date(booking.showtimeEnd).getTime();
+        return {
+          bookingId: booking.id,
+          id: booking.id,
+          paidAt: booking.paidAt || null,
+          createdAt: booking.createdAt || null,
+          movie: booking.movieTitle || booking.showtime?.movieTitle || 'Phim',
+          date: booking.showtimeStart ? new Date(booking.showtimeStart).toLocaleDateString('vi-VN') : '—',
+          location: booking.cinemaName || publicCinema?.name || 'Rạp chưa được cấu hình',
+          seats: booking.seats?.map((seat) => `${seat.rowLabel}${seat.seatNumber}`).join(', ') || '—',
+          status: isExpiredHold ? 'ĐÃ HẾT HẠN' : isWatching ? 'ĐÃ CHECK-IN' : getBookingBadge(booking.status),
+          statusColor: isExpiredHold
+            ? getBookingBadgeColor('EXPIRED')
+            : isWatching
+              ? 'bg-emerald-950/30 text-emerald-400 border-emerald-500/20'
+              : getBookingBadgeColor(booking.status)
+        };
+      })
+      .sort((a, b) => {
+        const idA = Number(a.bookingId || a.id || 0);
+        const idB = Number(b.bookingId || b.id || 0);
+        if (idA !== idB && idA > 0 && idB > 0) {
+          return idB - idA;
+        }
+        const timeA = a.paidAt ? new Date(a.paidAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.paidAt ? new Date(b.paidAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return timeB - timeA;
+      });
+  }, [realBookings, clockTick, publicCinema]);
 
   const totalHistoryItems = bookingHistory.length;
   const totalHistoryPages = Math.ceil(totalHistoryItems / HISTORY_PAGE_SIZE) || 1;

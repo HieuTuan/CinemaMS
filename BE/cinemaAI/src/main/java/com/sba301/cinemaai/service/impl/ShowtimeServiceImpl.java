@@ -507,7 +507,7 @@ public class ShowtimeServiceImpl implements ShowtimeService {
         if (currentStatus == ShowtimeStatus.CANCELLED) {
             throw new BadRequestException("Cannot change status of a cancelled showtime");
         }
-        if (currentStatus == ShowtimeStatus.COMPLETED) {
+        if (currentStatus == ShowtimeStatus.COMPLETED && requestedStatus != ShowtimeStatus.CANCELLED) {
             throw new BadRequestException("Cannot change status of a completed showtime");
         }
         // Guard: cannot mark completed before the show ends

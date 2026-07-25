@@ -826,7 +826,7 @@ public class BookingServiceImpl implements BookingService {
     private Pageable bookingPageable(int page, int size) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.max(1, Math.min(size, 100));
-        return PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id"));
     }
 
     private String newBookingCode() {

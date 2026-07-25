@@ -1750,7 +1750,7 @@ export default function AdminShowtimesPanel({ ctx }) {
                                 <Play className="w-3 h-3" />
                               </button>
                             )}
-                            {(st.status === 'SCHEDULED' || st.status === 'OPEN') && (
+                            {(st.status === 'SCHEDULED' || st.status === 'OPEN' || st.status === 'COMPLETED') && (
                               <button onClick={() => setConfirmCancel(st)} title="Hủy suất chiếu"
                                 className="p-1 text-amber-500 hover:text-amber-300 hover:bg-amber-950/30 rounded transition">
                                 <Ban className="w-3 h-3" />
@@ -1850,7 +1850,7 @@ export default function AdminShowtimesPanel({ ctx }) {
                 Thao tác này sẽ chặn khách đặt vé cho suất chiếu đó.
               </p>
               <label className="block space-y-1.5">
-                <span className="text-[10px] uppercase tracking-[0.18em] text-neutral-200 font-black">Ly do huy</span>
+                <span className="text-[10px] uppercase tracking-[0.18em] text-neutral-200 font-black">LÝ DO HỦY</span>
                 <textarea
                   value={cancelReason}
                   onChange={e => setCancelReason(e.target.value)}
@@ -1987,7 +1987,7 @@ export default function AdminShowtimesPanel({ ctx }) {
                 })()}
               </div>
               {/* Quick status actions in detail */}
-              {(detailModal.status === 'SCHEDULED' || detailModal.status === 'OPEN') && (
+              {(detailModal.status === 'SCHEDULED' || detailModal.status === 'OPEN' || detailModal.status === 'COMPLETED') && (
                 <div className="flex gap-2 pt-2">
                   {detailModal.status === 'SCHEDULED' && (
                     <button onClick={() => { handleStatusChange(detailModal.id, 'OPEN'); setDetailModal(null); }}

@@ -51,9 +51,20 @@ const resolveAccessTokenExpiresAt = (authData = {}) => {
   return tokenPayload?.exp ? tokenPayload.exp * 1000 : null;
 };
 
-export const normalizeUser = (user, roles = user?.roles || []) => {
+export const normalizeUser = (user, roles = user?.roles || [], accessToken = null) => {
   if (!user) return null;
-  const resolvedRoles = roles?.length ? roles : user.roles || [];
+  const tokenPayload = parseJwtPayload(accessToken);
+  const tokenRoles = [
+    ...(Array.isArray(tokenPayload?.roles) ? tokenPayload.roles : []),
+    ...(Array.isArray(tokenPayload?.authorities) ? tokenPayload.authorities : []),
+    ...(Array.isArray(tokenPayload?.scope) ? tokenPayload.scope : String(tokenPayload?.scope || '').split(' '))
+  ];
+  const resolvedRoles = Array.from(new Set([
+    ...(Array.isArray(roles) ? roles : []),
+    ...(Array.isArray(user.roles) ? user.roles : []),
+    ...(user.role ? [user.role] : []),
+    ...tokenRoles
+  ].map((r) => String(r).toUpperCase()).filter(Boolean)));
 
   return {
     ...user,
@@ -68,7 +79,7 @@ export const normalizeUser = (user, roles = user?.roles || []) => {
 export const saveAuthSession = (authData) => {
   if (!authData) return null;
 
-  const user = normalizeUser(authData.user, authData.roles);
+  const user = normalizeUser(authData.user, authData.roles, authData.accessToken);
   localStorage.setItem(STORAGE_KEYS.accessToken, authData.accessToken);
   const accessTokenExpiresAt = resolveAccessTokenExpiresAt(authData);
   if (accessTokenExpiresAt) {
@@ -103,7 +114,7 @@ export const getStoredAuth = () => {
   const refreshToken = localStorage.getItem(STORAGE_KEYS.refreshToken);
   const roles = JSON.parse(localStorage.getItem(STORAGE_KEYS.roles) || '[]');
   const storedUser = localStorage.getItem(STORAGE_KEYS.user);
-  const user = storedUser ? normalizeUser(JSON.parse(storedUser), roles) : null;
+  const user = storedUser ? normalizeUser(JSON.parse(storedUser), roles, accessToken) : null;
 
   return { accessToken, accessTokenExpiresAt, refreshToken, roles, user };
 };

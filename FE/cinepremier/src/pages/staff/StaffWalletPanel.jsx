@@ -165,7 +165,6 @@ export default function StaffWalletPanel({ token, showToast, onPendingCountChang
   };
 
   const kpis = dashboard ? [
-    { label: 'Tổng số dư ví', value: fmtVND(dashboard.totalWalletBalance), icon: Wallet, accent: '#f59e0b', sub: `${dashboard.totalWallets || 0} ví` },
     { label: 'Tổng đã rút', value: fmtVND(dashboard.totalWithdrawnAmount), icon: ArrowUpCircle, accent: '#06b6d4', sub: 'Đã chuyển khoản' },
     { label: 'Hoàn vào ví', value: fmtVND(dashboard.totalRefundedToWallet), icon: ArrowDownCircle, accent: '#10b981', sub: 'Từ hủy suất chiếu' },
     { label: 'Chờ xử lý', value: `${dashboard.pendingWithdrawalsCount || 0} yêu cầu`, icon: Clock, accent: '#a855f7', sub: fmtVND(dashboard.pendingWithdrawalsAmount), hasPendingBadge: (dashboard.pendingWithdrawalsCount || 0) > 0 },
