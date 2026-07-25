@@ -463,7 +463,7 @@ export default function ProfileView() {
             </div>
           )}
 
-          {currentRole === 'staff' && (
+          {/* {currentRole === 'staff' && (
             <div className="border border-emerald-400/25 bg-[#050b08] p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -490,7 +490,7 @@ export default function ProfileView() {
                 </div>
               </div>
             </div>
-          )}
+          )} */}
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
 
@@ -609,14 +609,14 @@ export default function ProfileView() {
 
                     </div>
 
-                    {(loyaltyResetScheduleLabel || loyaltyAdminResetAt) && (
+                    {(loyaltyResetScheduleLabel || (loyaltyAdminResetAt && Number(loyaltyPoints || 0) === 0)) && (
                       <div className="max-w-sm mx-auto md:mx-0 border border-emerald-500/15 bg-emerald-950/10 px-4 py-3 text-left">
                         {loyaltyResetScheduleLabel && (
                           <p className="text-[12px] font-mono text-white/70">
                             Điểm sẽ được reset vào thời gian: {loyaltyResetScheduleLabel}
                           </p>
                         )}
-                        {loyaltyAdminResetAt && (
+                        {loyaltyAdminResetAt && Number(loyaltyPoints || 0) === 0 && (
                           <p className="mt-2 border-l border-amber-400/40 pl-2 text-[10px] font-bold leading-snug text-amber-300">
                             Quản trị viên đã reset điểm lúc {loyaltyAdminResetAt}.
                           </p>
@@ -791,18 +791,17 @@ export default function ProfileView() {
                   </button>
                 </div>
 
-                {walletTxs.length > 0 && (
+                {walletTxs.filter((tx) => tx.type !== 'WITHDRAWAL_PAID' && Math.abs(Number(tx.amount || 0)) > 0).length > 0 && (
                   <div className="space-y-1.5">
                     <p className="text-[8px] font-black uppercase tracking-[0.14em] text-neutral-500">Giao dịch gần đây</p>
-                    {walletTxs.map((tx, i) => (
+                    {walletTxs.filter((tx) => tx.type !== 'WITHDRAWAL_PAID' && Math.abs(Number(tx.amount || 0)) > 0).map((tx, i) => (
                       <div key={tx.id || i} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
                         <div>
                           <p className="text-[10px] font-bold text-white">
                             {tx.type === 'REFUND_CREDIT' ? '+ Hoàn tiền'
                               : tx.type === 'WITHDRAWAL_HOLD' ? '- Yêu cầu rút'
-                                : tx.type === 'WITHDRAWAL_PAID' ? '✓ Đã chuyển khoản'
-                                  : tx.type === 'WITHDRAWAL_REJECTED' ? '↩ Hoàn lại'
-                                    : tx.type}
+                                : tx.type === 'WITHDRAWAL_REJECTED' ? '↩ Hoàn lại'
+                                  : tx.type}
                           </p>
                           <p className="text-[9px] text-neutral-500">{tx.referenceCode}</p>
                         </div>

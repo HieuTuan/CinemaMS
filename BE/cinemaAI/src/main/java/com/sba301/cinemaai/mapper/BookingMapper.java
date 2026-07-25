@@ -56,6 +56,7 @@ public class BookingMapper {
                 profile == null ? null : profile.getPhone(),
                 booking.getUser().getEmail(),
                 booking.getShowtime().getEndTime(),
+                booking.getCreatedAt(),
                 seats.stream().map(this::toSeatResponse).toList(),
                 tickets.stream().map(this::toTicketResponse).toList(),
                 foods.stream().map(this::toFoodResponse).toList()

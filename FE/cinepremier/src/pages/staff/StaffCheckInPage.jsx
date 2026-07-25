@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   Camera,
@@ -68,13 +68,25 @@ const getCheckInOpenAt = (booking) => {
   return new Date(showtimeStart.getTime() - CHECK_IN_LEAD_MINUTES * 60 * 1000);
 };
 
+const isShowtimeOver = (booking) => {
+  if (!booking?.showtimeEnd) return false;
+  const endTime = new Date(booking.showtimeEnd);
+  if (Number.isNaN(endTime.getTime())) return false;
+  return Date.now() > endTime.getTime();
+};
+
 const isBookingCheckInOpen = (booking) => {
   if (String(booking?.status || '').toUpperCase() !== 'PAID') return false;
+  if (isShowtimeOver(booking)) return false;
   const checkInOpenAt = getCheckInOpenAt(booking);
   return !checkInOpenAt || Date.now() >= checkInOpenAt.getTime();
 };
 
 const getCheckInWindowMessage = (booking) => {
+  if (isShowtimeOver(booking)) {
+    const endTime = booking.showtimeEnd ? new Date(booking.showtimeEnd).toLocaleString('vi-VN') : '';
+    return `Suất chiếu đã kết thúc${endTime ? ` lúc ${endTime}` : ''}. Không thể check-in.`;
+  }
   const checkInOpenAt = getCheckInOpenAt(booking);
   if (!checkInOpenAt) return 'Check-in chỉ mở trong vòng 30 phút trước giờ chiếu.';
   return `Check-in chỉ mở từ ${checkInOpenAt.toLocaleString('vi-VN')} (30 phút trước giờ chiếu).`;
@@ -86,6 +98,8 @@ const parseQrOrBookingCode = (value) => {
   if (trimmed.toUpperCase().startsWith('CINEAI:')) return { qrCode: trimmed, bookingCode: '' };
   return { qrCode: '', bookingCode: trimmed };
 };
+
+const isFoodPickupCode = (value) => /^(CINEAI:FOOD:|FO[A-Z0-9]{6,}$)/i.test(String(value || '').trim());
 
 const getBookingStatusMeta = (status = '') => {
   const normalized = String(status).toUpperCase();
@@ -125,13 +139,15 @@ const TICKET_TYPE_BADGES = {
 
 const getTicketTypeBadge = (ticketType) => TICKET_TYPE_BADGES[String(ticketType || 'ADULT').toUpperCase()] || TICKET_TYPE_BADGES.ADULT;
 
-function ResultCard({ result, selectedTicketCodes = [], onToggleSeat, onConfirmSeats, isCheckingIn, onOpenCounterSale }) {
+function ResultCard({ result, selectedTicketCodes = [], onToggleSeat, onConfirmSeats, onConfirmFood, isCheckingIn, onOpenCounterSale }) {
   if (!result) {
     return (
-      <div className="flex min-h-[260px] flex-col items-center justify-center border border-dashed border-neutral-800 bg-[#070707] p-6 text-center">
-        <ShieldCheck className="h-10 w-10 text-emerald-400/60" />
-        <p className="mt-4 text-xs font-black uppercase tracking-widest text-neutral-400">Chưa có kết quả</p>
-        <p className="mt-2 max-w-sm text-xs leading-6 text-neutral-500">
+      <div className="flex min-h-[280px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-gradient-to-b from-[#0c0e12] to-[#050608] p-6 text-center shadow-xl">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.15)]">
+          <ShieldCheck className="h-7 w-7 text-emerald-400" />
+        </div>
+        <p className="mt-4 text-xs font-black uppercase tracking-widest text-neutral-300">Chưa có kết quả</p>
+        <p className="mt-2 max-w-sm text-xs leading-6 text-neutral-400">
           Nhập mã QR hoặc mã booking để hệ thống kiểm tra dữ liệu thật từ backend.
         </p>
       </div>
@@ -141,8 +157,10 @@ function ResultCard({ result, selectedTicketCodes = [], onToggleSeat, onConfirmS
   const Icon = result.type === 'success' ? CheckCircle2 : result.type === 'warning' ? AlertCircle : XCircle;
   const color = result.type === 'success' ? 'text-emerald-300' : result.type === 'warning' ? 'text-purple-300' : 'text-rose-300';
   const booking = result.booking;
+  const foodOrder = result.foodOrder;
   const seats = Array.isArray(booking?.seats) ? booking.seats : [];
   const hasSeatTickets = seats.some((seat) => seat.ticketCode);
+  const showtimeOver = isShowtimeOver(booking);
   const canPartialCheckIn = booking && booking.status === 'PAID' && isBookingCheckInOpen(booking) && hasSeatTickets;
   const canSellFood = booking && ['PAID', 'USED'].includes(booking.status)
     && (!booking.showtimeEnd || new Date(booking.showtimeEnd).getTime() > Date.now());
@@ -151,10 +169,10 @@ function ResultCard({ result, selectedTicketCodes = [], onToggleSeat, onConfirmS
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="border border-neutral-800 bg-[#070707] p-5 shadow-[0_20px_70px_rgba(0,0,0,0.35)]"
+      className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#0c0e12] to-[#050608] p-5 shadow-2xl"
     >
       <div className="flex items-start gap-3">
-        <div className={`flex h-11 w-11 shrink-0 items-center justify-center border border-neutral-800 bg-black ${color}`}>
+        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/60 ${color}`}>
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0">
@@ -162,6 +180,44 @@ function ResultCard({ result, selectedTicketCodes = [], onToggleSeat, onConfirmS
           <p className="mt-1 text-xs leading-6 text-neutral-400">{result.message}</p>
         </div>
       </div>
+
+      {foodOrder && (
+        <div className="mt-5 border border-purple-400/25 bg-black p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-3">
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-purple-300">Đơn bắp nước</p>
+              <p className="mt-1 font-mono text-sm font-black text-white">{foodOrder.orderCode}</p>
+            </div>
+            <span className={`border px-2.5 py-1 text-[9px] font-black uppercase tracking-wider ${foodOrder.status === 'PICKED_UP' ? 'border-neutral-700 text-neutral-400' : 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300'}`}>
+              {foodOrder.status === 'PICKED_UP' ? 'Đã nhận món' : 'Sẵn sàng giao'}
+            </span>
+          </div>
+          <div className="divide-y divide-white/5">
+            {(foodOrder.items || []).map((item, index) => (
+              <div key={`${item.name}-${index}`} className="grid grid-cols-[1fr_auto_auto] gap-3 py-3 text-xs">
+                <span className="font-bold text-white">{item.name}</span>
+                <span className="font-mono text-neutral-500">×{item.quantity}</span>
+                <span className="font-mono font-black text-purple-200">{formatCurrency(item.totalPrice)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-between border-t border-white/10 pt-3">
+            <span className="text-[9px] font-black uppercase tracking-widest text-neutral-500">Tổng thanh toán</span>
+            <strong className="font-mono text-lg text-white">{formatCurrency(foodOrder.totalAmount)}</strong>
+          </div>
+          {foodOrder.pickedUpAt && <p className="mt-3 text-[10px] text-neutral-500">Đã giao lúc {formatDateTime(foodOrder.pickedUpAt)}</p>}
+          {foodOrder.status === 'PAID' && (
+            <button
+              type="button"
+              onClick={() => onConfirmFood?.(foodOrder.orderCode)}
+              disabled={isCheckingIn}
+              className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 whitespace-nowrap bg-emerald-400 px-5 text-[10px] font-black uppercase tracking-[0.16em] text-black transition-colors hover:bg-emerald-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white active:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isCheckingIn ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Xác nhận giao món
+            </button>
+          )}
+        </div>
+      )}
 
       {booking && (
         <div className="mt-5 space-y-3 border border-neutral-800 bg-black p-4">
@@ -177,47 +233,186 @@ function ResultCard({ result, selectedTicketCodes = [], onToggleSeat, onConfirmS
             <div><span className="font-black text-white">SĐT:</span> {booking.customerPhone || '—'}</div>
             <div><span className="font-black text-white">Phim:</span> {booking.movieTitle}</div>
             <div><span className="font-black text-white">Phòng:</span> {booking.roomName}</div>
-            <div><span className="font-black text-white">Suất:</span> {formatDateTime(booking.showtimeStart)}</div>
+            <div><span className="font-black text-white">Giờ chiếu:</span> {formatDateTime(booking.showtimeStart)}</div>
+            <div><span className="font-black text-white">Kết thúc:</span> {booking.showtimeEnd ? formatDateTime(booking.showtimeEnd) : '—'}</div>
             <div><span className="font-black text-white">Tổng tiền:</span> {Number(booking.totalAmount || 0).toLocaleString('vi-VN')}đ</div>
           </div>
 
-          {/* Food & Concessions ordered with this booking */}
-          {Array.isArray(booking?.foods) && booking.foods.length > 0 && (
-            <div className="border-t border-neutral-800 pt-3">
-              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-400">🍿 Bắp nước đã đặt</p>
-              <div className="mt-2 space-y-1.5">
-                {booking.foods.map((food, idx) => (
+          {/* Showtime timeline bar */}
+          {booking.showtimeStart && booking.showtimeEnd && (() => {
+            const start = new Date(booking.showtimeStart);
+            const end = new Date(booking.showtimeEnd);
+            const now = Date.now();
+            const totalMs = end.getTime() - start.getTime();
+            const elapsedMs = Math.min(Math.max(now - start.getTime(), 0), totalMs);
+            const progressPct = totalMs > 0 ? Math.round((elapsedMs / totalMs) * 100) : 0;
+            const durationMin = Math.round(totalMs / 60000);
+            const isOver = now > end.getTime();
+            const isNotStarted = now < start.getTime();
+            return (
+              <div className="border-t border-white/5 pt-3">
+                <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">
+                  <span className="text-purple-400">
+                    {start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                    <span className="text-neutral-600 font-normal ml-1">{start.toLocaleDateString('vi-VN')}</span>
+                  </span>
+                  <span className="text-neutral-600">{durationMin} phút</span>
+                  <span className={isOver ? 'text-rose-400' : 'text-emerald-400'}>
+                    {end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                    <span className="text-neutral-600 font-normal ml-1">{end.toLocaleDateString('vi-VN')}</span>
+                  </span>
+                </div>
+                <div className="relative h-1.5 w-full rounded-full bg-neutral-800 overflow-hidden">
                   <div
-                    key={`food-${food.foodItemId ?? food.foodComboId ?? idx}`}
-                    className="flex items-center justify-between gap-3 border border-neutral-800 bg-[#070707] px-3 py-2"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-amber-400 font-black text-xs shrink-0">×{food.quantity}</span>
-                      <span className="text-white text-xs font-bold truncate">{food.name}</span>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-[10px] text-neutral-500 font-mono">
-                        {Number(food.unitPrice || 0).toLocaleString('vi-VN')}đ/c
-                      </span>
-                      <span className="text-amber-300 font-black text-[11px] font-mono">
-                        {Number(food.totalPrice || 0).toLocaleString('vi-VN')}đ
+                    className={`h-full rounded-full transition-all ${isOver ? 'bg-rose-500' : isNotStarted ? 'bg-neutral-600' : 'bg-purple-500'}`}
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+                <div className="mt-1.5 text-center text-[8px] font-bold uppercase tracking-widest">
+                  {isOver
+                    ? <span className="text-rose-400">⛔ Đã kết thúc chiếu</span>
+                    : isNotStarted
+                      ? <span className="text-neutral-500">Chưa bắt đầu chiếu</span>
+                      : <span className="text-purple-400">🎬 Đang chiếu · {progressPct}%</span>}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── ORDER DETAIL RECEIPT ── */}
+          {(() => {
+            const ticketRows = seats.map((seat) => ({
+              label: `Ghế ${seat.rowLabel}${seat.seatNumber}`,
+              type: seat.ticketType,
+              unitPrice: Number(seat.unitPrice ?? seat.price ?? 0),
+              qty: 1,
+            }));
+            const foodRows = Array.isArray(booking?.foods) ? booking.foods.map((f) => ({
+              name: f.name,
+              unitPrice: Number(f.unitPrice || 0),
+              qty: Number(f.quantity || 1),
+              total: Number(f.totalPrice || 0),
+            })) : [];
+            const ticketTotal = ticketRows.reduce((s, r) => s + r.unitPrice * r.qty, 0);
+            const foodTotal = foodRows.reduce((s, r) => s + r.total, 0);
+            const discount = Number(booking.discountAmount || 0);
+            const grandTotal = Number(booking.totalAmount || 0);
+            const TICKET_TYPE_LABELS = { ADULT: 'Người lớn', STUDENT: 'Sinh viên', CHILD: 'Trẻ em' };
+
+            return (
+              <div className="border-t border-white/5 pt-3">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-sky-400">📋 Chi tiết đơn hàng</p>
+                  <span className="text-[8px] font-mono text-neutral-600">#{booking.bookingCode}</span>
+                </div>
+
+                {/* Column headers */}
+                <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 text-[8px] font-black uppercase tracking-widest text-neutral-600 pb-1.5 border-b border-white/5 mb-1">
+                  <span>Hạng mục</span>
+                  <span className="text-right">Đơn giá</span>
+                  <span className="text-right">SL</span>
+                  <span className="text-right">Thành tiền</span>
+                </div>
+
+                {/* Seat ticket rows */}
+                {ticketRows.length > 0 && (
+                  <div className="space-y-0.5 mb-1">
+                    <div className="text-[8px] font-bold uppercase tracking-widest text-neutral-500 py-1">🎫 Vé xem phim</div>
+                    {ticketRows.map((row, i) => (
+                      <div key={i} className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 items-center py-1.5 border border-neutral-900 bg-[#0a0a0a] px-2">
+                        <div className="min-w-0">
+                          <span className="text-[11px] font-black text-white font-mono">{row.label}</span>
+                          <span className={`ml-1.5 text-[8px] font-bold uppercase px-1 py-0.5 border ${
+                            row.type === 'STUDENT' ? 'border-sky-500/30 text-sky-400 bg-sky-500/10'
+                            : row.type === 'CHILD' ? 'border-amber-500/30 text-amber-400 bg-amber-500/10'
+                            : 'border-neutral-700 text-neutral-400 bg-neutral-900'
+                          }`}>
+                            {TICKET_TYPE_LABELS[row.type?.toUpperCase()] || 'Người lớn'}
+                          </span>
+                        </div>
+                        <span className="text-right text-[10px] font-mono text-neutral-400 tabular-nums">
+                          {row.unitPrice > 0 ? `${row.unitPrice.toLocaleString('vi-VN')}đ` : '—'}
+                        </span>
+                        <span className="text-right text-[10px] font-mono text-neutral-500">×{row.qty}</span>
+                        <span className="text-right text-[11px] font-black font-mono text-white tabular-nums">
+                          {row.unitPrice > 0 ? `${(row.unitPrice * row.qty).toLocaleString('vi-VN')}đ` : '—'}
+                        </span>
+                      </div>
+                    ))}
+                    {/* Ticket subtotal */}
+                    <div className="grid grid-cols-[1fr_auto] gap-x-3 items-center px-2 py-1">
+                      <span className="text-[8px] font-bold text-neutral-600 uppercase tracking-widest">Tổng vé</span>
+                      <span className="text-right text-[10px] font-mono font-black text-neutral-300 tabular-nums">
+                        {ticketTotal.toLocaleString('vi-VN')}đ
                       </span>
                     </div>
                   </div>
-                ))}
+                )}
+
+                {/* Food rows */}
+                {foodRows.length > 0 && (
+                  <div className="space-y-0.5 mb-1">
+                    <div className="text-[8px] font-bold uppercase tracking-widest text-neutral-500 py-1">🍿 Bắp nước</div>
+                    {foodRows.map((row, i) => (
+                      <div key={i} className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 items-center py-1.5 border border-amber-900/20 bg-amber-950/5 px-2">
+                        <span className="text-[11px] font-bold text-white truncate">{row.name}</span>
+                        <span className="text-right text-[10px] font-mono text-neutral-400 tabular-nums">
+                          {row.unitPrice.toLocaleString('vi-VN')}đ
+                        </span>
+                        <span className="text-right text-[10px] font-mono text-neutral-500">×{row.qty}</span>
+                        <span className="text-right text-[11px] font-black font-mono text-amber-300 tabular-nums">
+                          {row.total.toLocaleString('vi-VN')}đ
+                        </span>
+                      </div>
+                    ))}
+                    {/* Food subtotal */}
+                    <div className="grid grid-cols-[1fr_auto] gap-x-3 items-center px-2 py-1">
+                      <span className="text-[8px] font-bold text-neutral-600 uppercase tracking-widest">Tổng bắp nước</span>
+                      <span className="text-right text-[10px] font-mono font-black text-amber-300 tabular-nums">
+                        {foodTotal.toLocaleString('vi-VN')}đ
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Discount row */}
+                {discount > 0 && (
+                  <div className="grid grid-cols-[1fr_auto] gap-x-3 items-center px-2 py-1.5 border border-emerald-900/20 bg-emerald-950/10 mb-1">
+                    <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest">🎁 Giảm giá / CinePoints</span>
+                    <span className="text-right text-[11px] font-black font-mono text-emerald-400 tabular-nums">
+                      -{discount.toLocaleString('vi-VN')}đ
+                    </span>
+                  </div>
+                )}
+
+                {/* Grand total */}
+                <div className="flex items-center justify-between border-t border-white/10 pt-3 mt-1">
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-white">Tổng cộng hoá đơn</p>
+                    <p className="text-[8px] text-neutral-600 mt-0.5">{ticketRows.length} vé{foodRows.length > 0 ? ` · ${foodRows.length} món` : ''}{discount > 0 ? ' · có giảm giá' : ''}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xl font-black font-mono text-white tabular-nums tracking-tight">
+                      {grandTotal.toLocaleString('vi-VN')}đ
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="mt-2 flex items-center justify-between border border-amber-500/20 bg-amber-950/10 px-3 py-2">
-                <span className="text-[9px] font-black uppercase tracking-widest text-amber-400">Tổng bắp nước</span>
-                <span className="font-mono text-sm font-black text-amber-300">
-                  {booking.foods.reduce((sum, f) => sum + Number(f.totalPrice || 0), 0).toLocaleString('vi-VN')}đ
-                </span>
-              </div>
-            </div>
-          )}
+            );
+          })()}
+
 
           {seats.length > 0 && (
             <div className="border-t border-neutral-800 pt-3">
-              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400">Check-in từng ghế</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400">Check-in từng ghế</p>
+                {showtimeOver && (
+                  <span className="text-[8px] font-black uppercase tracking-wider text-rose-400 border border-rose-500/30 bg-rose-500/10 px-2 py-0.5">
+                    ⛔ Đã quá giờ chiếu
+                  </span>
+                )}
+              </div>
               <div className="mt-2 space-y-1.5">
                 {seats.map((seat) => {
                   const badge = getTicketTypeBadge(seat.ticketType);
@@ -226,7 +421,15 @@ function ResultCard({ result, selectedTicketCodes = [], onToggleSeat, onConfirmS
                   return (
                     <label
                       key={seat.ticketCode || seat.seatId}
-                      className={`flex items-center gap-3 border border-neutral-800 bg-[#070707] px-3 py-2 ${selectable ? 'cursor-pointer hover:border-emerald-400/50' : 'opacity-80'}`}
+                      className={`flex items-center gap-3 border bg-[#070707] px-3 py-2 ${
+                        isCheckedIn
+                          ? 'border-emerald-800/40 opacity-70'
+                          : showtimeOver
+                            ? 'border-rose-900/40 opacity-60 cursor-not-allowed'
+                            : selectable
+                              ? 'border-neutral-800 cursor-pointer hover:border-emerald-400/50'
+                              : 'border-neutral-800 opacity-80'
+                      }`}
                     >
                       <input
                         type="checkbox"
@@ -240,12 +443,22 @@ function ResultCard({ result, selectedTicketCodes = [], onToggleSeat, onConfirmS
                       <span className="ml-auto text-[9px] font-black uppercase tracking-wider">
                         {isCheckedIn
                           ? <span className="text-emerald-300">✓ Đã vào {seat.checkedInAt ? new Date(seat.checkedInAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : ''}</span>
-                          : <span className="text-neutral-500">Chưa vào</span>}
+                          : showtimeOver
+                            ? <span className="text-rose-400/70">Đã quá giờ chiếu</span>
+                            : <span className="text-neutral-500">Chưa vào</span>}
                       </span>
                     </label>
                   );
                 })}
               </div>
+              {showtimeOver && seats.some((s) => s.status !== 'CHECKED_IN') && (
+                <div className="mt-3 flex items-center gap-2 border border-rose-500/20 bg-rose-950/20 px-3 py-2">
+                  <XCircle className="h-3.5 w-3.5 shrink-0 text-rose-400" />
+                  <p className="text-[9px] font-bold text-rose-400">
+                    Suất chiếu đã kết thúc. Không thể check-in các ghế còn lại.
+                  </p>
+                </div>
+              )}
               {canPartialCheckIn && (
                 <button
                   type="button"
@@ -320,11 +533,29 @@ export default function StaffCheckInPage() {
   const [counterSaleMessage, setCounterSaleMessage] = useState('');
   const [cashGiven, setCashGiven] = useState(''); // tiền khách đưa (trống = thu đúng số)
   const [counterSaleReceipt, setCounterSaleReceipt] = useState(null); // biên lai sau khi thu
+  const [pendingWalletCount, setPendingWalletCount] = useState(0);
   const qrVideoRef = useRef(null);
   const qrCanvasRef = useRef(null);
   const qrStreamRef = useRef(null);
   const qrScanTimerRef = useRef(null);
   const lastScannedQrRef = useRef('');
+
+  const checkPendingWallet = useCallback(async () => {
+    const { accessToken } = getStoredAuth();
+    if (!accessToken) return;
+    try {
+      const data = await staffService.getWalletDashboard(accessToken);
+      if (data && typeof data.pendingWithdrawalsCount === 'number') {
+        setPendingWalletCount(data.pendingWithdrawalsCount);
+      }
+    } catch (e) {
+      // ignore silently
+    }
+  }, []);
+
+  const pendingCheckinCount = useMemo(() => {
+    return (failedRefunds || []).filter((r) => r.status === 'PENDING' || !r.status).length;
+  }, [failedRefunds]);
 
   const visibleBookings = showtimeBookings.length > 0 ? showtimeBookings : recentBookings;
   const isShowingShowtimeBookings = showtimeBookings.length > 0;
@@ -455,7 +686,7 @@ export default function StaffCheckInPage() {
 
             lastScannedQrRef.current = rawValue;
             setQrCode(rawValue);
-            setScannerMessage('Đã quét QR. Đang tra cứu booking...');
+            setScannerMessage('Đã quét QR. Đang kiểm tra mã...');
             stopQrScanner();
             void lookupBooking({ preferQr: true, qrValue: rawValue });
           } catch (error) {
@@ -611,7 +842,14 @@ export default function StaffCheckInPage() {
     loadRecentBookings();
     loadStaffFoods();
     loadFailedRefunds();
-  }, []);
+    checkPendingWallet();
+
+    const interval = setInterval(() => {
+      checkPendingWallet();
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [checkPendingWallet]);
 
   useEffect(() => () => stopQrScanner(), []);
 
@@ -628,8 +866,25 @@ export default function StaffCheckInPage() {
       return null;
     }
 
+    const lookupValue = preferQr ? trimmedQr : trimmedCode;
+    const isFoodLookup = isFoodPickupCode(lookupValue);
+
     setIsLookingUp(true);
     try {
+      if (isFoodLookup) {
+        const foodOrder = await staffService.lookupFoodOrder(token, lookupValue);
+        const pickedUp = foodOrder.status === 'PICKED_UP';
+        setSelectedTicketCodes([]);
+        setResult({
+          type: pickedUp ? 'success' : 'warning',
+          title: pickedUp ? 'Đơn đã được giao trước đó.' : 'Đơn đã thanh toán, sẵn sàng giao.',
+          message: pickedUp
+            ? 'Không giao lại đơn này. Kiểm tra thời gian nhận món bên dưới.'
+            : 'Đối chiếu món với khách, sau đó chọn “Xác nhận giao món”.',
+          foodOrder,
+        });
+        return foodOrder;
+      }
       const parsedQrInput = parseQrOrBookingCode(trimmedQr);
       const booking = await staffService.lookupStaffCheckInBooking(token, {
         qrCode: preferQr ? parsedQrInput.qrCode : '',
@@ -645,21 +900,34 @@ export default function StaffCheckInPage() {
           : []
       );
       const canCheckIn = isBookingCheckInOpen(booking);
+      const showtimeEnded = isShowtimeOver(booking);
       const isPaid = booking.status === 'PAID';
       setResult({
-        type: isPaid ? 'warning' : booking.status === 'USED' ? 'success' : 'error',
+        type: isPaid
+          ? (canCheckIn ? 'warning' : 'error')
+          : booking.status === 'USED' ? 'success' : 'error',
         title: isPaid
-          ? canCheckIn ? 'Booking hợp lệ, chờ check-in.' : 'Chưa đến giờ check-in.'
+          ? canCheckIn
+            ? 'Booking hợp lệ, chờ check-in.'
+            : showtimeEnded
+              ? 'Đã quá giờ chiếu.'
+              : 'Chưa đến giờ check-in.'
           : booking.status === 'USED' ? 'Booking đã check-in.' : 'Booking chưa đủ điều kiện.',
         message: isPaid
-          ? canCheckIn ? 'Có thể xác nhận check-in bằng mã QR của booking này.' : getCheckInWindowMessage(booking)
+          ? canCheckIn
+            ? 'Có thể xác nhận check-in bằng mã QR của booking này.'
+            : getCheckInWindowMessage(booking)
           : `Trạng thái hiện tại: ${booking.status}.`,
         booking,
       });
       void loadRecentBookings(booking);
       return booking;
     } catch (error) {
-      setResult({ type: 'error', title: 'Không tìm thấy booking.', message: error.message || 'Không thể tra cứu booking từ hệ thống.' });
+      setResult({
+        type: 'error',
+        title: isFoodLookup ? 'Không tìm thấy đơn bắp nước.' : 'Không tìm thấy booking.',
+        message: error.message || (isFoodLookup ? 'Không thể tra cứu đơn bắp nước từ hệ thống.' : 'Không thể tra cứu booking từ hệ thống.'),
+      });
       return null;
     } finally {
       setIsLookingUp(false);
@@ -811,6 +1079,17 @@ export default function StaffCheckInPage() {
 
     setIsCheckingIn(true);
     try {
+      if (isFoodPickupCode(trimmedQr)) {
+        const foodOrder = await staffService.pickUpFoodOrder(token, trimmedQr);
+        setSelectedTicketCodes([]);
+        setResult({
+          type: 'success',
+          title: 'Đã xác nhận giao món.',
+          message: `Đơn ${foodOrder.orderCode} đã hoàn tất và QR không còn hiệu lực nhận món.`,
+          foodOrder,
+        });
+        return;
+      }
       const parsedInput = parseQrOrBookingCode(trimmedQr);
       let qrForCheckIn = parsedInput.qrCode;
 
@@ -835,7 +1114,14 @@ export default function StaffCheckInPage() {
       });
       void loadRecentBookings(booking);
     } catch (error) {
-      setResult({ type: 'error', title: 'Không thể check-in.', message: error.message || 'Booking không đủ điều kiện check-in.' });
+      const isFoodPickup = isFoodPickupCode(trimmedQr);
+      setResult({
+        type: 'error',
+        title: isFoodPickup ? 'Không thể xác nhận giao món.' : 'Không thể check-in.',
+        message: isFoodPickup && /already been picked up/i.test(error.message || '')
+          ? 'Đơn này đã được giao trước đó. Không giao món lần hai.'
+          : error.message || (isFoodPickup ? 'Đơn không đủ điều kiện nhận món.' : 'Booking không đủ điều kiện check-in.'),
+      });
     } finally {
       setIsCheckingIn(false);
     }
@@ -867,7 +1153,7 @@ export default function StaffCheckInPage() {
   };
 
   return (
-    <div className="staff-page relative overflow-hidden bg-black text-white">
+    <div className="staff-page relative bg-black text-white">
       <div className="staff-orb staff-orb-one" />
       <div className="staff-orb staff-orb-two" />
       <div className="staff-grid-bg" />
@@ -878,33 +1164,48 @@ export default function StaffCheckInPage() {
         <div style={{ display: 'flex', gap: 6, padding: 4, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, width: 'fit-content' }}>
           <button
             onClick={() => setActiveSection('checkin')}
-            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 18px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 800, fontFamily: 'Inter, sans-serif', background: activeSection === 'checkin' ? 'linear-gradient(135deg, #10b981, #059669)' : 'transparent', color: activeSection === 'checkin' ? '#fff' : 'rgba(255,255,255,0.4)', boxShadow: activeSection === 'checkin' ? '0 2px 12px rgba(16,185,129,0.35)' : 'none', transition: 'all 0.2s' }}
+            style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 7, padding: '8px 18px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 800, fontFamily: 'Inter, sans-serif', background: activeSection === 'checkin' ? 'linear-gradient(135deg, #10b981, #059669)' : 'transparent', color: activeSection === 'checkin' ? '#fff' : 'rgba(255,255,255,0.4)', boxShadow: activeSection === 'checkin' ? '0 2px 12px rgba(16,185,129,0.35)' : 'none', transition: 'all 0.2s' }}
           >
             <ScanLine size={14} /> Check-in & Vận hành
+            {pendingCheckinCount > 0 && (
+              <span style={{ position: 'absolute', top: -3, right: -3, display: 'flex', height: 10, width: 10 }}>
+                <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#ef4444', opacity: 0.75, animation: 'ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite' }} />
+                <span style={{ position: 'relative', borderRadius: '50%', height: 10, width: 10, background: '#f43f5e', border: '1.5px solid #000', boxShadow: '0 0 6px #f43f5e' }} />
+              </span>
+            )}
           </button>
           <button
             onClick={() => setActiveSection('wallet')}
-            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 18px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 800, fontFamily: 'Inter, sans-serif', background: activeSection === 'wallet' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'transparent', color: activeSection === 'wallet' ? '#fff' : 'rgba(255,255,255,0.4)', boxShadow: activeSection === 'wallet' ? '0 2px 12px rgba(245,158,11,0.35)' : 'none', transition: 'all 0.2s' }}
+            style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 7, padding: '8px 18px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 800, fontFamily: 'Inter, sans-serif', background: activeSection === 'wallet' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'transparent', color: activeSection === 'wallet' ? '#fff' : 'rgba(255,255,255,0.4)', boxShadow: activeSection === 'wallet' ? '0 2px 12px rgba(245,158,11,0.35)' : 'none', transition: 'all 0.2s' }}
           >
             <Wallet size={14} /> Quản lý ví
+            {pendingWalletCount > 0 && (
+              <span style={{ position: 'absolute', top: -3, right: -3, display: 'flex', height: 10, width: 10 }} title={`${pendingWalletCount} đơn/yêu cầu chờ xử lý`}>
+                <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#ef4444', opacity: 0.75, animation: 'ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite' }} />
+                <span style={{ position: 'relative', borderRadius: '50%', height: 10, width: 10, background: '#f43f5e', border: '1.5px solid #000', boxShadow: '0 0 6px #f43f5e' }} />
+              </span>
+            )}
           </button>
         </div>
 
         {/* Wallet Panel */}
         {activeSection === 'wallet' && (
-          <StaffWalletPanel token={getToken()} showToast={(msg) => console.log('[Wallet]', msg)} />
+          <StaffWalletPanel
+            token={getToken()}
+            showToast={(msg) => console.log('[Wallet]', msg)}
+            onPendingCountChange={setPendingWalletCount}
+          />
         )}
 
         {/* Check-in Content */}
         {activeSection === 'checkin' && (
           <>
             <section className="grid gap-4 xl:grid-cols-[1fr_380px]">
-              <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="relative overflow-hidden border border-neutral-800 bg-gradient-to-r from-[#090909] to-[#050505] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.45)] sm:p-6">
+              <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-[#0d0f14] via-[#090b0e] to-[#050608] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.45)] sm:p-6">
                 <div className="absolute right-0 top-0 h-full w-1/2 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.16),transparent_62%)]" />
                 <div className="relative">
                   <div className="mb-3 flex flex-wrap items-center gap-2">
-
-                    <span className="border border-purple-400/20 bg-purple-500/5 px-2.5 py-1 text-[9px] font-black uppercase tracking-widest text-purple-300">
+                    <span className="rounded-full border border-purple-400/30 bg-purple-500/10 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-purple-300">
                       STAFF OPERATIONS
                     </span>
                   </div>
@@ -918,37 +1219,37 @@ export default function StaffCheckInPage() {
                 </div>
               </motion.div>
 
-              <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="border border-neutral-800 bg-[#070707] p-5">
-                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-neutral-500">Phiên hiện tại</p>
+              <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#0d0f14] to-[#050608] p-5 shadow-2xl">
+                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-neutral-400">Phiên hiện tại</p>
                 <p className="mt-1 text-2xl font-black text-white">{stats.checked}/{stats.total}</p>
                 <div className="mt-4 grid grid-cols-3 gap-2">
-                  <div className="border border-emerald-400/20 bg-emerald-400/10 p-2.5"><p className="text-lg font-black text-emerald-300">{stats.checked}</p><p className="text-[8px] font-black uppercase tracking-widest text-emerald-200/70">Đã vào</p></div>
-                  <div className="border border-purple-400/20 bg-purple-500/10 p-2.5"><p className="text-lg font-black text-purple-300">{stats.paid}</p><p className="text-[8px] font-black uppercase tracking-widest text-purple-200/70">Chờ vào</p></div>
-                  <div className="border border-neutral-800 bg-black p-2.5"><p className="text-lg font-black text-white">{stats.total}</p><p className="text-[8px] font-black uppercase tracking-widest text-neutral-500">Đã tra</p></div>
+                  <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-2.5"><p className="text-lg font-black text-emerald-300">{stats.checked}</p><p className="text-[8px] font-black uppercase tracking-widest text-emerald-200/70">Đã vào</p></div>
+                  <div className="rounded-xl border border-purple-400/30 bg-purple-500/10 p-2.5"><p className="text-lg font-black text-purple-300">{stats.paid}</p><p className="text-[8px] font-black uppercase tracking-widest text-purple-200/70">Chờ vào</p></div>
+                  <div className="rounded-xl border border-white/10 bg-black/60 p-2.5"><p className="text-lg font-black text-white">{stats.total}</p><p className="text-[8px] font-black uppercase tracking-widest text-neutral-400">Đã tra</p></div>
                 </div>
               </motion.div>
             </section>
 
             <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.75fr)]">
-              <div className="border border-neutral-800 bg-[#070707] p-5 shadow-[0_18px_55px_rgba(0,0,0,0.35)] sm:p-7">
+              <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#0c0e12] to-[#050608] p-5 shadow-2xl sm:p-7">
                 <div className="grid gap-6 lg:grid-cols-2">
                   <div className="space-y-4">
                     <div>
                       <p className="text-[9px] font-black uppercase tracking-[0.22em] text-emerald-400">Quét/Xác nhận QR</p>
                       <h3 className="mt-2 text-xl font-black uppercase text-white">Check-in bằng mã QR</h3>
-                      <p className="mt-2 text-xs leading-6 text-neutral-500">Quét QR trên vé, hoặc dán chuỗi `CINEAI:...` / mã booking `BK...` để tra cứu và check-in.</p>
+                      <p className="mt-2 text-xs leading-6 text-neutral-400">Quét QR trên vé, hoặc dán chuỗi `CINEAI:...` / mã booking `BK...` để tra cứu và check-in.</p>
                     </div>
-                    <div className="space-y-3 border border-neutral-800 bg-black p-3">
+                    <div className="space-y-3 rounded-xl border border-white/10 bg-black/50 p-4">
                       <button
                         type="button"
                         onClick={isCameraOpen ? stopQrScanner : startQrScanner}
-                        className="flex w-full items-center justify-center gap-2 border border-neutral-700 bg-[#070707] px-4 py-3 text-[9px] font-black uppercase tracking-[0.18em] text-neutral-300 transition hover:border-emerald-400 hover:text-white"
+                        className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-[9px] font-black uppercase tracking-[0.18em] text-neutral-200 transition hover:border-emerald-400 hover:bg-white/10 hover:text-white"
                       >
                         {isCameraOpen ? <CameraOff className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
                         {isCameraOpen ? 'Tắt camera' : 'Mở camera quét QR'}
                       </button>
                       {isCameraOpen && (
-                        <div className="relative overflow-hidden border border-emerald-400/30 bg-neutral-950">
+                        <div className="relative overflow-hidden rounded-xl border border-emerald-400/30 bg-neutral-950">
                           <video
                             ref={qrVideoRef}
                             className="aspect-video w-full object-cover"
@@ -957,7 +1258,7 @@ export default function StaffCheckInPage() {
                           />
                           <canvas ref={qrCanvasRef} className="hidden" />
                           <div className="pointer-events-none absolute inset-0 grid place-items-center">
-                            <div className="h-40 w-40 border-2 border-emerald-300/80 shadow-[0_0_0_999px_rgba(0,0,0,0.35)]" />
+                            <div className="h-40 w-40 rounded-lg border-2 border-emerald-300/80 shadow-[0_0_0_999px_rgba(0,0,0,0.35)]" />
                           </div>
                         </div>
                       )}
@@ -970,16 +1271,16 @@ export default function StaffCheckInPage() {
                     <textarea
                       value={qrCode}
                       onChange={(event) => setQrCode(event.target.value)}
-                      placeholder="Dán mã QR CINEAI:... hoặc mã booking BK..."
+                      placeholder="Dán QR vé, QR nhận bắp nước hoặc mã booking..."
                       rows={6}
-                      className="w-full resize-none border border-neutral-800 bg-black p-4 text-sm font-bold text-white outline-none transition placeholder:text-neutral-700 focus:border-emerald-400/70"
+                      className="w-full resize-none rounded-xl border border-white/10 bg-black/60 p-4 text-sm font-bold text-white outline-none transition placeholder:text-neutral-600 focus:border-emerald-400/70 focus:ring-1 focus:ring-emerald-400/20"
                     />
                     <div className="grid gap-3 sm:grid-cols-2">
                       <button
                         type="button"
                         onClick={() => lookupBooking({ preferQr: true })}
                         disabled={isLookingUp || !qrCode.trim()}
-                        className="flex items-center justify-center gap-2 border border-neutral-700 bg-black px-5 py-3.5 text-[10px] font-black uppercase tracking-[0.18em] text-neutral-300 transition hover:border-emerald-400 hover:text-white disabled:opacity-50"
+                        className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-5 py-3.5 text-[10px] font-black uppercase tracking-[0.18em] text-neutral-200 transition hover:border-emerald-400 hover:bg-white/10 hover:text-white disabled:opacity-50"
                       >
                         {isLookingUp ? <RefreshCw className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />} Kiểm tra mã
                       </button>
@@ -987,9 +1288,9 @@ export default function StaffCheckInPage() {
                         type="button"
                         onClick={() => checkInByQr()}
                         disabled={isCheckingIn || !qrCode.trim()}
-                        className="flex items-center justify-center gap-2 bg-emerald-400 px-5 py-3.5 text-[10px] font-black uppercase tracking-[0.18em] text-black transition hover:bg-emerald-300 disabled:opacity-50"
+                        className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-5 py-3.5 text-[10px] font-black uppercase tracking-[0.18em] text-black font-extrabold shadow-[0_4px_20px_rgba(16,185,129,0.3)] transition hover:from-emerald-400 hover:to-emerald-500 disabled:opacity-50"
                       >
-                        {isCheckingIn ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ScanLine className="h-4 w-4" />} Xác nhận check-in
+                        {isCheckingIn ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ScanLine className="h-4 w-4" />} {isFoodPickupCode(qrCode) ? 'Xác nhận giao món' : 'Xác nhận check-in'}
                       </button>
                     </div>
                   </div>
@@ -997,32 +1298,32 @@ export default function StaffCheckInPage() {
                   <div className="space-y-4">
                     <div>
                       <p className="text-[9px] font-black uppercase tracking-[0.22em] text-purple-400">Tra cứu thủ công</p>
-                      <h3 className="mt-2 text-xl font-black uppercase text-white">Tìm theo mã booking</h3>
-                      <p className="mt-2 text-xs leading-6 text-neutral-500">Dùng khi khách đọc mã booking nhưng chưa mở được QR.</p>
+                      <h3 className="mt-2 text-xl font-black uppercase text-white">Tìm theo mã đơn</h3>
+                      <p className="mt-2 text-xs leading-6 text-neutral-400">Nhập mã booking BK... hoặc mã nhận bắp nước FO... khi khách chưa mở được QR.</p>
                     </div>
                     <div className="relative">
-                      <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-600" />
+                      <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
                       <input
                         value={bookingCode}
                         onChange={(event) => setBookingCode(event.target.value)}
-                        placeholder="VD: BKABC123..."
-                        className="w-full border border-neutral-800 bg-black py-4 pl-11 pr-4 text-sm font-bold text-white outline-none transition placeholder:text-neutral-700 focus:border-emerald-400/70"
+                        placeholder="VD: BKABC123... hoặc FOABC123..."
+                        className="w-full rounded-xl border border-white/10 bg-black/60 py-3.5 pl-11 pr-4 text-sm font-bold text-white outline-none transition placeholder:text-neutral-600 focus:border-purple-400/70 focus:ring-1 focus:ring-purple-400/20"
                       />
                     </div>
                     <button
                       type="button"
                       onClick={() => lookupBooking()}
                       disabled={isLookingUp || !bookingCode.trim()}
-                      className="flex w-full items-center justify-center gap-2 border border-neutral-700 bg-black px-5 py-3.5 text-[10px] font-black uppercase tracking-[0.18em] text-neutral-300 transition hover:border-purple-400 hover:text-white disabled:opacity-50"
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-5 py-3.5 text-[10px] font-black uppercase tracking-[0.18em] text-neutral-200 transition hover:border-purple-400 hover:bg-white/10 hover:text-white disabled:opacity-50"
                     >
-                      {isLookingUp ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Tra cứu booking
+                      {isLookingUp ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} {isFoodPickupCode(bookingCode) ? 'Tra cứu đơn bắp nước' : 'Tra cứu booking'}
                     </button>
                     {result?.booking?.qrCode && result.booking.status === 'PAID' && isBookingCheckInOpen(result.booking) && (
                       <button
                         type="button"
                         onClick={() => checkInByQr(result.booking.qrCode)}
                         disabled={isCheckingIn}
-                        className="flex w-full items-center justify-center gap-2 border border-emerald-400/40 bg-emerald-400/10 px-5 py-3.5 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300 transition hover:bg-emerald-400 hover:text-black disabled:opacity-50"
+                        className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-5 py-3.5 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300 transition hover:bg-emerald-400 hover:text-black disabled:opacity-50"
                       >
                         {isCheckingIn ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Check-in booking vừa tra
                       </button>
@@ -1036,6 +1337,7 @@ export default function StaffCheckInPage() {
                 selectedTicketCodes={selectedTicketCodes}
                 onToggleSeat={toggleSeatSelection}
                 onConfirmSeats={checkInSelectedSeats}
+                onConfirmFood={checkInByQr}
                 isCheckingIn={isCheckingIn}
                 onOpenCounterSale={openCounterSale}
               />
@@ -1181,30 +1483,30 @@ export default function StaffCheckInPage() {
               </div>
             </section> */}
 
-            <section className="border border-neutral-800 bg-[#070707] p-5">
+            <section className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#0c0e12] to-[#050608] p-5 shadow-2xl">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <p className="text-[9px] font-black uppercase tracking-[0.2em] text-purple-400">Quầy bắp nước</p>
                   <h3 className="mt-1 text-lg font-black uppercase text-white">Trạng thái món/combo</h3>
-                  <p className="mt-2 text-xs leading-6 text-neutral-500">
+                  <p className="mt-2 text-xs leading-6 text-neutral-400">
                     STAFF có thể đổi nhanh trạng thái bắp nước theo quầy: mở bán, sắp hết hoặc hết.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <span className="border border-neutral-700 bg-black px-3 py-2 text-[10px] font-black uppercase tracking-widest text-neutral-300">
+                  <span className="rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-neutral-300">
                     {foodStats.active}/{foodStats.total} đang bán
                   </span>
-                  <span className="border border-purple-400/30 bg-purple-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-purple-300">
+                  <span className="rounded-xl border border-purple-400/30 bg-purple-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-purple-300">
                     {foodStats.lowStock} sắp hết
                   </span>
-                  <span className="border border-purple-400/30 bg-purple-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-purple-300">
+                  <span className="rounded-xl border border-purple-400/30 bg-purple-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-purple-300">
                     {foodStats.outOfStock} hết
                   </span>
                   <button
                     type="button"
                     onClick={loadStaffFoods}
                     disabled={isLoadingStaffFoods}
-                    className="flex items-center gap-2 border border-neutral-700 bg-black px-4 py-2 text-[10px] font-black uppercase tracking-widest text-neutral-300 transition hover:border-emerald-400 hover:text-white disabled:opacity-50"
+                    className="flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-2 text-[10px] font-black uppercase tracking-widest text-neutral-200 transition hover:border-emerald-400 hover:bg-white/10 hover:text-white disabled:opacity-50"
                   >
                     <RefreshCw className={`h-3.5 w-3.5 ${isLoadingStaffFoods ? 'animate-spin' : ''}`} /> Làm mới
                   </button>
@@ -1213,8 +1515,8 @@ export default function StaffCheckInPage() {
 
               {staffFoodError && <p className="mt-3 text-xs font-bold text-rose-400">{staffFoodError}</p>}
 
-              <div className="mt-4 flex flex-col gap-2 border border-neutral-800 bg-black p-3 sm:flex-row sm:items-center">
-                <div className="flex min-w-0 flex-1 items-center gap-3 border border-neutral-800 bg-[#070707] px-3 py-2.5 focus-within:border-purple-400">
+              <div className="mt-4 flex flex-col gap-2 rounded-xl border border-white/10 bg-black/50 p-3 sm:flex-row sm:items-center">
+                <div className="flex min-w-0 flex-1 items-center gap-3 rounded-lg border border-white/10 bg-[#070707] px-3 py-2.5 focus-within:border-purple-400">
                   <Search className="h-4 w-4 shrink-0 text-neutral-500" />
                   <input
                     type="search"
@@ -1231,18 +1533,18 @@ export default function StaffCheckInPage() {
 
               <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {isLoadingStaffFoods ? (
-                  <div className="border border-neutral-800 bg-black p-4 text-xs font-bold text-neutral-500">Đang tải danh sách bắp nước...</div>
+                  <div className="rounded-xl border border-white/10 bg-black/60 p-4 text-xs font-bold text-neutral-500">Đang tải danh sách bắp nước...</div>
                 ) : filteredStaffFoods.length > 0 ? paginatedStaffFoods.map((food) => {
                   const foodKey = `${food.kind}-${food.id}`;
                   const statusMeta = getFoodStatusMeta(food.status);
                   return (
-                    <div key={foodKey} className="border border-neutral-800 bg-black p-4">
+                    <div key={foodKey} className="rounded-xl border border-white/10 bg-black/60 p-4 transition hover:border-purple-400/30">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-black uppercase text-white">{food.name}</p>
                           <p className="mt-1 text-[9px] font-black uppercase tracking-widest text-neutral-500">{food.kind === 'combo' ? 'Combo' : 'Món lẻ'}</p>
                         </div>
-                        <span className={`px-2 py-1 text-[9px] font-black uppercase ${statusMeta.className}`}>
+                        <span className={`rounded px-2 py-1 text-[9px] font-black uppercase ${statusMeta.className}`}>
                           {statusMeta.label}
                         </span>
                       </div>
@@ -1250,7 +1552,7 @@ export default function StaffCheckInPage() {
                         value={food.status || 'ACTIVE'}
                         onChange={(event) => updateStaffFoodStatus(food, event.target.value)}
                         disabled={savingStaffFoodKey === foodKey}
-                        className="mt-4 w-full border border-neutral-800 bg-[#070707] px-3 py-2.5 text-xs font-black text-white outline-none transition focus:border-purple-400 disabled:opacity-50"
+                        className="mt-4 w-full rounded-lg border border-white/10 bg-black/80 px-3 py-2.5 text-xs font-black text-white outline-none transition focus:border-purple-400 disabled:opacity-50"
                       >
                         <option value="ACTIVE">Mở bán</option>
                         <option value="LOW_STOCK">Sắp hết</option>
@@ -1259,12 +1561,12 @@ export default function StaffCheckInPage() {
                     </div>
                   );
                 }) : (
-                  <div className="border border-dashed border-neutral-800 bg-black p-4 text-xs font-bold text-neutral-500">
+                  <div className="rounded-xl border border-dashed border-white/10 bg-black/60 p-4 text-xs font-bold text-neutral-500">
                     {staffFoodSearch.trim() ? 'Không tìm thấy món/combo phù hợp.' : 'Chưa có món bắp nước nào.'}
                   </div>
                 )}
               </div>
-              <div className="mt-4 flex flex-col gap-3 border border-neutral-800 bg-black/80 p-3 text-[10px] font-black uppercase tracking-[0.18em] text-neutral-500 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mt-4 flex flex-col gap-3 rounded-xl border border-white/10 bg-black/80 p-3 text-[10px] font-black uppercase tracking-[0.18em] text-neutral-400 sm:flex-row sm:items-center sm:justify-between">
                 <span>
                   Hiển thị {staffFoodDisplayStart}-{staffFoodDisplayEnd}/{filteredStaffFoods.length} món - Trang {safeStaffFoodPage}/{staffFoodTotalPages}
                 </span>
@@ -1273,7 +1575,7 @@ export default function StaffCheckInPage() {
                     type="button"
                     disabled={safeStaffFoodPage <= 1}
                     onClick={() => setStaffFoodPage((page) => Math.max(1, page - 1))}
-                    className="inline-flex items-center gap-1 border border-neutral-700 px-3 py-2 text-white transition hover:border-purple-400 disabled:opacity-30"
+                    className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-2 text-white transition hover:border-purple-400 disabled:opacity-30"
                   >
                     <ChevronLeft className="h-3.5 w-3.5" /> Trước
                   </button>
@@ -1281,7 +1583,7 @@ export default function StaffCheckInPage() {
                     type="button"
                     disabled={safeStaffFoodPage >= staffFoodTotalPages}
                     onClick={() => setStaffFoodPage((page) => Math.min(staffFoodTotalPages, page + 1))}
-                    className="inline-flex items-center gap-1 border border-neutral-700 px-3 py-2 text-white transition hover:border-purple-400 disabled:opacity-30"
+                    className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-2 text-white transition hover:border-purple-400 disabled:opacity-30"
                   >
                     Sau <ChevronRight className="h-3.5 w-3.5" />
                   </button>
@@ -1289,7 +1591,7 @@ export default function StaffCheckInPage() {
               </div>
             </section>
 
-            <section className="overflow-hidden border border-neutral-800 bg-[#070707]">
+            <section className="overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-[#0c0e12] to-[#050608] shadow-2xl">
               <div className="border-b border-neutral-800 p-5">
                 <p className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400">
                   {isShowingShowtimeBookings ? 'Dữ liệu showtime từ API' : 'Dữ liệu recent từ API'}

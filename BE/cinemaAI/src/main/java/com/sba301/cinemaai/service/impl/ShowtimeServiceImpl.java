@@ -28,6 +28,7 @@ import com.sba301.cinemaai.service.BulkRefundService;
 import java.time.LocalTime;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -66,6 +67,7 @@ public class ShowtimeServiceImpl implements ShowtimeService {
     private final SeatRepository seatRepository;
     private final BookingRepository bookingRepository;
     private final BookingSeatRepository bookingSeatRepository;
+    private final MovieGenreRepository movieGenreRepository;
     private final RoomService roomService;
     private final CinemaMapper cinemaMapper;
     private final RefundService refundService;
@@ -85,18 +87,32 @@ public class ShowtimeServiceImpl implements ShowtimeService {
     public PageResponse<ShowtimeResponse> searchPublic(Long movieId, Long roomId, LocalDate date, int page, int size) {
         LocalDateTime from = date == null ? LocalDate.now().atStartOfDay() : date.atStartOfDay();
         LocalDateTime to = date == null ? LocalDate.now().plusYears(1).atStartOfDay() : date.plusDays(1).atStartOfDay();
-        // Customers must not see showtimes that already started (today's earlier slots)
         LocalDateTime now = LocalDateTime.now();
         if (from.isBefore(now)) {
             from = now;
         }
-        return PageResponse.from(showtimeRepository.searchPublic(
-                movieId,
-                roomId,
-                from,
-                to,
-                pageable(page, size, Sort.by("startTime").ascending())
-        ).map(cinemaMapper::toShowtimeResponse));
+
+        org.springframework.data.domain.Page<Showtime> showtimePage =
+                showtimeRepository.searchPublic(movieId, roomId, from, to,
+                        pageable(page, size, Sort.by("startTime").ascending()));
+
+        // Batch-fetch genres for all movies on this page
+        List<Long> movieIds = showtimePage.stream()
+                .map(st -> st.getMovie().getId())
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, List<String>> genresByMovieId = movieIds.isEmpty() ? Map.of()
+                : movieGenreRepository.findWithGenreByMovieIdIn(movieIds).stream()
+                    .filter(mg -> mg.getGenre() != null)
+                    .collect(Collectors.groupingBy(
+                        mg -> mg.getMovie().getId(),
+                        Collectors.mapping(mg -> mg.getGenre().getName(), Collectors.toList())
+                    ));
+
+        return PageResponse.from(showtimePage.map(st ->
+                cinemaMapper.toShowtimeResponse(st,
+                        genresByMovieId.getOrDefault(st.getMovie().getId(), Collections.emptyList()))
+        ));
     }
 
     // -------------------------------------------------------------------------
@@ -113,10 +129,10 @@ public class ShowtimeServiceImpl implements ShowtimeService {
             LocalDate date,
             int page, int size) {
 
-        LocalDateTime from = date == null ? LocalDate.now().atStartOfDay()              : date.atStartOfDay();
-        LocalDateTime to   = date == null ? LocalDate.now().plusYears(1).atStartOfDay() : date.plusDays(1).atStartOfDay();
+        LocalDateTime from = date == null ? LocalDateTime.of(2000, 1, 1, 0, 0) : date.atStartOfDay();
+        LocalDateTime to   = date == null ? LocalDateTime.of(2099, 12, 31, 23, 59) : date.plusDays(1).atStartOfDay();
 
-        Pageable pageable = pageable(page, size, Sort.by("startTime").ascending());
+        Pageable pageable = pageable(page, size, Sort.by("id").descending());
         return PageResponse.from(
                 showtimeRepository.searchAdmin(movieId, roomId, cinemaId, status, from, to, pageable)
                         .map(cinemaMapper::toShowtimeResponse)
@@ -491,7 +507,7 @@ public class ShowtimeServiceImpl implements ShowtimeService {
         if (currentStatus == ShowtimeStatus.CANCELLED) {
             throw new BadRequestException("Cannot change status of a cancelled showtime");
         }
-        if (currentStatus == ShowtimeStatus.COMPLETED) {
+        if (currentStatus == ShowtimeStatus.COMPLETED && requestedStatus != ShowtimeStatus.CANCELLED) {
             throw new BadRequestException("Cannot change status of a completed showtime");
         }
         // Guard: cannot mark completed before the show ends

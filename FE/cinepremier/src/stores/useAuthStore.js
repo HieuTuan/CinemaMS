@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { authService, clearAuthSession, getStoredAuth, hasBackendAdminAccess, normalizeUser, saveAuthSession } from '../services/authService';
+import { authService, clearAuthSession, getStoredAuth, hasBackendAdminAccess, hasBackendStaffAccess, normalizeUser, saveAuthSession } from '../services/authService';
 import { userService } from '../services/userService';
 
 const resolveNextValue = (nextValue, previousValue) => (
@@ -41,7 +41,11 @@ export const useAuthStore = create((set, get) => ({
     try {
       const { accessToken, accessTokenExpiresAt, refreshToken, user } = getStoredAuth();
       if (user) {
-        const restoredRole = hasBackendAdminAccess(accessToken, user) ? 'admin' : user.role || 'user';
+        const restoredRole = hasBackendAdminAccess(accessToken, user)
+          ? 'admin'
+          : hasBackendStaffAccess(accessToken, user)
+            ? 'staff'
+            : user.role || 'user';
         get().setAuthSession({ ...user, role: restoredRole }, restoredRole);
       }
       if (!accessToken && !refreshToken) return;
@@ -73,7 +77,7 @@ export const useAuthStore = create((set, get) => ({
         profile = await userService.getMyProfile(token);
       }
 
-      const nextUser = normalizeUser(profile, profile.roles || user?.roles || []);
+      const nextUser = normalizeUser(profile, profile.roles || user?.roles || [], token);
       localStorage.setItem('cinepremier_auth_user', JSON.stringify(nextUser));
       get().setAuthSession(nextUser, nextUser.role || 'user');
     } catch {

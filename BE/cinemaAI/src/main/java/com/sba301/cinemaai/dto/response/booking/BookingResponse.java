@@ -38,6 +38,7 @@ public record BookingResponse(
         String customerPhone,
         String userEmail,
         LocalDateTime showtimeEnd,
+        LocalDateTime createdAt,
         List<BookingSeatResponse> seats,
         List<BookingTicketResponse> tickets,
         List<BookingFoodResponse> foods

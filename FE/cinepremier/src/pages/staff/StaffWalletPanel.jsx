@@ -33,19 +33,33 @@ function StatusBadge({ status }) {
       padding: '3px 9px', borderRadius: 6, fontSize: 10, fontWeight: 700,
       color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.color}30`,
       fontFamily: 'Inter, sans-serif', textTransform: 'uppercase', letterSpacing: '0.06em',
+      position: 'relative',
     }}>
+      {status === 'PENDING' && (
+        <span style={{
+          width: 6, height: 6, borderRadius: '50%', background: '#ef4444',
+          boxShadow: '0 0 6px #ef4444', animation: 'ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite',
+        }} />
+      )}
       <Icon size={10} /> {cfg.label}
     </span>
   );
 }
 
-function KpiCard({ label, value, icon: Icon, accent, sub }) {
+function KpiCard({ label, value, icon: Icon, accent, sub, hasPendingBadge }) {
   return (
     <div style={{
       background: 'linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))',
       border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '18px 20px',
       display: 'flex', flexDirection: 'column', gap: 10, position: 'relative', overflow: 'hidden',
     }}>
+      {hasPendingBadge && (
+        <span style={{
+          position: 'absolute', top: 8, right: 8, width: 9, height: 9,
+          borderRadius: '50%', background: '#ef4444', border: '1.5px solid #000',
+          boxShadow: '0 0 8px #ef4444'
+        }} />
+      )}
       <div style={{
         position: 'absolute', top: -28, right: -28, width: 80, height: 80, borderRadius: '50%',
         background: `radial-gradient(circle, ${accent}20 0%, transparent 70%)`, pointerEvents: 'none',
@@ -77,7 +91,7 @@ function InfoRow({ label, value, accent }) {
   );
 }
 
-export default function StaffWalletPanel({ token, showToast }) {
+export default function StaffWalletPanel({ token, showToast, onPendingCountChange }) {
   const [dashboard, setDashboard]       = useState(null);
   const [withdrawals, setWithdrawals]   = useState([]);
   const [wdPage, setWdPage]             = useState({ page: 0, totalPages: 1 });
@@ -88,20 +102,24 @@ export default function StaffWalletPanel({ token, showToast }) {
   const [processNote, setProcessNote]   = useState('');
   const [rejectNote, setRejectNote]     = useState('');
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
+  const [txPage, setTxPage]             = useState(0);
 
   const fetchDashboard = useCallback(async () => {
     if (!token) return;
     try {
       const data = await staffService.getWalletDashboard(token);
       setDashboard(data);
+      if (onPendingCountChange && data && typeof data.pendingWithdrawalsCount === 'number') {
+        onPendingCountChange(data.pendingWithdrawalsCount);
+      }
     } catch (e) { console.error('Dashboard fetch failed', e); }
-  }, [token]);
+  }, [token, onPendingCountChange]);
 
   const fetchWithdrawals = useCallback(async (page = 0) => {
     if (!token) return;
     setIsLoading(true);
     try {
-      const params = { page, size: 15 };
+      const params = { page, size: 10 };
       if (statusFilter) params.status = statusFilter;
       const data = await staffService.getWithdrawals(token, params);
       const items = data?.content || data?.items || (Array.isArray(data) ? data : []);
@@ -147,10 +165,9 @@ export default function StaffWalletPanel({ token, showToast }) {
   };
 
   const kpis = dashboard ? [
-    { label: 'Tổng số dư ví', value: fmtVND(dashboard.totalWalletBalance), icon: Wallet, accent: '#f59e0b', sub: `${dashboard.totalWallets || 0} ví` },
     { label: 'Tổng đã rút', value: fmtVND(dashboard.totalWithdrawnAmount), icon: ArrowUpCircle, accent: '#06b6d4', sub: 'Đã chuyển khoản' },
     { label: 'Hoàn vào ví', value: fmtVND(dashboard.totalRefundedToWallet), icon: ArrowDownCircle, accent: '#10b981', sub: 'Từ hủy suất chiếu' },
-    { label: 'Chờ xử lý', value: `${dashboard.pendingWithdrawalsCount || 0} yêu cầu`, icon: Clock, accent: '#a855f7', sub: fmtVND(dashboard.pendingWithdrawalsAmount) },
+    { label: 'Chờ xử lý', value: `${dashboard.pendingWithdrawalsCount || 0} yêu cầu`, icon: Clock, accent: '#a855f7', sub: fmtVND(dashboard.pendingWithdrawalsAmount), hasPendingBadge: (dashboard.pendingWithdrawalsCount || 0) > 0 },
   ] : [];
 
   const closeModal = () => { setSelectedWd(null); setShowRejectConfirm(false); setProcessNote(''); setRejectNote(''); };
@@ -165,13 +182,13 @@ export default function StaffWalletPanel({ token, showToast }) {
             <Wallet size={18} color="#fff" />
           </div>
           <div>
-            <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: '#f59e0b', letterSpacing: '0.15em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}>CINEWALLET — STAFF</p>
+            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#f59e0b', fontFamily: 'Inter, sans-serif' }}>CineWallet — Staff</span>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#fff', fontFamily: 'Inter, sans-serif' }}>Quản lý ví &amp; rút tiền</h2>
           </div>
         </div>
         <button
           onClick={() => { fetchDashboard(); fetchWithdrawals(wdPage.page); }}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.09)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
         >
           <RefreshCw size={12} /> Làm mới
         </button>
@@ -194,8 +211,21 @@ export default function StaffWalletPanel({ token, showToast }) {
           <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: 3, border: '1px solid rgba(255,255,255,0.06)' }}>
             {[{ val: '', label: 'Tất cả' }, { val: 'PENDING', label: 'Chờ xử lý' }, { val: 'PAID', label: 'Đã chuyển' }, { val: 'REJECTED', label: 'Từ chối' }].map((opt) => (
               <button key={opt.val} onClick={() => setStatusFilter(opt.val)}
-                style={{ padding: '5px 12px', fontSize: 10, fontWeight: 700, fontFamily: 'Inter, sans-serif', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.2s', background: statusFilter === opt.val ? 'linear-gradient(135deg, #a855f7, #7c3aed)' : 'transparent', color: statusFilter === opt.val ? '#fff' : 'rgba(255,255,255,0.35)', boxShadow: statusFilter === opt.val ? '0 2px 8px rgba(168,85,247,0.3)' : 'none' }}>
+                style={{
+                  position: 'relative',
+                  padding: '5px 12px', fontSize: 10, fontWeight: 700, fontFamily: 'Inter, sans-serif', borderRadius: 6, border: 'none', cursor: 'pointer', transition: 'all 0.2s',
+                  background: statusFilter === opt.val ? 'linear-gradient(135deg, #a855f7, #7c3aed)' : 'transparent',
+                  color: statusFilter === opt.val ? '#fff' : 'rgba(255,255,255,0.35)',
+                  boxShadow: statusFilter === opt.val ? '0 2px 8px rgba(168,85,247,0.3)' : 'none'
+                }}>
                 {opt.label}
+                {opt.val === 'PENDING' && (dashboard?.pendingWithdrawalsCount || 0) > 0 && (
+                  <span style={{
+                    position: 'absolute', top: -2, right: -2, width: 7, height: 7,
+                    borderRadius: '50%', background: '#ef4444', border: '1px solid #000',
+                    boxShadow: '0 0 6px #ef4444'
+                  }} />
+                )}
               </button>
             ))}
           </div>
@@ -349,34 +379,75 @@ export default function StaffWalletPanel({ token, showToast }) {
       </AnimatePresence>
 
       {/* Recent transactions */}
-      {dashboard?.recentTransactions?.length > 0 && (
-        <div style={{ background: 'linear-gradient(160deg, rgba(255,255,255,0.025), rgba(255,255,255,0.008))', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 20 }}>
-          <div style={{ marginBottom: 14 }}>
-            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#10b981', fontFamily: 'Inter, sans-serif' }}>Recent Activity</span>
-            <h3 style={{ margin: '3px 0 0', fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter, sans-serif' }}>Giao dịch ví gần đây</h3>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {dashboard.recentTransactions.map((tx, i) => (
-              <div key={tx.id || i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 13px', background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.04)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 26, height: 26, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', background: tx.type === 'REFUND_CREDIT' ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)', border: `1px solid ${tx.type === 'REFUND_CREDIT' ? 'rgba(16,185,129,0.22)' : 'rgba(245,158,11,0.22)'}` }}>
-                    {tx.type === 'REFUND_CREDIT' ? <ArrowDownCircle size={12} color="#10b981" /> : <ArrowUpCircle size={12} color="#f59e0b" />}
-                  </div>
-                  <div>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', fontFamily: 'Inter, sans-serif', display: 'block' }}>
-                      {tx.type === 'REFUND_CREDIT' ? 'Hoàn tiền' : tx.type === 'WITHDRAWAL_HOLD' ? 'Yêu cầu rút' : tx.type === 'WITHDRAWAL_PAID' ? 'Đã chuyển khoản' : tx.type === 'WITHDRAWAL_REJECTED' ? 'Hoàn lại (từ chối)' : tx.type}
-                    </span>
-                    <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', fontFamily: 'Inter, sans-serif' }}>{tx.referenceCode} · {fmtDate(tx.createdAt)}</span>
-                  </div>
-                </div>
-                <span style={{ fontSize: 12, fontWeight: 800, fontFamily: 'Inter, sans-serif', color: (tx.amount > 0 || tx.type === 'REFUND_CREDIT') ? '#10b981' : '#f43f5e' }}>
-                  {tx.amount > 0 ? '+' : ''}{fmtVND(Math.abs(tx.amount))}
-                </span>
+      {(() => {
+        const recentTxs = (dashboard?.recentTransactions || []).filter((tx) => tx.type !== 'WITHDRAWAL_PAID' && Math.abs(Number(tx.amount || 0)) > 0);
+        if (recentTxs.length === 0) return null;
+        const txPageSize = 10;
+        const txTotalPages = Math.ceil(recentTxs.length / txPageSize) || 1;
+        const currentTxs = recentTxs.slice(txPage * txPageSize, (txPage + 1) * txPageSize);
+
+        return (
+          <div style={{ background: 'linear-gradient(160deg, rgba(255,255,255,0.025), rgba(255,255,255,0.008))', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 20 }}>
+            <div style={{ marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#10b981', fontFamily: 'Inter, sans-serif' }}>Recent Activity</span>
+                <h3 style={{ margin: '3px 0 0', fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter, sans-serif' }}>Giao dịch ví gần đây</h3>
               </div>
-            ))}
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif' }}>
+                Trang {txPage + 1}/{txTotalPages} ({recentTxs.length} giao dịch)
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {currentTxs.map((tx, i) => (
+                <div key={tx.id || i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 13px', background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.04)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 26, height: 26, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', background: tx.type === 'REFUND_CREDIT' ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)', border: `1px solid ${tx.type === 'REFUND_CREDIT' ? 'rgba(16,185,129,0.22)' : 'rgba(245,158,11,0.22)'}` }}>
+                      {tx.type === 'REFUND_CREDIT' ? <ArrowDownCircle size={12} color="#10b981" /> : <ArrowUpCircle size={12} color="#f59e0b" />}
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', fontFamily: 'Inter, sans-serif', display: 'block' }}>
+                        {tx.type === 'REFUND_CREDIT' ? 'Hoàn tiền' : tx.type === 'WITHDRAWAL_HOLD' ? 'Yêu cầu rút' : tx.type === 'WITHDRAWAL_REJECTED' ? 'Hoàn lại (từ chối)' : tx.type}
+                      </span>
+                      <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', fontFamily: 'Inter, sans-serif' }}>{tx.referenceCode} · {fmtDate(tx.createdAt)}</span>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 800, fontFamily: 'Inter, sans-serif', color: (tx.amount > 0 || tx.type === 'REFUND_CREDIT') ? '#10b981' : '#f43f5e' }}>
+                    {tx.amount > 0 ? '+' : ''}{fmtVND(Math.abs(tx.amount))}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {txTotalPages > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 16 }}>
+                <button
+                  disabled={txPage === 0}
+                  onClick={() => setTxPage((p) => Math.max(0, p - 1))}
+                  style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: txPage === 0 ? 'rgba(255,255,255,0.2)' : '#fff', fontSize: 11, fontWeight: 700, cursor: txPage === 0 ? 'not-allowed' : 'pointer' }}
+                >
+                  Trước
+                </button>
+                {Array.from({ length: txTotalPages }, (_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setTxPage(i)}
+                    style={{ width: 30, height: 30, borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)', background: i === txPage ? '#10b981' : 'rgba(255,255,255,0.04)', color: i === txPage ? '#fff' : 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+                <button
+                  disabled={txPage >= txTotalPages - 1}
+                  onClick={() => setTxPage((p) => Math.min(txTotalPages - 1, p + 1))}
+                  style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: txPage >= txTotalPages - 1 ? 'rgba(255,255,255,0.2)' : '#fff', fontSize: 11, fontWeight: 700, cursor: txPage >= txTotalPages - 1 ? 'not-allowed' : 'pointer' }}
+                >
+                  Sau
+                </button>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
